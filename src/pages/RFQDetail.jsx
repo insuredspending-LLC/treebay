@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { Card } from "@/components/ui/card";
@@ -78,7 +78,7 @@ export default function RFQDetail() {
 
   return (
     <div className="space-y-5">
-      <Link to="/rfqs" className="text-sm text-muted-foreground flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> All RFQs</Link>
+      <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1 no-tap-highlight"><ArrowLeft className="w-4 h-4" /> Back</button>
       <div>
         <div className="flex items-start justify-between gap-3">
           <div>

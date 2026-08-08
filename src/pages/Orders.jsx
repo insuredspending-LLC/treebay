@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { ShoppingCart, Loader2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";
+import PullToRefresh from "@/components/PullToRefresh";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency } from "@/lib/treebay";
 
 export default function Orders() {
@@ -13,14 +14,15 @@ export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try { setOrders(await base44.entities.Order.list("-created_date", 100) || []); } catch {}
-      finally { setLoading(false); }
-    })();
-  }, []);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try { setOrders(await base44.entities.Order.list("-created_date", 100) || []); } catch {}
+    finally { if (!silent) setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
 
   return (
+    <PullToRefresh onRefresh={() => load(true)}>
     <div className="space-y-4">
       <div><h1 className="text-xl font-bold">Orders</h1><p className="text-sm text-muted-foreground">{accountType === "vendor" ? "Orders from buyers." : "Your marketplace orders."}</p></div>
       {loading ? <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
@@ -50,5 +52,6 @@ export default function Orders() {
           </div>
         )}
     </div>
+    </PullToRefresh>
   );
 }

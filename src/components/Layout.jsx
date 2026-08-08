@@ -1,12 +1,12 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
 import { useAuth } from "@/lib/AuthContext";
 import { createNotification } from "@/lib/treebay";
-import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck } from "lucide-react";
+import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck, ChevronLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import { cn } from "@/lib/utils";
+import KeepAliveOutlet from "@/components/KeepAliveOutlet";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,19 +35,44 @@ function useNotifications() {
   return { items, unread, markAllRead, load };
 }
 
+const DETAIL_HEADERS = [
+  { re: /^\/product\/[^/]+/, title: "Listing" },
+  { re: /^\/projects\/[^/]+/, title: "Project" },
+  { re: /^\/rfqs\/[^/]+/, title: "RFQ" },
+  { re: /^\/orders\/[^/]+/, title: "Order" },
+  { re: /^\/messages\/[^/]+/, title: "Conversation" },
+  { re: /^\/vendor\/inventory\/[^/]+/, title: "Listing" },
+  { re: /^\/vendor\/rfqs\/[^/]+/, title: "Quote" },
+  { re: /^\/vendor\/[^/]+/, title: "Vendor" },
+];
+
+function getHeaderState(pathname) {
+  for (const d of DETAIL_HEADERS) if (d.re.test(pathname)) return { isChild: true, title: d.title };
+  return { isChild: false, title: "" };
+}
+
 function TopBar() {
   const { user, accountType } = useAppUser();
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isChild, title } = getHeaderState(location.pathname);
   return (
     <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border pt-[env(safe-area-inset-top)]">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <button onClick={() => navigate("/")} className="flex items-center gap-2 no-tap-highlight">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Leaf className="w-5 h-5 text-primary-foreground" />
+        {isChild ? (
+          <div className="flex items-center gap-1 min-w-0">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back" className="shrink-0 -ml-2"><ChevronLeft className="w-5 h-5" /></Button>
+            <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
           </div>
-          <span className="font-heading font-extrabold text-lg text-primary tracking-tight">Treebay</span>
-        </button>
+        ) : (
+          <button onClick={() => navigate("/")} className="flex items-center gap-2 no-tap-highlight">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <Leaf className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <span className="font-heading font-extrabold text-lg text-primary tracking-tight">Treebay</span>
+          </button>
+        )}
         <div className="flex items-center gap-1">
           <Popover>
             <PopoverTrigger asChild>
@@ -98,24 +123,13 @@ const VENDOR_NAV = [
 
 export default function Layout() {
   const { accountType } = useAppUser();
-  const location = useLocation();
   const nav = accountType === "vendor" ? VENDOR_NAV : BUYER_NAV;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar />
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-5 pb-24">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        <KeepAliveOutlet key={accountType} keepPaths={nav.map((n) => n.to)} />
       </main>
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-md mx-auto grid grid-cols-5">

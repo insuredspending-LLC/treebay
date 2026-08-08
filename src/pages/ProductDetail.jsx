@@ -125,7 +125,7 @@ export default function ProductDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Link to="/marketplace" className="text-sm text-muted-foreground flex items-center gap-1"><ChevronLeft className="w-4 h-4" /> Marketplace</Link>
+        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1 no-tap-highlight"><ChevronLeft className="w-4 h-4" /> Back</button>
         <Button variant="ghost" size="sm" onClick={() => setReport(true)}>Report listing</Button>
       </div>
 

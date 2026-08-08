@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, SlidersHorizontal, Loader2, X } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import EmptyState from "@/components/EmptyState";
+import PullToRefresh from "@/components/PullToRefresh";
 import { CATEGORIES, approxDistance } from "@/lib/treebay";
 
 const DEFAULT_FILTERS = {
@@ -38,8 +39,8 @@ export default function Marketplace() {
     setCategory(params.get("category") || "all");
   }, [params]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [prods, favList] = await Promise.all([
         base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 200),
@@ -50,7 +51,7 @@ export default function Marketplace() {
       (favList || []).forEach((f) => { if (f.target_type === "product") m[f.target_id] = f; });
       setFavs(m);
     } catch (e) { /* */ }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
@@ -99,6 +100,7 @@ export default function Marketplace() {
   const activeCount = Object.entries(filters).filter(([k, v]) => v !== DEFAULT_FILTERS[k] && v !== "" && v !== "all" && v !== 0 && v !== false).length;
 
   return (
+    <PullToRefresh onRefresh={() => load(true)}>
     <div className="space-y-4">
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -195,6 +197,7 @@ export default function Marketplace() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

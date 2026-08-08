@@ -5,7 +5,6 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import OnboardingGate from '@/components/OnboardingGate';
 import Layout from '@/components/Layout';
@@ -120,7 +119,6 @@ function App() {
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
-            <ScrollToTop />
             <AuthenticatedApp />
           </Router>
           <Toaster />

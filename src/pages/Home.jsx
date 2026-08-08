@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Image } from "@/components/ui/image";
 import { Search, MapPin, Package, Truck, FileText, ArrowRight, Leaf, Sparkles, Loader2 } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
+import PullToRefresh from "@/components/PullToRefresh";
 import { seedDemoData } from "@/lib/seed";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -34,26 +35,27 @@ export default function Home() {
 
   const myCity = buyerProfile ? `${buyerProfile.city}, ${buyerProfile.state}` : null;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const all = await base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 60);
-        const list = all || [];
-        setPopular(list.filter((p) => p.featured).concat(list).slice(0, 8));
-        if (myCity) {
-          const withDist = list.map((p) => ({ p, d: approxDistance(myCity, `${p.vendor_city}, ${p.vendor_state}`) }));
-          setNear(withDist.filter((x) => x.d !== null).sort((a, b) => a.d - b.d).slice(0, 8).map((x) => x.p));
-        } else {
-          setNear(list.slice(0, 8));
-        }
-      } catch (e) { /* */ }
-      finally { setLoading(false); }
-    })();
-  }, [myCity]);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const all = await base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 60);
+      const list = all || [];
+      setPopular(list.filter((p) => p.featured).concat(list).slice(0, 8));
+      if (myCity) {
+        const withDist = list.map((p) => ({ p, d: approxDistance(myCity, `${p.vendor_city}, ${p.vendor_state}`) }));
+        setNear(withDist.filter((x) => x.d !== null).sort((a, b) => a.d - b.d).slice(0, 8).map((x) => x.p));
+      } else {
+        setNear(list.slice(0, 8));
+      }
+    } catch (e) { /* */ }
+    finally { if (!silent) setLoading(false); }
+  };
+  useEffect(() => { load(); }, [myCity]);
 
   const search = (e) => { e.preventDefault(); navigate(`/marketplace?q=${encodeURIComponent(q)}`); };
 
   return (
+    <PullToRefresh onRefresh={() => load(true)}>
     <div className="space-y-8">
       {!loading && popular.length === 0 && (
         <div className="rounded-2xl border border-dashed border-primary/40 bg-secondary/60 p-5 flex flex-col sm:flex-row items-center gap-4 justify-between">
@@ -123,6 +125,7 @@ export default function Home() {
         </Card>
       </section>
     </div>
+    </PullToRefresh>
   );
 }
 
