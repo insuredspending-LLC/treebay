@@ -1,0 +1,27 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user",
+        "buyer",
+        "vendor",
+        "carrier"
+      ],
+      "default": "user"
+    },
+    "account_type": {
+      "type": "string",
+      "enum": [
+        "buyer",
+        "vendor",
+        "carrier",
+        "admin"
+      ],
+      "default": "buyer"
+    }
+  }
+}

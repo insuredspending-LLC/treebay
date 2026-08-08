@@ -1,0 +1,49 @@
+{
+  "name": "Review",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "reviewer_id": {
+      "type": "string"
+    },
+    "reviewer_name": {
+      "type": "string"
+    },
+    "vendor_id": {
+      "type": "string",
+      "description": "VendorProfile id"
+    },
+    "rating": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "review_text": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "order_id",
+    "reviewer_id",
+    "vendor_id",
+    "rating"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "name": "ContentReport",
+  "type": "object",
+  "properties": {
+    "reporter_id": {
+      "type": "string"
+    },
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "listing",
+        "vendor",
+        "conversation",
+        "review",
+        "user",
+        "message"
+      ]
+    },
+    "target_id": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "fraud_or_scam",
+        "incorrect_information",
+        "prohibited_content",
+        "harassment",
+        "spam",
+        "inappropriate_content",
+        "other"
+      ]
+    },
+    "details": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "dismissed",
+        "actioned"
+      ],
+      "default": "open"
+    },
+    "resolution": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "reporter_id",
+    "target_type",
+    "target_id",
+    "reason"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "name": "BuyerProfile",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string"
+    },
+    "business_name": {
+      "type": "string"
+    },
+    "buyer_type": {
+      "type": "string",
+      "enum": [
+        "Landscaper",
+        "Landscape Designer",
+        "General Contractor",
+        "Developer",
+        "Property Manager",
+        "Municipal Buyer",
+        "Commercial Customer",
+        "Homeowner",
+        "Other"
+      ]
+    },
+    "phone": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "zip_code": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "full_name",
+    "buyer_type",
+    "city",
+    "state",
+    "zip_code"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

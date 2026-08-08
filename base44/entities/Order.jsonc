@@ -1,0 +1,170 @@
+{
+  "name": "Order",
+  "type": "object",
+  "properties": {
+    "order_number": {
+      "type": "string"
+    },
+    "buyer_id": {
+      "type": "string"
+    },
+    "vendor_id": {
+      "type": "string",
+      "description": "VendorProfile id"
+    },
+    "vendor_owner_id": {
+      "type": "string"
+    },
+    "vendor_name": {
+      "type": "string"
+    },
+    "quote_id": {
+      "type": "string"
+    },
+    "rfq_id": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line_name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit_price": {
+            "type": "number"
+          },
+          "subtotal": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "subtotal": {
+      "type": "number"
+    },
+    "delivery_charges": {
+      "type": "number",
+      "default": 0
+    },
+    "taxes": {
+      "type": "number",
+      "default": 0
+    },
+    "platform_fees": {
+      "type": "number",
+      "default": 0
+    },
+    "total": {
+      "type": "number"
+    },
+    "fulfillment_method": {
+      "type": "string",
+      "enum": [
+        "pickup",
+        "vendor_delivery",
+        "third_party_delivery"
+      ],
+      "default": "pickup"
+    },
+    "destination_city": {
+      "type": "string"
+    },
+    "destination_state": {
+      "type": "string"
+    },
+    "destination_zip": {
+      "type": "string"
+    },
+    "requested_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "payment_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "authorized",
+        "paid",
+        "failed",
+        "refunded",
+        "partially_refunded"
+      ],
+      "default": "pending"
+    },
+    "order_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "awaiting_payment",
+        "paid",
+        "confirmed",
+        "preparing",
+        "ready_for_pickup",
+        "in_transit",
+        "delivered",
+        "completed",
+        "cancelled",
+        "refunded"
+      ],
+      "default": "pending"
+    },
+    "vendor_notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "order_number",
+    "buyer_id",
+    "vendor_id",
+    "vendor_owner_id",
+    "total"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.buyer_id": "{{user.id}}"
+        },
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "data.buyer_id": "{{user.id}}"
+        },
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "UserBlock",
+  "type": "object",
+  "properties": {
+    "blocker_id": {
+      "type": "string"
+    },
+    "blocked_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "blocker_id",
+    "blocked_id"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

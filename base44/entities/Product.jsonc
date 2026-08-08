@@ -1,0 +1,202 @@
+{
+  "name": "Product",
+  "type": "object",
+  "properties": {
+    "vendor_id": {
+      "type": "string",
+      "description": "VendorProfile id"
+    },
+    "vendor_owner_id": {
+      "type": "string",
+      "description": "User id of the vendor (for access control)"
+    },
+    "vendor_name": {
+      "type": "string"
+    },
+    "vendor_city": {
+      "type": "string"
+    },
+    "vendor_state": {
+      "type": "string"
+    },
+    "verified_vendor": {
+      "type": "boolean",
+      "default": false
+    },
+    "common_name": {
+      "type": "string"
+    },
+    "botanical_name": {
+      "type": "string"
+    },
+    "cultivar": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "sku": {
+      "type": "string"
+    },
+    "container_size": {
+      "type": "string"
+    },
+    "box_size": {
+      "type": "string"
+    },
+    "caliper": {
+      "type": "string"
+    },
+    "current_height": {
+      "type": "string"
+    },
+    "approximate_spread": {
+      "type": "string"
+    },
+    "quantity_available": {
+      "type": "number",
+      "default": 0
+    },
+    "unit_price": {
+      "type": "number"
+    },
+    "minimum_order_quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "wholesale_eligible": {
+      "type": "boolean",
+      "default": false
+    },
+    "pickup_eligible": {
+      "type": "boolean",
+      "default": true
+    },
+    "delivery_eligible": {
+      "type": "boolean",
+      "default": true
+    },
+    "native_status": {
+      "type": "boolean",
+      "default": false
+    },
+    "foliage_type": {
+      "type": "string",
+      "enum": [
+        "evergreen",
+        "deciduous",
+        "n/a"
+      ]
+    },
+    "usda_zones": {
+      "type": "string"
+    },
+    "sun_requirement": {
+      "type": "string",
+      "enum": [
+        "full sun",
+        "part sun",
+        "part shade",
+        "full shade",
+        ""
+      ]
+    },
+    "water_requirement": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        ""
+      ]
+    },
+    "mature_height": {
+      "type": "string"
+    },
+    "mature_spread": {
+      "type": "string"
+    },
+    "featured": {
+      "type": "boolean",
+      "default": false
+    },
+    "listing_status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "paused",
+        "sold_out",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "bulk_price_tiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "min_qty": {
+            "type": "number"
+          },
+          "max_qty": {
+            "type": "number"
+          },
+          "unit_price": {
+            "type": "number"
+          },
+          "request_quote": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "vendor_id",
+    "vendor_owner_id",
+    "common_name",
+    "category",
+    "unit_price",
+    "quantity_available"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

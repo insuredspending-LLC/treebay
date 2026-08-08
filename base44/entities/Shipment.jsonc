@@ -1,0 +1,104 @@
+{
+  "name": "Shipment",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "buyer_id": {
+      "type": "string"
+    },
+    "vendor_owner_id": {
+      "type": "string"
+    },
+    "pickup_location": {
+      "type": "string"
+    },
+    "delivery_location": {
+      "type": "string"
+    },
+    "pickup_window": {
+      "type": "string"
+    },
+    "delivery_window": {
+      "type": "string"
+    },
+    "cargo_description": {
+      "type": "string"
+    },
+    "estimated_weight": {
+      "type": "string"
+    },
+    "estimated_dimensions": {
+      "type": "string"
+    },
+    "equipment_requirement": {
+      "type": "string"
+    },
+    "shipment_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "scheduled",
+        "in_transit",
+        "delivered",
+        "cancelled"
+      ],
+      "default": "pending"
+    },
+    "carrier_id": {
+      "type": "string"
+    },
+    "freight_quote_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "order_id",
+    "pickup_location",
+    "delivery_location"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.buyer_id": "{{user.id}}"
+        },
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "data.buyer_id": "{{user.id}}"
+        },
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

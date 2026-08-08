@@ -1,0 +1,72 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "new_quote",
+        "quote_updated",
+        "quote_accepted",
+        "order_accepted",
+        "order_ready",
+        "order_shipped",
+        "order_delivered",
+        "order_completed",
+        "new_message",
+        "new_rfq",
+        "new_order",
+        "inventory_low",
+        "rfq_awarded",
+        "general"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "reference_type": {
+      "type": "string"
+    },
+    "reference_id": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "user_id",
+    "type",
+    "title"
+  ],
+  "rls": {
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}
