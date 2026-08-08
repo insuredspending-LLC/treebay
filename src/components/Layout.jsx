@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { createNotification } from "@/lib/treebay";
 import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ function TopBar() {
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
   return (
-    <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border">
+    <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border pt-[env(safe-area-inset-top)]">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <button onClick={() => navigate("/")} className="flex items-center gap-2 no-tap-highlight">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -97,15 +98,26 @@ const VENDOR_NAV = [
 
 export default function Layout() {
   const { accountType } = useAppUser();
+  const location = useLocation();
   const nav = accountType === "vendor" ? VENDOR_NAV : BUYER_NAV;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar />
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-5 pb-24">
-        <Outlet />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
-      <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden">
+      <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-md mx-auto grid grid-cols-5">
           {nav.map((item) => (
             <NavLink

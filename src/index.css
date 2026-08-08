@@ -72,9 +72,14 @@
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
+    overscroll-behavior-y: none;
   }
   h1, h2, h3, h4 {
     @apply font-heading tracking-tight;
+  }
+  button, a, [role="button"], svg {
+    -webkit-user-select: none;
+    user-select: none;
   }
 }
 
