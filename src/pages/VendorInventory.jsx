@@ -33,9 +33,15 @@ export default function VendorInventory() {
   };
 
   const adjustQty = async (p, delta) => {
-    const q = Math.max(0, (p.quantity_available || 0) + delta);
-    try { await base44.entities.Product.update(p.id, { quantity_available: q, listing_status: q === 0 ? "sold_out" : "active" }); load(); }
-    catch (e) { toast({ title: "Could not update", variant: "destructive" }); }
+    const prevQty = p.quantity_available || 0;
+    const prevStatus = p.listing_status;
+    const q = Math.max(0, prevQty + delta);
+    setProducts((list) => list.map((x) => x.id === p.id ? { ...x, quantity_available: q, listing_status: q === 0 ? "sold_out" : "active" } : x));
+    try { await base44.entities.Product.update(p.id, { quantity_available: q, listing_status: q === 0 ? "sold_out" : "active" }); }
+    catch (e) {
+      setProducts((list) => list.map((x) => x.id === p.id ? { ...x, quantity_available: prevQty, listing_status: prevStatus } : x));
+      toast({ title: "Could not update", variant: "destructive" });
+    }
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;

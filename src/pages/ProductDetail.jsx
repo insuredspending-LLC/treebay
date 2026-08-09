@@ -58,8 +58,17 @@ export default function ProductDetail() {
   const canOrder = product.listing_status === "active" && product.quantity_available > 0 && !showReqQuote && qty <= product.quantity_available;
 
   const toggleFav = async () => {
-    if (fav) { try { await base44.entities.Favorite.delete(fav.id); setFav(null); } catch {} }
-    else { try { const f = await base44.entities.Favorite.create({ target_type: "product", target_id: id, target_name: product.common_name }); setFav(f); } catch {} }
+    if (fav) {
+      const prev = fav;
+      setFav(null);
+      try { await base44.entities.Favorite.delete(prev.id); }
+      catch { setFav(prev); }
+    } else {
+      const temp = { id: "temp-" + Date.now(), target_type: "product", target_id: id, target_name: product.common_name };
+      setFav(temp);
+      try { const f = await base44.entities.Favorite.create({ target_type: "product", target_id: id, target_name: product.common_name }); setFav(f); }
+      catch { setFav(null); }
+    }
   };
 
   const addToProject = async () => {
@@ -124,8 +133,7 @@ export default function ProductDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1 no-tap-highlight"><ChevronLeft className="w-4 h-4" /> Back</button>
+      <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={() => setReport(true)}>Report listing</Button>
       </div>
 

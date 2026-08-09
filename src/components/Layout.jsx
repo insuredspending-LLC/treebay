@@ -1,4 +1,4 @@
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
 import { useAuth } from "@/lib/AuthContext";
 import { createNotification } from "@/lib/treebay";
@@ -106,24 +106,34 @@ function TopBar() {
 }
 
 const BUYER_NAV = [
-  { to: "/", label: "Home", icon: HomeIcon, end: true },
-  { to: "/marketplace", label: "Marketplace", icon: Store },
-  { to: "/projects", label: "Projects", icon: FolderKanban },
-  { to: "/messages", label: "Messages", icon: MessageSquare },
-  { to: "/account", label: "Account", icon: User },
+  { to: "/", label: "Home", icon: HomeIcon, match: ["/"] },
+  { to: "/marketplace", label: "Marketplace", icon: Store, match: ["/marketplace", "/product", "/vendor"] },
+  { to: "/projects", label: "Projects", icon: FolderKanban, match: ["/projects"] },
+  { to: "/messages", label: "Messages", icon: MessageSquare, match: ["/messages"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
 ];
 
 const VENDOR_NAV = [
-  { to: "/vendor", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/vendor/inventory", label: "Inventory", icon: Package },
-  { to: "/vendor/rfqs", label: "RFQs", icon: FileText },
-  { to: "/vendor/orders", label: "Orders", icon: ShoppingCart },
-  { to: "/account", label: "Account", icon: User },
+  { to: "/vendor", label: "Dashboard", icon: LayoutDashboard, match: ["/vendor"], exact: true },
+  { to: "/vendor/inventory", label: "Inventory", icon: Package, match: ["/vendor/inventory"] },
+  { to: "/vendor/rfqs", label: "RFQs", icon: FileText, match: ["/vendor/rfqs"] },
+  { to: "/vendor/orders", label: "Orders", icon: ShoppingCart, match: ["/vendor/orders", "/orders"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
 ];
+
+function isItemActive(pathname, item) {
+  const prefixes = item.match || [item.to];
+  return prefixes.some((p) => {
+    if (p === "/") return pathname === "/";
+    if (item.exact) return pathname === p;
+    return pathname === p || pathname.startsWith(p + "/");
+  });
+}
 
 export default function Layout() {
   const { accountType } = useAppUser();
   const nav = accountType === "vendor" ? VENDOR_NAV : BUYER_NAV;
+  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -133,20 +143,20 @@ export default function Layout() {
       </main>
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-md mx-auto grid grid-cols-5">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn("flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium no-tap-highlight",
-                  isActive ? "text-primary" : "text-muted-foreground")
-              }
-            >
-              <item.icon className="w-5 h-5" />
-              {item.label}
-            </NavLink>
-          ))}
+          {nav.map((item) => {
+            const active = isItemActive(location.pathname, item);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn("flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium no-tap-highlight",
+                  active ? "text-primary" : "text-muted-foreground")}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </div>

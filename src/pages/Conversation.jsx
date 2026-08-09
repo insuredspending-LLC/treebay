@@ -47,17 +47,24 @@ export default function Conversation() {
 
   const send = async (e) => {
     e?.preventDefault();
-    if (!text.trim()) return;
+    const body = text.trim();
+    if (!body || !meId || !conv) return;
+    const tempId = "temp-" + Date.now();
+    const temp = { id: tempId, conversation_id: id, sender_id: meId, sender_name: "", recipient_id: "", body, read: false, created_date: new Date().toISOString() };
+    setMessages((prev) => [...prev, temp]);
+    setText("");
     setSending(true);
     try {
       const me = await base44.auth.me();
       const otherId = me.id === conv.buyer_id ? conv.vendor_owner_id : conv.buyer_id;
-      const m = await base44.entities.Message.create({ conversation_id: id, sender_id: me.id, sender_name: me.full_name || me.email, recipient_id: otherId, body: text.trim(), read: false });
-      setMessages((prev) => [...prev, m]);
-      await base44.entities.Conversation.update(id, { last_message: text.trim(), last_message_at: new Date().toISOString() });
-      setText("");
-    } catch (e) { toast({ title: "Could not send", description: e.message, variant: "destructive" }); }
-    finally { setSending(false); }
+      const m = await base44.entities.Message.create({ conversation_id: id, sender_id: me.id, sender_name: me.full_name || me.email, recipient_id: otherId, body, read: false });
+      setMessages((prev) => prev.map((x) => (x.id === tempId ? m : x)));
+      await base44.entities.Conversation.update(id, { last_message: body, last_message_at: new Date().toISOString() });
+    } catch (err) {
+      setMessages((prev) => prev.filter((x) => x.id !== tempId));
+      setText(body);
+      toast({ title: "Could not send", description: err.message, variant: "destructive" });
+    } finally { setSending(false); }
   };
 
   const block = async () => {

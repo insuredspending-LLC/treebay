@@ -89,9 +89,15 @@ export default function Marketplace() {
 
   const toggleFav = async (p) => {
     if (favs[p.id]) {
-      try { await base44.entities.Favorite.delete(favs[p.id].id); setFavs((m) => { const n = { ...m }; delete n[p.id]; return n; }); } catch {}
+      const prev = favs[p.id];
+      setFavs((m) => { const n = { ...m }; delete n[p.id]; return n; });
+      try { await base44.entities.Favorite.delete(prev.id); }
+      catch { setFavs((m) => ({ ...m, [p.id]: prev })); }
     } else {
-      try { const f = await base44.entities.Favorite.create({ user_id: "", target_type: "product", target_id: p.id, target_name: p.common_name }); setFavs((m) => ({ ...m, [p.id]: f })); } catch {}
+      const temp = { id: "temp-" + Date.now(), target_type: "product", target_id: p.id, target_name: p.common_name };
+      setFavs((m) => ({ ...m, [p.id]: temp }));
+      try { const f = await base44.entities.Favorite.create({ user_id: "", target_type: "product", target_id: p.id, target_name: p.common_name }); setFavs((m) => ({ ...m, [p.id]: f })); }
+      catch { setFavs((m) => { const n = { ...m }; delete n[p.id]; return n; }); }
     }
   };
 

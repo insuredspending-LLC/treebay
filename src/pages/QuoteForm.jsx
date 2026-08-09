@@ -63,7 +63,6 @@ export default function QuoteForm() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <Link to="/vendor/rfqs" className="text-sm text-muted-foreground flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Open RFQs</Link>
       <div>
         <h1 className="text-xl font-bold">Submit quote</h1>
         <p className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1">

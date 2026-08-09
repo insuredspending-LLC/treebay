@@ -84,7 +84,6 @@ export default function ProductForm() {
 
   return (
     <div className="space-y-5 max-w-2xl">
-      <Link to="/vendor/inventory" className="text-sm text-muted-foreground flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Inventory</Link>
       <h1 className="text-xl font-bold">{id ? "Edit listing" : "New listing"}</h1>
 
       <div className="space-y-4">

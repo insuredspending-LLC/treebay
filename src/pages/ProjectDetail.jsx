@@ -68,7 +68,6 @@ export default function ProjectDetail() {
 
   return (
     <div className="space-y-5">
-      <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1 no-tap-highlight"><ArrowLeft className="w-4 h-4" /> Back</button>
       <div>
         <h1 className="text-2xl font-bold">{project.name}</h1>
         <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1">

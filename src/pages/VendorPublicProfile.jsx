@@ -46,7 +46,6 @@ export default function VendorPublicProfile() {
 
   return (
     <div className="space-y-5">
-      <Link to="/marketplace" className="text-sm text-muted-foreground flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Marketplace</Link>
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
