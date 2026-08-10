@@ -39,10 +39,19 @@
       "type": "string",
       "enum": [
         "pending",
-        "scheduled",
+        "quoted",
+        "assigned",
+        "pickup_scheduled",
+        "picked_up",
         "in_transit",
         "delivered",
-        "cancelled"
+        "confirmed",
+        "pickup_delayed",
+        "delivery_delayed",
+        "damaged",
+        "delivery_failed",
+        "cancelled",
+        "exception"
       ],
       "default": "pending"
     },
@@ -51,6 +60,41 @@
     },
     "freight_quote_id": {
       "type": "string"
+    },
+    "delivery_method": {
+      "type": "string",
+      "enum": [
+        "buyer_pickup",
+        "vendor_delivery",
+        "third_party_carrier"
+      ]
+    },
+    "delivery_price_cents": {
+      "type": "number"
+    },
+    "delivery_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "receiver_name": {
+      "type": "string"
+    },
+    "delivery_notes": {
+      "type": "string"
+    },
+    "proof_of_delivery_url": {
+      "type": "string"
+    },
+    "confirmation_code": {
+      "type": "string"
+    },
+    "buyer_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "carrier_confirmed": {
+      "type": "boolean",
+      "default": false
     }
   },
   "required": [
@@ -78,22 +122,14 @@
       ]
     },
     "create": {
-      "created_by_id": "{{user.id}}"
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "update": {
-      "$or": [
-        {
-          "data.buyer_id": "{{user.id}}"
-        },
-        {
-          "data.vendor_owner_id": "{{user.id}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "delete": {
       "user_condition": {
