@@ -110,8 +110,13 @@ export default async function(req) {
         result = (await cancelOrder(svc, orderId, actor)).body;
         break;
       case "REFUND": {
-        const res = await base44.functions.invoke("refundTestPayment", { orderId, reason: "Admin simulator refund" });
-        result = res.data;
+        try {
+          const res = await base44.functions.invoke("refundTestPayment", { orderId, reason: "Admin simulator refund" });
+          result = res.data;
+        } catch (e) {
+          // Surface the engine's actual reason instead of a bare status code.
+          result = { error: e?.response?.data?.error || e.message };
+        }
         break;
       }
       default:

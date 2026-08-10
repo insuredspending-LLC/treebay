@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { useAppUser } from "@/hooks/useAppUser";
-import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3 } from "lucide-react";
+import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3, FlaskConical } from "lucide-react";
+import TestSimulator from "@/components/admin/TestSimulator";
 import StatusBadge from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
 import { REPORT_REASONS, VERIFICATION_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
@@ -86,6 +87,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="orders"><ShoppingCart className="w-4 h-4 mr-1" /> Orders</TabsTrigger>
             <TabsTrigger value="rfqs"><FileText className="w-4 h-4 mr-1" /> RFQs</TabsTrigger>
             <TabsTrigger value="users"><Users className="w-4 h-4 mr-1" /> Users</TabsTrigger>
+            <TabsTrigger value="simulator"><FlaskConical className="w-4 h-4 mr-1" /> Simulator</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -110,7 +112,7 @@ export default function AdminDashboard() {
                 <HealthRow label="Payments" status="Test Mode" />
                 <HealthRow label="Tax calculation" status="Test/Estimated" />
                 <HealthRow label="Delivery quoting" status="Not Configured" />
-                <HealthRow label="Document generation" status="Not Configured" />
+                <HealthRow label="Document generation" status="Operational" />
                 <HealthRow label="Notifications" status="Operational" />
               </div>
             </Card>
@@ -219,6 +221,10 @@ export default function AdminDashboard() {
                 <Card key={u.id} className="p-3 flex justify-between"><div><p className="font-medium text-sm">{u.full_name || u.email}</p><p className="text-xs text-muted-foreground">{u.email}</p></div><Badge>{u.role}</Badge></Card>
               ))}</div>
             )}
+          </TabsContent>
+
+          <TabsContent value="simulator">
+            <TestSimulator orders={orders} onChanged={load} />
           </TabsContent>
         </Tabs>
       )}
