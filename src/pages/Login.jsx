@@ -127,6 +127,9 @@ export default function Login() {
           )}
         </Button>
       </form>
+      <p className="text-center text-xs text-muted-foreground mt-4">
+        <Link to="/terms" className="hover:underline">Terms</Link> · <Link to="/privacy" className="hover:underline">Privacy</Link> · <Link to="/community-rules" className="hover:underline">Marketplace Rules</Link>
+      </p>
     </AuthLayout>
   );
 }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Send, ArrowLeft, Flag, Ban, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ReportDialog from "@/components/ReportDialog";
-import { relativeTime } from "@/lib/treebay";
+import { relativeTime, apiError } from "@/lib/treebay";
 
 export default function Conversation() {
   const { id } = useParams();
@@ -37,8 +37,8 @@ export default function Conversation() {
       const otherIsVendor = c.vendor_owner_id !== me.id;
       if (otherIsVendor && c.vendor_id) { try { const v = await base44.entities.VendorProfile.get(c.vendor_id); setOtherName(v?.business_name || "Vendor"); } catch {} }
       else if (!otherIsVendor) { try { const buyers = await base44.entities.BuyerProfile.list(); setOtherName(buyers?.[0]?.business_name || buyers?.[0]?.full_name || "Buyer"); } catch {} }
-      // mark received messages read
-      for (const m of msgs.filter((m) => m.recipient_id === me.id && !m.read)) { try { await base44.entities.Message.update(m.id, { read: true }); } catch {} }
+      // mark received messages read via secure backend
+      try { await base44.functions.invoke("markMessagesRead", { conversationId: id }); } catch {}
     } catch {}
     finally { setLoading(false); }
   };
@@ -55,15 +55,12 @@ export default function Conversation() {
     setText("");
     setSending(true);
     try {
-      const me = await base44.auth.me();
-      const otherId = me.id === conv.buyer_id ? conv.vendor_owner_id : conv.buyer_id;
-      const m = await base44.entities.Message.create({ conversation_id: id, sender_id: me.id, sender_name: me.full_name || me.email, recipient_id: otherId, body, read: false });
-      setMessages((prev) => prev.map((x) => (x.id === tempId ? m : x)));
-      await base44.entities.Conversation.update(id, { last_message: body, last_message_at: new Date().toISOString() });
+      const { data } = await base44.functions.invoke("sendMessage", { conversationId: id, body });
+      setMessages((prev) => prev.map((x) => (x.id === tempId ? data.message : x)));
     } catch (err) {
       setMessages((prev) => prev.filter((x) => x.id !== tempId));
       setText(body);
-      toast({ title: "Could not send", description: err.message, variant: "destructive" });
+      toast({ title: "Could not send", description: apiError(err), variant: "destructive" });
     } finally { setSending(false); }
   };
 

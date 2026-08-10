@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ArrowLeft, Trash2, FileText, Package, Calendar, MapPin, Plus, Loader2 } from "lucide-react";
-import { shortDate, formatNumber, formatCurrency, genOrderNumber, createNotification } from "@/lib/treebay";
+import { shortDate, formatNumber, formatCurrency, apiError } from "@/lib/treebay";
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -50,19 +50,16 @@ export default function ProjectDetail() {
   const createRFQ = async () => {
     setSaving(true);
     try {
-      const me = await base44.auth.me();
       const rfqItems = items.map((i) => ({ common_name: i.common_name, botanical_name: i.botanical_name, quantity: i.quantity, size_spec: i.size_spec, notes: "" }));
-      const created = await base44.entities.RFQ.create({
-        buyer_id: me.id, project_id: id,
-        delivery_city: project.delivery_city, delivery_state: project.delivery_state, delivery_zip: project.delivery_zip,
+      const { data } = await base44.functions.invoke("createRFQ", {
+        projectId: id,
         requested_delivery_date: rfq.requested_delivery_date, quote_deadline: rfq.quote_deadline,
         notes: rfq.notes, substitution_allowed: rfq.substitution_allowed, delivery_required: rfq.delivery_required,
-        status: "open", items: rfqItems,
+        items: rfqItems,
       });
-      await base44.entities.Project.update(id, {});
       toast({ title: "RFQ created", description: "Vendors can now submit quotes." });
-      navigate(`/rfqs/${created.id}`);
-    } catch (e) { toast({ title: "Could not create RFQ", description: e.message, variant: "destructive" }); }
+      navigate(`/rfqs/${data.rfq.id}`);
+    } catch (e) { toast({ title: "Could not create RFQ", description: apiError(e), variant: "destructive" }); }
     finally { setSaving(false); }
   };
 

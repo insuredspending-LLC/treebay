@@ -19,10 +19,12 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [agreed, setAgreed] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!agreed) { setError("Please accept the Terms and Privacy Policy to continue."); return; }
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -146,6 +148,7 @@ export default function Register() {
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-6"
         onClick={handleGoogle}
+        disabled={!agreed}
       >
         <GoogleIcon className="w-5 h-5 mr-2" />
         Continue with Google
@@ -216,6 +219,10 @@ export default function Register() {
             />
           </div>
         </div>
+        <label className="flex items-start gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5" />
+          <span>I agree to the Treebay <Link to="/terms" className="text-primary underline">Terms of Service</Link> and <Link to="/community-rules" className="text-primary underline">Marketplace Rules</Link> and acknowledge the <Link to="/privacy" className="text-primary underline">Privacy Policy</Link>.</span>
+        </label>
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>

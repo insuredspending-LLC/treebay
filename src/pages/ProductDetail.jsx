@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Heart, MessageSquare, FileText, ShoppingCart, ShieldCheck, Truck, Package, Leaf, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { formatCurrency, formatNumber, priceForQuantity, approxDistance, createNotification } from "@/lib/treebay";
+import { formatCurrency, formatNumber, priceForQuantity, approxDistance, apiError } from "@/lib/treebay";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import StarRating from "@/components/StarRating";
 import ReportDialog from "@/components/ReportDialog";
@@ -85,32 +85,26 @@ export default function ProductDetail() {
 
   const startConversation = async () => {
     try {
-      const me = await base44.auth.me();
-      const conv = await base44.entities.Conversation.create({
-        type: "product", reference_id: id, reference_label: product.common_name,
-        buyer_id: me.id, vendor_owner_id: product.vendor_owner_id, vendor_id: product.vendor_id,
-      });
-      navigate(`/messages/${conv.id}`);
-    } catch (e) { toast({ title: "Could not start conversation", description: e.message, variant: "destructive" }); }
+      const { data } = await base44.functions.invoke("startConversation", { type: "product", referenceId: id });
+      navigate(`/messages/${data.conversationId}`);
+    } catch (e) { toast({ title: "Could not start conversation", description: apiError(e), variant: "destructive" }); }
   };
 
   const requestQuote = async () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const me = await base44.auth.me();
-      const rfq = await base44.entities.RFQ.create({
-        buyer_id: me.id, project_id: "",
+      const { data } = await base44.functions.invoke("createRFQ", {
+        projectId: "",
         delivery_city: buyerProfile?.city || "", delivery_state: buyerProfile?.state || "", delivery_zip: buyerProfile?.zip_code || "",
         requested_delivery_date: "", quote_deadline: "",
         notes: `Inquiry on listing: ${product.common_name}`,
-        substitution_allowed: false, delivery_required: product.delivery_eligible, status: "open",
+        substitution_allowed: false, delivery_required: product.delivery_eligible,
         items: [{ common_name: product.common_name, botanical_name: product.botanical_name, quantity: qty, size_spec: [product.caliper, product.container_size].filter(Boolean).join(" · "), notes: "" }],
       });
-      await createNotification(product.vendor_owner_id, "new_rfq", "New RFQ received", `${qty} × ${product.common_name}`, "rfq", rfq.id);
       toast({ title: "Quote request sent", description: "The vendor will respond with pricing." });
-      navigate(`/rfqs/${rfq.id}`);
-    } catch (e) { toast({ title: "Could not send", description: e.message, variant: "destructive" }); }
+      navigate(`/rfqs/${data.rfq.id}`);
+    } catch (e) { toast({ title: "Could not send", description: apiError(e), variant: "destructive" }); }
     finally { setSubmitting(false); }
   };
 
@@ -118,24 +112,10 @@ export default function ProductDetail() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const me = await base44.auth.me();
-      const orderNumber = "TB-" + Math.random().toString(36).slice(2, 8).toUpperCase();
-      const lineName = `${product.common_name} (${[product.caliper, product.container_size].filter(Boolean).join(" · ")})`;
-      await base44.entities.Order.create({
-        order_number: orderNumber, buyer_id: me.id, vendor_id: product.vendor_id, vendor_owner_id: product.vendor_owner_id,
-        vendor_name: product.vendor_name, rfq_id: "", quote_id: "",
-        items: [{ line_name: lineName, quantity: qty, unit_price: unitPrice, subtotal }],
-        subtotal, delivery_charges: 0, taxes: 0, platform_fees: 0, total: subtotal,
-        fulfillment_method: product.pickup_eligible ? "pickup" : "vendor_delivery",
-        destination_city: buyerProfile?.city || "", destination_state: buyerProfile?.state || "", destination_zip: buyerProfile?.zip_code || "",
-        payment_status: "pending", order_status: "pending",
-      });
-      await createNotification(product.vendor_owner_id, "new_order", "New order received", orderNumber, "order", "");
-      const remaining = Math.max(0, product.quantity_available - qty);
-      await base44.entities.Product.update(product.id, { quantity_available: remaining, listing_status: remaining === 0 ? "sold_out" : product.listing_status });
-      toast({ title: "Order placed", description: `Order ${orderNumber} created.` });
-      navigate("/orders");
-    } catch (e) { toast({ title: "Could not place order", description: e.message, variant: "destructive" }); }
+      const { data } = await base44.functions.invoke("createOrder", { productId: id, quantity: qty });
+      toast({ title: "Order placed", description: `Order ${data.order.order_number} created.` });
+      navigate(`/orders/${data.order.id}`);
+    } catch (e) { toast({ title: "Could not place order", description: apiError(e), variant: "destructive" }); }
     finally { setSubmitting(false); }
   };
 
@@ -210,7 +190,7 @@ export default function ProductDetail() {
           )}
 
           <div className="grid grid-cols-1 gap-2">
-            <Button onClick={buyNow} disabled={!canOrder || submitting} className="h-12 text-base">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}{showReqQuote ? "Request quote to buy" : "Buy now"}</Button>
+            <Button onClick={buyNow} disabled={!canOrder || submitting} className="h-12 text-base">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}{showReqQuote ? "Request quote to buy" : "Place Order Request"}</Button>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />} Request quote</Button>
               <Button variant="outline" onClick={startConversation} className="h-11"><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>

@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { ArrowLeft, Plus, Trash2, Loader2, Upload, X, Save } from "lucide-react";
 import { Image } from "@/components/ui/image";
-import { CATEGORIES } from "@/lib/treebay";
+import { CATEGORIES, apiError } from "@/lib/treebay";
 
 const EMPTY = {
   common_name: "", botanical_name: "", cultivar: "", category: "Trees", description: "", sku: "",
@@ -64,19 +64,19 @@ export default function ProductForm() {
     try {
       const payload = {
         ...f,
-        vendor_id: vendor.id, vendor_owner_id: vendor.created_by_id,
-        vendor_name: vendor.business_name, vendor_city: vendor.city, vendor_state: vendor.state,
-        verified_vendor: vendor.verification_status === "verified",
         quantity_available: Number(f.quantity_available) || 0,
         unit_price: Number(f.unit_price) || 0,
         minimum_order_quantity: Number(f.minimum_order_quantity) || 1,
         listing_status: Number(f.quantity_available) <= 0 ? "sold_out" : f.listing_status,
       };
-      if (id) await base44.entities.Product.update(id, payload);
-      else await base44.entities.Product.create(payload);
+      // Ownership & verification are derived by the secure backend — never sent from the client.
+      delete payload.vendor_id; delete payload.vendor_owner_id; delete payload.vendor_name;
+      delete payload.vendor_city; delete payload.vendor_state; delete payload.verified_vendor;
+      if (id) await base44.functions.invoke("updateProduct", { productId: id, ...payload });
+      else await base44.functions.invoke("createProduct", payload);
       toast({ title: id ? "Listing updated" : "Listing created" });
       navigate("/vendor/inventory");
-    } catch (e) { toast({ title: "Could not save", description: e.message, variant: "destructive" }); }
+    } catch (e) { toast({ title: "Could not save", description: apiError(e), variant: "destructive" }); }
     finally { setSaving(false); }
   };
 

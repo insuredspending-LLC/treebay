@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, MessageSquare, Star, Truck, Package, Loader2 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { useAppUser } from "@/hooks/useAppUser";
-import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, createNotification } from "@/lib/treebay";
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
 
 const FULFILLMENT_SEQUENCE = ["pending", "awaiting_payment", "paid", "confirmed", "preparing", "ready_for_pickup", "in_transit", "delivered", "completed"];
 const VENDOR_NEXT_STATUS = {
@@ -50,33 +50,26 @@ export default function OrderDetail() {
 
   const advance = async (status) => {
     try {
-      await base44.entities.Order.update(id, { order_status: status });
-      const notifType = status === "ready_for_pickup" ? "order_ready" : status === "in_transit" ? "order_shipped" : status === "delivered" ? "order_delivered" : status === "completed" ? "order_completed" : "general";
-      await createNotification(order.buyer_id, notifType, "Order update", `${order.order_number} → ${ORDER_STATUS_LABELS[status]}`, "order", id);
+      await base44.functions.invoke("updateFulfillment", { orderId: id, action: "advance" });
       toast({ title: "Order updated", description: ORDER_STATUS_LABELS[status] });
       load();
-    } catch (e) { toast({ title: "Could not update", description: e.message, variant: "destructive" }); }
+    } catch (e) { toast({ title: "Could not update", description: apiError(e), variant: "destructive" }); }
   };
 
   const message = async () => {
     try {
-      const me = await base44.auth.me();
-      const conv = await base44.entities.Conversation.create({ type: "order", reference_id: id, reference_label: order.order_number, buyer_id: order.buyer_id, vendor_owner_id: order.vendor_owner_id, vendor_id: order.vendor_id });
-      navigate(`/messages/${conv.id}`);
-    } catch {}
+      const { data } = await base44.functions.invoke("startConversation", { type: "order", referenceId: id });
+      navigate(`/messages/${data.conversationId}`);
+    } catch (e) { toast({ title: "Could not open conversation", description: apiError(e), variant: "destructive" }); }
   };
 
   const submitReview = async () => {
     try {
-      const me = await base44.auth.me();
-      await base44.entities.Review.create({ order_id: id, reviewer_id: me.id, reviewer_name: me.full_name || me.email, vendor_id: order.vendor_id, rating: review.rating, review_text: review.text });
-      // recompute vendor rating
-      const all = await base44.entities.Review.filter({ vendor_id: order.vendor_id }, "-created_date", 500);
-      const avg = all.reduce((s, r) => s + (r.rating || 0), 0) / Math.max(1, all.length);
-      await base44.entities.VendorProfile.update(order.vendor_id, { rating: Math.round(avg * 10) / 10, review_count: all.length });
+      await base44.functions.invoke("submitReview", { orderId: id, rating: review.rating, reviewText: review.text });
       toast({ title: "Review submitted" });
       setReviewOpen(false);
-    } catch (e) { toast({ title: "Could not submit", description: e.message, variant: "destructive" }); }
+      load();
+    } catch (e) { toast({ title: "Could not submit", description: apiError(e), variant: "destructive" }); }
   };
 
   return (

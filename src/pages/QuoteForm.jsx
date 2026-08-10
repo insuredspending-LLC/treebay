@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { ArrowLeft, Save, Loader2, MapPin, Calendar } from "lucide-react";
-import { formatCurrency, shortDate, createNotification } from "@/lib/treebay";
+import { formatCurrency, shortDate, apiError } from "@/lib/treebay";
 
 export default function QuoteForm() {
   const { rfqId } = useParams();
@@ -44,17 +44,10 @@ export default function QuoteForm() {
     if (!vendor) { toast({ title: "No vendor profile", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const me = await base44.auth.me();
-      const q = await base44.entities.VendorQuote.create({
-        rfq_id: rfqId, vendor_id: vendor.id, vendor_owner_id: me.id, vendor_name: vendor.business_name,
-        vendor_city: vendor.city, vendor_state: vendor.state, buyer_id: rfq.buyer_id,
-        items: lines, quote_total: total, expiration_date, vendor_notes: notes, status: "submitted",
-      });
-      await base44.entities.RFQ.update(rfqId, { status: "quotes_received" });
-      await createNotification(rfq.buyer_id, "new_quote", "New quote received", `From ${vendor.business_name}`, "rfq", rfqId);
+      await base44.functions.invoke("submitQuote", { rfqId, items: lines, expiration_date, vendor_notes: notes });
       toast({ title: "Quote submitted" });
       navigate("/vendor/rfqs");
-    } catch (e) { toast({ title: "Could not submit", description: e.message, variant: "destructive" }); }
+    } catch (e) { toast({ title: "Could not submit", description: apiError(e), variant: "destructive" }); }
     finally { setSaving(false); }
   };
 

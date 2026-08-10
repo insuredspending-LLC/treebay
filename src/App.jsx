@@ -37,6 +37,9 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
+import BecomeSeller from '@/pages/BecomeSeller';
+import DeleteAccount from '@/pages/DeleteAccount';
+import VendorGuard from '@/components/VendorGuard';
 import { ThemeProvider } from "next-themes";
 // Add page imports here
 
@@ -72,10 +75,17 @@ const AuthenticatedApp = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
+      {/* Public legal pages — accessible without an account */}
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/community-rules" element={<CommunityRules />} />
+      <Route path="/delete-account" element={<DeleteAccount />} />
+
       {/* Authenticated app */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<OnboardingGate />}>
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/become-seller" element={<BecomeSeller />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
             <Route path="/marketplace" element={<Marketplace />} />
@@ -92,17 +102,16 @@ const AuthenticatedApp = () => {
             <Route path="/favorites" element={<Favorites />} />
             <Route path="/account" element={<Account />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/community-rules" element={<CommunityRules />} />
             <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/vendor" element={<VendorDashboard />} />
-            <Route path="/vendor/inventory" element={<VendorInventory />} />
-            <Route path="/vendor/inventory/new" element={<ProductForm />} />
-            <Route path="/vendor/inventory/:id" element={<ProductForm />} />
-            <Route path="/vendor/rfqs" element={<VendorRFQs />} />
-            <Route path="/vendor/rfqs/:rfqId/quote" element={<QuoteForm />} />
-            <Route path="/vendor/orders" element={<Orders />} />
+            <Route element={<VendorGuard />}>
+              <Route path="/vendor" element={<VendorDashboard />} />
+              <Route path="/vendor/inventory" element={<VendorInventory />} />
+              <Route path="/vendor/inventory/new" element={<ProductForm />} />
+              <Route path="/vendor/inventory/:id" element={<ProductForm />} />
+              <Route path="/vendor/rfqs" element={<VendorRFQs />} />
+              <Route path="/vendor/rfqs/:rfqId/quote" element={<QuoteForm />} />
+              <Route path="/vendor/orders" element={<Orders />} />
+            </Route>
           </Route>
         </Route>
       </Route>

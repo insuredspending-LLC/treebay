@@ -9,7 +9,7 @@ import { ArrowLeft, MapPin, Calendar, Check, MessageSquare, Package, Trophy, Loa
 import StatusBadge from "@/components/StatusBadge";
 import StarRating from "@/components/StarRating";
 import EmptyState from "@/components/EmptyState";
-import { RFQ_STATUS_LABELS, QUOTE_STATUS_LABELS, shortDate, formatCurrency, formatNumber, approxDistance, genOrderNumber, createNotification } from "@/lib/treebay";
+import { RFQ_STATUS_LABELS, QUOTE_STATUS_LABELS, shortDate, formatCurrency, formatNumber, approxDistance, apiError } from "@/lib/treebay";
 
 export default function RFQDetail() {
   const { id } = useParams();
@@ -43,39 +43,18 @@ export default function RFQDetail() {
     }
     setAccepting(q.id);
     try {
-      const me = await base44.auth.me();
-      const orderNumber = genOrderNumber();
-      const orderItems = (q.items || []).map((i) => ({ line_name: i.line_name, quantity: i.quantity_offered, unit_price: i.unit_price, subtotal: i.subtotal }));
-      const order = await base44.entities.Order.create({
-        order_number: orderNumber, buyer_id: rfq.buyer_id, vendor_id: q.vendor_id, vendor_owner_id: q.vendor_owner_id,
-        vendor_name: q.vendor_name, rfq_id: rfq.id, quote_id: q.id, items: orderItems,
-        subtotal: orderItems.reduce((s, i) => s + (i.subtotal || 0), 0),
-        delivery_charges: (q.items || []).reduce((s, i) => s + (i.delivery_price || 0), 0),
-        taxes: (q.items || []).reduce((s, i) => s + (i.taxes || 0), 0),
-        platform_fees: 0, total: q.quote_total || 0,
-        fulfillment_method: (q.items || []).some((i) => i.delivery_offered) ? "vendor_delivery" : "pickup",
-        destination_city: rfq.delivery_city, destination_state: rfq.delivery_state, destination_zip: rfq.delivery_zip,
-        requested_date: rfq.requested_delivery_date, payment_status: "pending", order_status: "pending",
-      });
-      await base44.entities.VendorQuote.update(q.id, { status: "accepted" });
-      await base44.entities.RFQ.update(rfq.id, { status: "awarded" });
-      // decline other quotes
-      for (const other of quotes.filter((x) => x.id !== q.id && x.status === "submitted")) {
-        try { await base44.entities.VendorQuote.update(other.id, { status: "declined" }); } catch {}
-      }
-      await createNotification(q.vendor_owner_id, "quote_accepted", "Quote accepted!", `Order ${orderNumber}`, "order", order.id);
-      toast({ title: "Quote accepted", description: `Order ${orderNumber} created.` });
-      navigate(`/orders/${order.id}`);
-    } catch (e) { toast({ title: "Could not accept quote", description: e.message, variant: "destructive" }); }
+      const { data } = await base44.functions.invoke("acceptQuote", { quoteId: q.id });
+      toast({ title: "Quote accepted", description: `Order ${data.order.order_number} created.` });
+      navigate(`/orders/${data.order.id}`);
+    } catch (e) { toast({ title: "Could not accept quote", description: apiError(e), variant: "destructive" }); }
     finally { setAccepting(null); }
   };
 
   const message = async (q) => {
     try {
-      const me = await base44.auth.me();
-      const conv = await base44.entities.Conversation.create({ type: "rfq", reference_id: rfq.id, reference_label: `RFQ · ${rfq.delivery_city}`, buyer_id: me.id, vendor_owner_id: q.vendor_owner_id, vendor_id: q.vendor_id });
-      navigate(`/messages/${conv.id}`);
-    } catch (e) { toast({ title: "Could not open conversation", variant: "destructive" }); }
+      const { data } = await base44.functions.invoke("startConversation", { type: "rfq", referenceId: rfq.id, vendorOwnerId: q.vendor_owner_id });
+      navigate(`/messages/${data.conversationId}`);
+    } catch (e) { toast({ title: "Could not open conversation", description: apiError(e), variant: "destructive" }); }
   };
 
   const sorted = quotes.slice().sort((a, b) => (a.quote_total || 0) - (b.quote_total || 0));

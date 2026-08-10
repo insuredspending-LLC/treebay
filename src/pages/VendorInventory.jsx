@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from "@/components/ui/use-toast";
 import StatusBadge from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
-import { formatCurrency, formatNumber } from "@/lib/treebay";
+import { formatCurrency, formatNumber, apiError } from "@/lib/treebay";
 
 export default function VendorInventory() {
   const { vendorProfiles } = useAppUser();
@@ -28,8 +28,8 @@ export default function VendorInventory() {
   useEffect(() => { load(); }, [ownedIds.join(",")]);
 
   const updateStatus = async (p, status) => {
-    try { await base44.entities.Product.update(p.id, { listing_status: status }); load(); toast({ title: "Updated" }); }
-    catch (e) { toast({ title: "Could not update", description: e.message, variant: "destructive" }); }
+    try { await base44.functions.invoke("updateProduct", { productId: p.id, listing_status: status }); load(); toast({ title: "Updated" }); }
+    catch (e) { toast({ title: "Could not update", description: apiError(e), variant: "destructive" }); }
   };
 
   const adjustQty = async (p, delta) => {
@@ -37,10 +37,10 @@ export default function VendorInventory() {
     const prevStatus = p.listing_status;
     const q = Math.max(0, prevQty + delta);
     setProducts((list) => list.map((x) => x.id === p.id ? { ...x, quantity_available: q, listing_status: q === 0 ? "sold_out" : "active" } : x));
-    try { await base44.entities.Product.update(p.id, { quantity_available: q, listing_status: q === 0 ? "sold_out" : "active" }); }
+    try { await base44.functions.invoke("updateProduct", { productId: p.id, quantity_available: q }); }
     catch (e) {
       setProducts((list) => list.map((x) => x.id === p.id ? { ...x, quantity_available: prevQty, listing_status: prevStatus } : x));
-      toast({ title: "Could not update", variant: "destructive" });
+      toast({ title: "Could not update", description: apiError(e), variant: "destructive" });
     }
   };
 

@@ -41,17 +41,28 @@ export default function Account() {
         )}
       </Card>
 
-      <Card className="p-4">
-        <label className="text-xs text-muted-foreground">Active role</label>
-        <Select value={accountType} onValueChange={(v) => switchAccountType(v)}>
-          <SelectTrigger className="h-11 mt-1"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="buyer">Buyer</SelectItem>
-            <SelectItem value="vendor">Vendor</SelectItem>
-            <SelectItem value="carrier">Carrier (coming soon)</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-[11px] text-muted-foreground mt-2">Switch roles to experience each side of the marketplace. (Demo convenience.)</p>
+      <Card className="p-4 space-y-3">
+        <div>
+          <label className="text-xs text-muted-foreground">Active role</label>
+          {vendorProfiles.length > 0 ? (
+            <Select value={accountType} onValueChange={(v) => switchAccountType(v)}>
+              <SelectTrigger className="h-11 mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="buyer">Buyer</SelectItem>
+                <SelectItem value="vendor">Vendor</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1">You're browsing as a buyer.</p>
+          )}
+        </div>
+        {vendorProfiles.length === 0 && (
+          <Button onClick={() => navigate("/become-seller")} className="w-full h-11"><Store className="w-4 h-4 mr-2" /> Become a Seller</Button>
+        )}
+        {vendorProfiles.length > 0 && vendorProfiles[0].verification_status !== "verified" && (
+          <p className="text-[11px] text-amber-700">Vendor verification pending — listings become purchasable once verified.</p>
+        )}
+        <p className="text-[11px] text-muted-foreground">Carrier marketplace coming soon.</p>
       </Card>
 
       <div className="space-y-2">
