@@ -8,6 +8,9 @@
     "order_id": {
       "type": "string"
     },
+    "buyer_id": {
+      "type": "string"
+    },
     "provider_type": {
       "type": "string",
       "enum": [
@@ -70,6 +73,9 @@
   "rls": {
     "read": {
       "$or": [
+        {
+          "data.buyer_id": "{{user.id}}"
+        },
         {
           "user_condition": {
             "role": "admin"
