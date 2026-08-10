@@ -18,10 +18,10 @@ export default async function(req) {
     if (!body.common_name || !body.category) return Response.json({ error: "Name and category are required" }, { status: 400 });
     const qty = Number(body.quantity_available) || 0;
     const price = Number(body.unit_price) || 0;
-    if (!isNonNegativeNumber(qty)) return Response.json({ error: "Quantity invalid" }, { status: 400 });
+    if (!isNonNegativeNumber(qty) || !Number.isInteger(qty)) return Response.json({ error: "Quantity must be a non-negative whole number" }, { status: 400 });
     if (!isPositiveNumber(price)) return Response.json({ error: "Unit price must be positive" }, { status: 400 });
     const moq = Number(body.minimum_order_quantity) || 1;
-    if (moq < 1) return Response.json({ error: "Minimum order must be at least 1" }, { status: 400 });
+    if (moq < 1 || !Number.isInteger(moq)) return Response.json({ error: "Minimum order must be a positive whole number" }, { status: 400 });
 
     const payload = {};
     for (const k of ALLOWED) { if (body[k] !== undefined) payload[k] = body[k]; }
@@ -31,7 +31,10 @@ export default async function(req) {
     payload.vendor_city = vendor.city;
     payload.vendor_state = vendor.state;
     payload.verified_vendor = vendor.verification_status === "verified";
+    payload.physical_quantity = qty;
     payload.quantity_available = qty;
+    payload.quantity_reserved = 0;
+    payload.quantity_sold = 0;
     payload.unit_price = price;
     payload.minimum_order_quantity = moq;
     payload.listing_status = qty <= 0 ? "sold_out" : (payload.listing_status || "active");

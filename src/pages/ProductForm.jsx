@@ -39,7 +39,10 @@ export default function ProductForm() {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      try { const p = await base44.entities.Product.get(id); setF({ ...EMPTY, ...p }); } catch {}
+      try {
+        const p = await base44.entities.Product.get(id);
+        setF({ ...EMPTY, ...p, quantity_available: p.physical_quantity ?? ((p.quantity_available || 0) + (p.quantity_reserved || 0)) });
+      } catch {}
       finally { setLoading(false); }
     })();
   }, [id]);
@@ -115,10 +118,11 @@ export default function ProductForm() {
         <Separator />
         <h2 className="font-semibold text-sm uppercase text-muted-foreground">Pricing & quantity</h2>
         <div className="grid grid-cols-3 gap-3">
-          <NumField label="Qty available" value={f.quantity_available} onChange={(v) => set("quantity_available", v)} />
+          <NumField label="Total physical stock" value={f.quantity_available} onChange={(v) => set("quantity_available", v)} />
           <NumField label="Unit price *" value={f.unit_price} onChange={(v) => set("unit_price", v)} />
           <NumField label="Min order" value={f.minimum_order_quantity} onChange={(v) => set("minimum_order_quantity", v)} />
         </div>
+        {id && <p className="text-xs text-muted-foreground">Available stock is calculated after subtracting units already reserved for active orders.</p>}
 
         <div className="rounded-xl border border-border p-3 space-y-2">
           <div className="flex items-center justify-between">

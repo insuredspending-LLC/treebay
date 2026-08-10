@@ -36,7 +36,8 @@
             "type": "string"
           },
           "quantity": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1
           },
           "unit_price_cents": {
             "type": "number"
@@ -115,6 +116,20 @@
         "consumed"
       ],
       "default": "draft"
+    },
+    "processing_status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "consuming",
+        "consumed"
+      ],
+      "default": "available",
+      "description": "Durable single-winner order creation lock"
+    },
+    "processing_locked_at": {
+      "type": "string",
+      "format": "date-time"
     },
     "destination_name": {
       "type": "string"

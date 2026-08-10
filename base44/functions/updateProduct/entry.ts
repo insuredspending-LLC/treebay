@@ -51,7 +51,7 @@ export default async function(req) {
     const svc = base44.asServiceRole;
     const product = await svc.entities.Product.get(productId);
     if (!product) return Response.json({ error: "Product not found" }, { status: 404 });
-    if (product.vendor_owner_id !== user.id) return Response.json({ error: "Not authorized" }, { status: 403 });
+    if (product.vendor_owner_id !== user.id && user.role !== "admin") return Response.json({ error: "Not authorized" }, { status: 403 });
 
     const errors = validateProductUpdate(body, product);
     if (errors.length) return Response.json({ error: errors.join(" ") }, { status: 400 });
@@ -59,9 +59,15 @@ export default async function(req) {
     const update = {};
     for (const k of ALLOWED) { if (body[k] !== undefined) update[k] = body[k]; }
     if (update.quantity_available !== undefined) {
-      const q = Number(update.quantity_available) || 0;
-      update.quantity_available = q;
-      if (q <= 0) update.listing_status = update.listing_status || "sold_out";
+      // Seller enters total physical units on hand. Active reservations are never overwritten.
+      const physical = Number(update.quantity_available) || 0;
+      const reserved = product.quantity_reserved || 0;
+      if (physical < reserved) {
+        return Response.json({ error: "Physical stock cannot be lower than the " + reserved + " units currently reserved." }, { status: 409 });
+      }
+      update.physical_quantity = physical;
+      update.quantity_available = physical - reserved;
+      if (update.quantity_available <= 0) update.listing_status = update.listing_status || "sold_out";
       else if (product.listing_status === "sold_out" && update.listing_status === undefined) update.listing_status = "active";
     }
     await svc.entities.Product.update(productId, update);
