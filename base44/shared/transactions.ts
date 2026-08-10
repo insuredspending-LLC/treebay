@@ -64,15 +64,15 @@ export function calculateTestTaxCents(taxableCents) {
 }
 
 // ---- Delivery options ----
-export function calculateDeliveryOptionsCents(product) {
+export function calculateDeliveryOptionsCents(product, vendorDeliveryCents) {
   const options = [];
   if (!product || product.pickup_eligible !== false) {
     options.push({ provider_type: "buyer_pickup", delivery_price_cents: 0, service_type: "Customer Pickup", estimated_delivery_days: 0 });
   }
   if (!product || product.delivery_eligible !== false) {
-    options.push({ provider_type: "vendor_delivery", delivery_price_cents: 50000, service_type: "Vendor Delivery", estimated_delivery_days: 3 });
+    options.push({ provider_type: "vendor_delivery", delivery_price_cents: vendorDeliveryCents ?? 50000, service_type: "Vendor Delivery", estimated_delivery_days: 3 });
   }
-  options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "Third Party Carrier", estimated_delivery_days: 2 });
+  options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "Third Party Carrier — TEST ESTIMATE", estimated_delivery_days: 2 });
   return options;
 }
 
@@ -101,7 +101,7 @@ export async function assembleCheckout(svc, p) {
   const feePayer = feePayerOf(feeRule);
   const feeCents = calculateMarketplaceFeeCents(p.merchandise_cents, feeRule);
   const buyerFeeCents = buyerFeePortionCents(feeCents, feePayer);
-  const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true });
+  const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true }, p.vendor_delivery_cents);
   const selected = p.deliveryMethod ? deliveryOptions.find((o) => o.provider_type === p.deliveryMethod) : null;
   const deliveryCents = selected ? selected.delivery_price_cents : 0;
   const deliveryMethod = selected ? selected.provider_type : null;
@@ -287,6 +287,29 @@ export async function createAllocationLedger(svc, order, cq, paymentRef) {
     description: "TreEbay marketplace fee", credit_cents: feeCents, payment_reference: paymentRef || null,
   });
   return { created: true };
+}
+
+export async function verifyAllocationForSettlement(svc, order, cq) {
+  const totalCents = order.total_cents || Math.round((order.total || 0) * 100);
+  const payments = await svc.entities.PaymentRecord.filter({ order_id: order.id });
+  const paid = (payments || []).find((p) => p.status === "paid");
+  if (!paid) throw new Error("Financial reconciliation: no paid PaymentRecord exists.");
+  if ((paid.amount_cents || Math.round((paid.amount || 0) * 100)) !== totalCents) {
+    throw new Error("Financial reconciliation: paid amount does not equal Order.total_cents.");
+  }
+
+  const group = allocationGroup(order.id);
+  let rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: order.id, transaction_id: group });
+  if (!(rows || []).length) {
+    await createAllocationLedger(svc, order, cq, paid.transaction_ref || paid.provider_payment_id);
+    rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: order.id, transaction_id: group });
+  }
+  const debitTotal = (rows || []).reduce((sum, row) => sum + (row.debit_cents || 0), 0);
+  const creditTotal = (rows || []).reduce((sum, row) => sum + (row.credit_cents || 0), 0);
+  if (debitTotal !== totalCents || creditTotal !== totalCents) {
+    throw new Error("Financial reconciliation: allocation debits " + debitTotal + ", credits " + creditTotal + ", expected " + totalCents + ".");
+  }
+  return { paid, debitTotal, creditTotal, reconstructed: rows.length > 0 };
 }
 
 // Net amount owed to the vendor at settlement.

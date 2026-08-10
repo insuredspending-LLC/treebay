@@ -7,7 +7,7 @@ import {
   resolvePaymentExceptions, assertVendorSellable, VENDOR_CONFIRM_HOURS, RESERVATION_TTL_MINUTES,
 } from "./transactions.ts";
 import {
-  reserveForOrder, releaseForOrder, commitForOrder, getActiveReservation, isReservationExpired,
+  reserveForOrder, releaseForOrder, getActiveReservation, isReservationExpired,
   checkoutQuantity, checkoutHoldsInventory,
 } from "./inventory.ts";
 import { generateAndStoreDocument } from "./documents.ts";
@@ -105,23 +105,8 @@ export async function processTestPayment(svc, orderId, outcome, actor) {
   const now = new Date().toISOString();
 
   if (outcome === "TEST_SUCCESS") {
-    // Commit the existing hold exactly once at payment confirmation. No availability
-    // re-check is needed because the guarded reservation already owns these units.
-    if (holdsInventory) {
-      try {
-        await commitForOrder(svc, orderId);
-      } catch (e) {
-        await raiseExceptionOnce(svc, {
-          severity: "CRITICAL", exception_type: "inventory_commit_failed", order_id: orderId,
-          buyer_id: order.buyer_id, vendor_id: order.vendor_id,
-          reason: "Could not commit paid inventory for " + order.order_number + ": " + e.message,
-          technical_details_private: e.message,
-          recommended_action: "Reconcile the reservation before retrying payment.", requires_admin: true,
-        });
-        return err(409, "Inventory could not be committed: " + e.message);
-      }
-    }
-
+    // Payment confirms the existing reservation but does not commit stock. The vendor
+    // confirmation step owns the single reserved -> committed inventory transition.
     // Reference generated FIRST, persisted, then used verbatim in the ledger.
     const transactionRef = "TEST-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
     await svc.entities.PaymentRecord.update(payment.id, {

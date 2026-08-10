@@ -56,7 +56,8 @@ export default function ProductDetail() {
   const unitPrice = priceForQuantity(product, qty);
   const showReqQuote = unitPrice === null;
   const subtotal = showReqQuote ? null : unitPrice * qty;
-  const canOrder = product.listing_status === "active" && product.quantity_available > 0 && !showReqQuote && qty <= product.quantity_available;
+  const sellerVerified = vendor?.verification_status === "verified";
+  const canOrder = sellerVerified && product.listing_status === "active" && product.quantity_available > 0 && !showReqQuote && qty <= product.quantity_available;
 
   const toggleFav = async () => {
     if (fav) {
@@ -192,7 +193,8 @@ export default function ProductDetail() {
           )}
 
           <div className="grid grid-cols-1 gap-2">
-            <Button onClick={buyNow} disabled={!canOrder || submitting} className="h-12 text-base">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}{showReqQuote ? "Request quote to buy" : "Place Order Request"}</Button>
+            <Button onClick={buyNow} disabled={!canOrder || submitting} className="h-12 text-base">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}{sellerVerified ? (showReqQuote ? "Request quote to buy" : "Place Order Request") : "Seller unavailable for purchase"}</Button>
+            {!sellerVerified && <p className="text-sm text-amber-700">Purchasing is disabled while this seller is {vendor?.verification_status || "unverified"}.</p>}
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />} Request quote</Button>
               <Button variant="outline" onClick={startConversation} className="h-11"><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>

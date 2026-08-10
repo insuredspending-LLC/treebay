@@ -74,7 +74,8 @@ export default function Checkout() {
   if (!quote) return <div className="py-16 text-center text-muted-foreground">No checkout quote found. <Button variant="link" onClick={() => navigate(-1)}>Go back</Button></div>;
 
   const expired = quote.expiration_at && new Date(quote.expiration_at) < new Date();
-  const deliveryReady = !!quote.delivery_method;
+  const visibleOption = options.find((o) => o.id === selectedOption);
+  const deliveryReady = !!quote.delivery_method && visibleOption?.provider_type === quote.delivery_method;
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
@@ -172,12 +173,12 @@ export default function Checkout() {
         </Card>
       )}
 
-      <div className="text-xs text-muted-foreground">Quote expires {new Date(quote.expiration_at).toLocaleTimeString()}. Reserved inventory is held for 30 minutes.</div>
+      <div className="text-xs text-muted-foreground">Pricing is valid until {new Date(quote.expiration_at).toLocaleTimeString()}. Inventory will be reserved when you confirm the order.</div>
 
       <Button onClick={placeOrder} disabled={placing || expired || !deliveryReady} className="w-full h-12 text-base font-medium">
         {placing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />} Confirm & Place Order
       </Button>
-      {!deliveryReady && <p className="text-xs text-center text-muted-foreground">Select a delivery option to continue.</p>}
+      {!deliveryReady && <p className="text-xs text-center text-muted-foreground">Apply the selected delivery option to continue.</p>}
     </div>
   );
 }

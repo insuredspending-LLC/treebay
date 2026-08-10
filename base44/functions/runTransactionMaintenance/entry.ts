@@ -1,11 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
-  transitionOrder, createSettlementLedgerEntry, rollbackExpiredRFQCheckout,
-  hasBlockingException, closeDeliveryOptions, raiseExceptionOnce,
+  transitionOrder, createSettlementLedgerEntry, verifyAllocationForSettlement, rollbackExpiredRFQCheckout,
+  hasBlockingException, closeDeliveryOptions, raiseExceptionOnce, updateShipmentStatus,
 } from "../../shared/transactions.ts";
 import { releaseForOrder, checkoutHoldsInventory } from "../../shared/inventory.ts";
 import { recoverStaleInventoryReservation } from "../../shared/inventoryRecovery.ts";
 import { generateAndStoreDocument } from "../../shared/documents.ts";
+import { resumePendingRefund } from "../../shared/refunds.ts";
 
 // Single source of truth for all recurring transaction maintenance.
 //
@@ -36,7 +37,7 @@ export default async function(req) {
     const svc = base44.asServiceRole;
     const now = new Date();
     const staleCutoff = new Date(now.getTime() - 5 * 60000);
-    let released = 0, escalated = 0, completed = 0, settled = 0, reminders = 0, rolledBack = 0;
+    let released = 0, escalated = 0, completed = 0, settled = 0, reminders = 0, rolledBack = 0, refundsRecovered = 0;
     let checkoutLocksRecovered = 0, inventoryTransientsRecovered = 0, inventoryExceptions = 0;
 
     // ---- 1. Recover stale CheckoutQuote order-creation locks ----
@@ -153,7 +154,18 @@ export default async function(req) {
       }
     }
 
-    // ---- 4. THE SYSTEM owns completion: delivered -> completed ----
+    // ---- 4. Resume staged refunds. The helper is idempotent and leaves failures pending. ----
+    const pendingRefunds = await svc.entities.Order.filter({ order_status: "refund_pending" }, "-created_date", 100);
+    for (const order of (pendingRefunds || [])) {
+      try {
+        await resumePendingRefund(svc, order.id, { type: "system", id: actorId });
+        refundsRecovered++;
+      } catch {
+        // resumePendingRefund records the CRITICAL reconciliation exception.
+      }
+    }
+
+    // ---- 5. THE SYSTEM owns completion: delivered -> completed ----
     const delivered = await svc.entities.Order.filter({ order_status: "delivered" }, "-created_date", 100);
     for (const order of (delivered || [])) {
       if (order.payment_status !== "paid") continue;
@@ -161,14 +173,15 @@ export default async function(req) {
       // Delivery must actually be recorded (shipment delivered/confirmed, or pickup).
       const shipments = await svc.entities.Shipment.filter({ order_id: order.id });
       const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
-      const shipmentOk = isPickup || !(shipments || []).length ||
-        (shipments || []).every((s) => ["delivered", "confirmed"].includes(s.shipment_status));
+      const shipmentOk = isPickup || ((shipments || []).length > 0 &&
+        (shipments || []).every((s) => ["delivered", "confirmed"].includes(s.shipment_status)));
       if (!shipmentOk) continue;
       await transitionOrder(svc, order.id, "completed", { type: "system", id: actorId, description: "Auto-completed after delivery" });
       await svc.entities.Order.update(order.id, { completed_at: new Date().toISOString() });
       for (const s of (shipments || [])) {
         if (s.shipment_status === "delivered") {
-          await svc.entities.Shipment.update(s.id, { shipment_status: "confirmed", buyer_confirmed: true });
+          await updateShipmentStatus(svc, s.id, "confirmed", { type: "system", id: actorId, description: "Shipment confirmed during automatic completion" });
+          await svc.entities.Shipment.update(s.id, { buyer_confirmed: true });
         }
       }
       completed++;
@@ -182,9 +195,6 @@ export default async function(req) {
     ];
     for (const order of settleable) {
       try {
-        if (order.order_status === "completed") {
-          await transitionOrder(svc, order.id, "settlement_pending", { type: "system", id: actorId, description: "Settlement prepared" });
-        }
         const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
         if (!cq) {
           await raiseExceptionOnce(svc, {
@@ -195,6 +205,10 @@ export default async function(req) {
           });
           continue;
         }
+        await verifyAllocationForSettlement(svc, order, cq);
+        if (order.order_status === "completed") {
+          await transitionOrder(svc, order.id, "settlement_pending", { type: "system", id: actorId, description: "Settlement prepared after financial reconciliation" });
+        }
         // Idempotent: the settlement ledger group is written at most once.
         await createSettlementLedgerEntry(svc, order, cq);
         await generateAndStoreDocument(svc, order, "vendor_settlement_statement", cq);
@@ -202,7 +216,8 @@ export default async function(req) {
         settled++;
       } catch (err) {
         await raiseExceptionOnce(svc, {
-          severity: "ACTION_REQUIRED", exception_type: "settlement_failed", order_id: order.id,
+          severity: err.message?.startsWith("Financial reconciliation:") ? "CRITICAL" : "ACTION_REQUIRED",
+          exception_type: err.message?.startsWith("Financial reconciliation:") ? "financial_reconciliation" : "settlement_failed", order_id: order.id,
           buyer_id: order.buyer_id, vendor_id: order.vendor_id,
           reason: "Settlement failed for " + order.order_number + ": " + err.message,
           technical_details_private: err.message,
@@ -211,7 +226,7 @@ export default async function(req) {
       }
     }
 
-    return Response.json({ released, escalated, completed, settled, reminders, rolledBack, checkoutLocksRecovered, inventoryTransientsRecovered, inventoryExceptions, ranBy: actorId });
+    return Response.json({ released, escalated, completed, settled, reminders, rolledBack, refundsRecovered, checkoutLocksRecovered, inventoryTransientsRecovered, inventoryExceptions, ranBy: actorId });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

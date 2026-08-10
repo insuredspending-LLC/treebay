@@ -30,7 +30,7 @@ export default function QuoteForm() {
       try {
         const r = await base44.entities.RFQ.get(rfqId);
         setRfq(r);
-        setLines((r.items || []).map((it) => ({ line_name: it.common_name, quantity_offered: it.quantity, unit_price: 0, subtotal: 0, availability: "In stock", estimated_ready_date: "", delivery_offered: r.delivery_required, delivery_price: 0, taxes: 0, additional_fees: 0, substitution_details: "" })));
+        setLines((r.items || []).map((it) => ({ line_name: it.common_name, quantity_offered: it.quantity, unit_price: 0, subtotal: 0, availability: "In stock", estimated_ready_date: "", delivery_offered: r.delivery_required, delivery_price: 0, substitution_details: "" })));
       } catch {}
       finally { setLoading(false); }
     })();
@@ -38,7 +38,7 @@ export default function QuoteForm() {
 
   const update = (i, key, val) => setLines((p) => { const n = [...p]; const v = key === "delivery_offered" ? val : (typeof n[i][key] === "number" ? Number(val) || 0 : val); n[i] = { ...n[i], [key]: v, subtotal: (n[i].quantity_offered || 0) * (key === "unit_price" ? Number(val) || 0 : n[i].unit_price || 0) }; return n; });
 
-  const total = lines.reduce((s, l) => s + (l.subtotal || 0) + (l.delivery_price || 0) + (l.taxes || 0) + (l.additional_fees || 0), 0);
+  const total = lines.reduce((s, l) => s + (l.subtotal || 0) + (l.delivery_offered ? (l.delivery_price || 0) : 0), 0);
 
   const submit = async () => {
     if (!vendor) { toast({ title: "No vendor profile", variant: "destructive" }); return; }
@@ -69,16 +69,16 @@ export default function QuoteForm() {
           <Card key={i} className="p-4 space-y-3">
             <p className="font-semibold text-sm">{l.line_name} · {l.quantity_offered} units</p>
             <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min="1" value={l.quantity_offered} onChange={(e) => update(i, "quantity_offered", e.target.value)} className="h-10" /></div>
               <div className="space-y-1"><Label className="text-xs">Unit price</Label><Input type="number" value={l.unit_price} onChange={(e) => update(i, "unit_price", e.target.value)} className="h-10" /></div>
               <div className="space-y-1"><Label className="text-xs">Availability</Label><Input value={l.availability} onChange={(e) => update(i, "availability", e.target.value)} className="h-10" placeholder="In stock" /></div>
               <div className="space-y-1"><Label className="text-xs">Est. ready date</Label><Input type="date" value={l.estimated_ready_date} onChange={(e) => update(i, "estimated_ready_date", e.target.value)} className="h-10" /></div>
               <div className="space-y-1"><Label className="text-xs">Delivery price</Label><Input type="number" value={l.delivery_price} onChange={(e) => update(i, "delivery_price", e.target.value)} className="h-10" /></div>
-              <div className="space-y-1"><Label className="text-xs">Taxes</Label><Input type="number" value={l.taxes} onChange={(e) => update(i, "taxes", e.target.value)} className="h-10" /></div>
-              <div className="space-y-1"><Label className="text-xs">Additional fees</Label><Input type="number" value={l.additional_fees} onChange={(e) => update(i, "additional_fees", e.target.value)} className="h-10" /></div>
+              <div className="col-span-2 text-sm text-muted-foreground">Taxes and TreEbay fees are calculated at checkout.</div>
             </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={l.delivery_offered} onChange={(e) => update(i, "delivery_offered", e.target.checked)} /> Delivery offered</label>
             <div className="space-y-1"><Label className="text-xs">Substitution details (optional)</Label><Input value={l.substitution_details} onChange={(e) => update(i, "substitution_details", e.target.value)} className="h-10" placeholder="Equivalent cultivar offered" /></div>
-            <div className="flex justify-between text-sm pt-1"><span className="text-muted-foreground">Line total</span><span className="font-semibold">{formatCurrency((l.subtotal || 0) + (l.delivery_price || 0) + (l.taxes || 0) + (l.additional_fees || 0))}</span></div>
+            <div className="flex justify-between text-sm pt-1"><span className="text-muted-foreground">Line total</span><span className="font-semibold">{formatCurrency((l.subtotal || 0) + (l.delivery_offered ? (l.delivery_price || 0) : 0))}</span></div>
           </Card>
         ))}
       </div>

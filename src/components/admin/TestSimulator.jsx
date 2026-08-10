@@ -20,6 +20,10 @@ const GROUPS = [
     ["VENDOR_TIMEOUT", "Vendor confirmation timeout"],
   ]},
   { label: "Delivery", items: [
+    ["DELIVERY_ASSIGN", "Assign delivery"],
+    ["PICKUP", "Record pickup"],
+    ["IN_TRANSIT", "Mark in transit"],
+    ["DELIVER", "Mark delivered"],
     ["DELIVERY_DELAY", "Delivery delayed"],
     ["DELIVERY_FAIL", "Delivery failed"],
   ]},

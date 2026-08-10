@@ -17,7 +17,7 @@ import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, 
 function getFulfillmentSequence(order) {
   const isPickup = order?.fulfillment_method === "buyer_pickup" || order?.fulfillment_method === "pickup";
   const base = ["awaiting_payment", "payment_confirmed", "inventory_reserved", "vendor_confirmed", "preparing", "ready_for_pickup"];
-  return isPickup ? [...base, "picked_up", "in_transit", "delivered", "completed"] : [...base, "delivery_assigned", "picked_up", "in_transit", "delivered", "completed"];
+  return isPickup ? [...base, "picked_up", "delivered", "completed"] : [...base, "delivery_assigned", "picked_up", "in_transit", "delivered", "completed"];
 }
 
 function getNextStatus(order) {
@@ -28,9 +28,8 @@ function getNextStatus(order) {
   if (s === "preparing") return "ready_for_pickup";
   if (s === "ready_for_pickup") return isPickup ? "picked_up" : "delivery_assigned";
   if (s === "delivery_assigned") return "picked_up";
-  if (s === "picked_up") return "in_transit";
+  if (s === "picked_up") return isPickup ? "delivered" : "in_transit";
   if (s === "in_transit") return "delivered";
-  if (s === "delivered") return "completed";
   return null;
 }
 
@@ -185,6 +184,7 @@ export default function OrderDetail() {
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
         {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> Pay (Test Mode)</Button>}
         {isVendor && canAdvance && nextStatus && <Button onClick={advance}>Advance to {ORDER_STATUS_LABELS[nextStatus]}</Button>}
+        {order.order_status === "delivered" && <p className="text-sm text-muted-foreground self-center">TreEbay will complete this order automatically.</p>}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>
 

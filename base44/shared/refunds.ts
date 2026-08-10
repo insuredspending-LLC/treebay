@@ -34,7 +34,7 @@ export async function resumePendingRefund(svc, orderId, actor) {
     return { order: await svc.entities.Order.get(orderId), payment: await svc.entities.PaymentRecord.get(payment.id), inventory };
   } catch (error) {
     await raiseExceptionOnce(svc, {
-      severity: "CRITICAL", exception_type: "refund_reconciliation_failed", order_id: orderId,
+      severity: "CRITICAL", exception_type: "refund_reconciliation", order_id: orderId,
       buyer_id: order.buyer_id, vendor_id: order.vendor_id, payment_id: payment.id,
       reason: "Refund reconciliation failed for " + order.order_number + ": " + error.message,
       technical_details_private: error.message,

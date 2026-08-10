@@ -111,8 +111,9 @@ export default function AdminDashboard() {
                 <HealthRow label="Marketplace" status="Operational" />
                 <HealthRow label="Payments" status="Test Mode" />
                 <HealthRow label="Tax calculation" status="Test/Estimated" />
-                <HealthRow label="Delivery quoting" status="Not Configured" />
-                <HealthRow label="Document generation" status="Operational" />
+                <HealthRow label="Delivery pricing" status="Test Estimates Available" />
+                <HealthRow label="Real carrier integration" status="Not Configured" />
+                <HealthRow label="Document generation" status="Operational / Test" />
                 <HealthRow label="Notifications" status="Operational" />
               </div>
             </Card>
