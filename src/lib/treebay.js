@@ -150,3 +150,7 @@ export async function createNotification(userId, type, title, body, refType, ref
 export function classNames(...arr) {
   return arr.filter(Boolean).join(" ");
 }
+
+export function apiError(e) {
+  return e?.response?.data?.error || e?.data?.error || e?.message || "Something went wrong. Please try again.";
+}
