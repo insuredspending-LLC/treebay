@@ -60,6 +60,7 @@ export default async function(req) {
     await svc.entities.PaymentRecord.update(payment.id, {
       status: "refunded", refunded_amount: order.total, refund_status: "full",
     });
+    await svc.entities.Order.update(orderId, { payment_status: "refunded" });
 
     // ---- 5. Reversal ledger entries (history is append-only) ----
     await createRefundLedger(svc, order, cq, totalCents, reason);

@@ -8,7 +8,7 @@ import {
   transitionOrder, resolveVendorConfirmationExceptions, raiseExceptionOnce,
   createShipment, updateShipmentStatus, shipmentStatusForOrder,
 } from "./transactions.ts";
-import { commitForOrder, releaseForOrder, reverseCommitForOrder, checkoutHoldsInventory } from "./inventory.ts";
+import { releaseForOrder, reverseCommitForOrder, checkoutHoldsInventory } from "./inventory.ts";
 import { generateAndStoreDocument } from "./documents.ts";
 
 // buyer_pickup: inventory_reserved -> vendor_confirmed -> preparing -> ready_for_pickup -> picked_up -> delivered
@@ -40,24 +40,6 @@ export async function advanceFulfillment(svc, orderId, actor) {
   if (!next) return err(400, "Order cannot advance from its current state.");
 
   const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
-
-  // Commit inventory BEFORE confirming. A failed commit surfaces as a fulfillment
-  // exception — the order is never left silently sitting in vendor_confirmed.
-  if (next === "vendor_confirmed" && checkoutHoldsInventory(cq)) {
-    try {
-      await commitForOrder(svc, orderId);
-    } catch (e) {
-      await raiseExceptionOnce(svc, {
-        severity: "ACTION_REQUIRED", exception_type: "inventory_commit_failed", order_id: orderId,
-        buyer_id: order.buyer_id, vendor_id: order.vendor_id,
-        reason: "Could not commit inventory for " + order.order_number + ": " + e.message,
-        technical_details_private: e.message,
-        recommended_action: "Reconcile listing quantities before confirming this order.",
-        requires_admin: true,
-      });
-      return err(409, "Inventory could not be committed: " + e.message);
-    }
-  }
 
   await transitionOrder(svc, orderId, next, { type: actor.type, id: actor.id, description: (actor.label || "Vendor") + " advanced to " + next });
 
@@ -98,7 +80,7 @@ export async function cancelOrder(svc, orderId, actor) {
     return err(400, "Order cannot be cancelled in its current state.");
   }
   const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
-  const committed = ["vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "fulfillment_exception"].includes(order.order_status);
+  const committed = ["inventory_reserved", "vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "fulfillment_exception"].includes(order.order_status);
   if (checkoutHoldsInventory(cq)) {
     if (committed) await reverseCommitForOrder(svc, orderId, "Order cancelled after vendor confirmation");
     else await releaseForOrder(svc, orderId, "Order cancelled before vendor confirmation");
