@@ -561,7 +561,7 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
     { id: cq.id, processing_status: "available" },
     { $set: { processing_status: "consuming", processing_locked_at: new Date().toISOString() } },
   );
-  const lockCount = typeof lockResult === "number" ? lockResult : Array.isArray(lockResult) ? lockResult.length : (lockResult?.updated_count ?? lockResult?.modified_count ?? lockResult?.modifiedCount ?? lockResult?.count ?? 0);
+  const lockCount = typeof lockResult === "number" ? lockResult : Array.isArray(lockResult) ? lockResult.length : (lockResult?.updated ?? lockResult?.updated_count ?? lockResult?.modified_count ?? lockResult?.modifiedCount ?? lockResult?.count ?? 0);
   if (!lockCount) {
     cq = await svc.entities.CheckoutQuote.get(checkoutQuoteId);
     if (cq.processing_status === "consumed" && cq.order_id) {

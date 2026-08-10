@@ -16,7 +16,7 @@ export function checkoutHoldsInventory(cq) {
 function affectedCount(result) {
   if (typeof result === "number") return result;
   if (Array.isArray(result)) return result.length;
-  return result?.updated_count ?? result?.modified_count ?? result?.modifiedCount ?? result?.matched_count ?? result?.count ?? 0;
+  return result?.updated ?? result?.updated_count ?? result?.modified_count ?? result?.modifiedCount ?? result?.matched_count ?? result?.count ?? 0;
 }
 
 async function reservationsForOrder(svc, orderId, productId) {
