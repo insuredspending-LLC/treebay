@@ -56,18 +56,27 @@
     "approximate_spread": {
       "type": "string"
     },
-    "quantity_available": {
-      "type": "number",
+    "physical_quantity": {
+      "type": "integer",
+      "minimum": 0,
       "default": 0,
-      "description": "Units currently available for new reservation/order"
+      "description": "Seller-declared physical units on hand, including reserved units"
+    },
+    "quantity_available": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Units available for new orders; derived from physical quantity less reserved"
     },
     "quantity_reserved": {
-      "type": "number",
+      "type": "integer",
+      "minimum": 0,
       "default": 0,
       "description": "Units held for active checkout/payment/fulfillment"
     },
     "quantity_sold": {
-      "type": "number",
+      "type": "integer",
+      "minimum": 0,
       "default": 0,
       "description": "Completed/committed sold units"
     },
@@ -75,7 +84,8 @@
       "type": "number"
     },
     "minimum_order_quantity": {
-      "type": "number",
+      "type": "integer",
+      "minimum": 1,
       "default": 1
     },
     "wholesale_eligible": {
@@ -150,10 +160,12 @@
         "type": "object",
         "properties": {
           "min_qty": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1
           },
           "max_qty": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0
           },
           "unit_price": {
             "type": "number"
@@ -193,16 +205,9 @@
       }
     },
     "delete": {
-      "$or": [
-        {
-          "data.vendor_owner_id": "{{user.id}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     }
   }
 }
