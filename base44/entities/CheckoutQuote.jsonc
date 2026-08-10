@@ -67,6 +67,16 @@
     "marketplace_fee_cents": {
       "type": "number"
     },
+    "fee_payer": {
+      "type": "string",
+      "enum": [
+        "buyer",
+        "vendor",
+        "split"
+      ],
+      "default": "buyer",
+      "description": "Who bears the marketplace fee for this transaction. TEST MODE: buyer."
+    },
     "other_fees_cents": {
       "type": "number",
       "default": 0

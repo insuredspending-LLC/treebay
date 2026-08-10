@@ -31,6 +31,16 @@
       "default": 0,
       "description": "0 = no cap"
     },
+    "fee_payer": {
+      "type": "string",
+      "enum": [
+        "buyer",
+        "vendor",
+        "split"
+      ],
+      "default": "buyer",
+      "description": "Who bears the marketplace fee. TEST MODE uses 'buyer': the fee is added to the buyer total and never deducted from vendor proceeds."
+    },
     "active": {
       "type": "boolean",
       "default": true

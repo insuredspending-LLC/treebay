@@ -17,14 +17,16 @@ export default async function(req) {
       if (!isPositiveNumber(Number(it.quantity_offered))) return Response.json({ error: "Quantities must be positive" }, { status: 400 });
       if (!isNonNegativeNumber(Number(it.unit_price))) return Response.json({ error: "Prices must be non-negative" }, { status: 400 });
       if (!isNonNegativeNumber(Number(it.delivery_price))) return Response.json({ error: "Delivery fee invalid" }, { status: 400 });
-      if (!isNonNegativeNumber(Number(it.taxes))) return Response.json({ error: "Taxes invalid" }, { status: 400 });
-      if (!isNonNegativeNumber(Number(it.additional_fees))) return Response.json({ error: "Fees invalid" }, { status: 400 });
     }
 
     const svc = base44.asServiceRole;
     const vendors = await svc.entities.VendorProfile.filter({ created_by_id: user.id });
     const vendor = (vendors || [])[0];
     if (!vendor) return Response.json({ error: "No vendor profile found" }, { status: 403 });
+    // Same seller-trust bar as direct listings: only verified sellers may quote commercially.
+    if (vendor.verification_status !== "verified") {
+      return Response.json({ error: "Your seller account must be verified before you can submit quotes." }, { status: 403 });
+    }
 
     const rfq = await svc.entities.RFQ.get(rfqId);
     if (!rfq) return Response.json({ error: "RFQ not found" }, { status: 404 });
@@ -41,8 +43,9 @@ export default async function(req) {
       estimated_ready_date: it.estimated_ready_date || "",
       delivery_offered: !!it.delivery_offered,
       delivery_price: Number(it.delivery_price) || 0,
-      taxes: Number(it.taxes) || 0,
-      additional_fees: Number(it.additional_fees) || 0,
+      // Tax and marketplace fees are computed authoritatively by TreEbay at checkout.
+      taxes: 0,
+      additional_fees: 0,
       substitution_details: it.substitution_details || "",
       subtotal: (Number(it.quantity_offered) || 0) * (Number(it.unit_price) || 0),
     }));

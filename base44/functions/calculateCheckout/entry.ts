@@ -46,6 +46,12 @@ export default async function(req) {
       const rfq = await svc.entities.RFQ.get(quote.rfq_id);
       if (!rfq) return Response.json({ error: "RFQ not found" }, { status: 404 });
       if (rfq.buyer_id !== user.id) return Response.json({ error: "Only the buyer can checkout this quote." }, { status: 403 });
+      // Seller trust is re-checked at checkout — a seller suspended after quoting
+      // cannot receive a new paid order.
+      const quoteVendor = await svc.entities.VendorProfile.get(quote.vendor_id);
+      if (!quoteVendor || quoteVendor.verification_status !== "verified") {
+        return Response.json({ error: "This seller is not currently verified and cannot accept new orders." }, { status: 403 });
+      }
       const items = (quote.items || []).map((i) => {
         const qty = Number(i.quantity_offered) || 0;
         const up = toCents(Number(i.unit_price) || 0);

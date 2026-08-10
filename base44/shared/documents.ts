@@ -99,17 +99,37 @@ export function generatePurchaseOrder(order, cq, buyer) {
 }
 
 export function generateSettlementStatement(order, cq, vendor) {
-  const vendorPayable = (cq?.merchandise_subtotal_cents || 0) - (cq?.marketplace_fee_cents || 0) + (cq?.delivery_method === "vendor_delivery" ? (cq?.delivery_amount_cents || 0) : 0);
+  // TEST MODE fee model: the BUYER pays the TreEbay marketplace fee, so it is NOT
+  // deducted from vendor proceeds. Only a vendor-borne fee portion is withheld.
+  const feePayer = cq?.fee_payer || "buyer";
+  const fee = cq?.marketplace_fee_cents || 0;
+  const vendorFee = feePayer === "vendor" ? fee : feePayer === "split" ? fee - Math.round(fee / 2) : 0;
+  const vendorDelivery = cq?.delivery_method === "vendor_delivery" ? (cq?.delivery_amount_cents || 0) : 0;
+  const vendorPayable = (cq?.merchandise_subtotal_cents || 0) - vendorFee + vendorDelivery;
   return baseHtml("Settlement Statement", order.order_number, true,
     `<div class="section"><div class="label">Settlement Date</div><div class="value">${dateStr(new Date())}</div></div>
     <div class="section"><div class="label">Vendor</div><div class="value">${vendor?.business_name || order.vendor_name || "—"}</div></div>
     <table>
       <tr><td class="muted">Merchandise Subtotal</td><td style="text-align:right;">${money(cq?.merchandise_subtotal_cents || 0)}</td></tr>
-      <tr><td class="muted">Less TreEbay Marketplace Fee</td><td style="text-align:right;">-${money(cq?.marketplace_fee_cents || 0)}</td></tr>
-      ${cq?.delivery_method === "vendor_delivery" ? `<tr><td class="muted">Vendor Delivery</td><td style="text-align:right;">${money(cq?.delivery_amount_cents || 0)}</td></tr>` : ""}
+      ${vendorFee ? `<tr><td class="muted">Less TreEbay Marketplace Fee (vendor portion)</td><td style="text-align:right;">-${money(vendorFee)}</td></tr>` : `<tr><td class="muted">TreEbay Marketplace Fee</td><td style="text-align:right;">Paid by buyer — not deducted</td></tr>`}
+      ${vendorDelivery ? `<tr><td class="muted">Vendor Delivery</td><td style="text-align:right;">${money(vendorDelivery)}</td></tr>` : ""}
       <tr class="total-row"><td>Net Vendor Payable</td><td style="text-align:right;">${money(vendorPayable)}</td></tr>
     </table>
     <p class="muted">This is a TEST settlement statement. No real payout has been processed.</p>`);
+}
+
+export function generateRefundStatement(order, cq, extra) {
+  const amount = extra?.refundAmountCents || order.total_cents || 0;
+  return baseHtml("Refund Statement", order.order_number, true,
+    `<div class="section"><div class="label">Refund Date</div><div class="value">${dateStr(new Date())}</div>
+    <div class="label" style="margin-top:6px;">Reason</div><div class="value">${extra?.refundReason || "Buyer refund request"}</div>
+    <div class="label" style="margin-top:6px;">Original Transaction Reference</div><div class="value">${extra?.payment?.transaction_ref || "TEST"}</div></div>
+    <table>
+      <tr><td class="muted">Original Order Total</td><td style="text-align:right;">${money(order.total_cents || 0)}</td></tr>
+      <tr class="total-row"><td>Refunded to Buyer</td><td style="text-align:right;">${money(amount)}</td></tr>
+    </table>
+    ${cq ? totalsBlock(cq) : ""}
+    <p class="muted">TEST REFUND — no real money has been returned. Original ledger entries are preserved; this refund is recorded as explicit reversal entries.</p>`);
 }
 
 export function generateDeliveryManifest(order, cq, shipment, vendor) {
@@ -143,6 +163,8 @@ export async function generateAndStoreDocument(svc, order, documentType, cq, ext
       html = generateSettlementStatement(order, cq, vendor); recipientType = "vendor"; break;
     case "delivery_manifest":
       html = generateDeliveryManifest(order, cq, shipment, vendor); recipientType = "vendor"; break;
+    case "refund_statement":
+      html = generateRefundStatement(order, cq, extra); recipientType = "buyer"; break;
     default: return null;
   }
   // Idempotency: don't duplicate the same document type for the same order.
