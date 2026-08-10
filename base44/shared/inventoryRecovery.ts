@@ -39,6 +39,7 @@ async function finalize(svc, reservation, checkout, status) {
 }
 
 export async function recoverStaleInventoryReservation(svc, reservation) {
+  if (!TRANSIENT.includes(reservation.status)) return { recovered: false, skipped: true };
   const [product, checkout, order, productReservations] = await Promise.all([
     svc.entities.Product.get(reservation.product_id),
     reservation.checkout_quote_id ? svc.entities.CheckoutQuote.get(reservation.checkout_quote_id) : null,
