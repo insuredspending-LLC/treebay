@@ -45,7 +45,7 @@ export default function RFQDetail() {
     try {
       const { data } = await base44.functions.invoke("acceptQuote", { quoteId: q.id });
       toast({ title: "Quote accepted", description: "Review your final delivered price." });
-      navigate(`/checkout/${data.checkoutQuote.id}`);
+      navigate(`/checkout?quote=${data.checkoutQuote.id}`);
     } catch (e) { toast({ title: "Could not accept quote", description: apiError(e), variant: "destructive" }); }
     finally { setAccepting(null); }
   };
@@ -123,9 +123,9 @@ export default function RFQDetail() {
                   {q.vendor_notes && <p className="text-xs text-muted-foreground mt-2 italic">"{q.vendor_notes}"</p>}
 
                   <div className="flex gap-2 mt-3">
-                    <Button onClick={() => acceptQuote(q)} disabled={q.status === "accepted" || q.status === "declined" || accepting === q.id || (rfq.status !== "open" && rfq.status !== "quotes_received")} className="flex-1">
+                    <Button onClick={() => acceptQuote(q)} disabled={q.status === "accepted" || q.status === "declined" || accepting === q.id || (rfq.status !== "open" && rfq.status !== "quotes_received" && rfq.status !== "checkout_pending")} className="flex-1">
                       {accepting === q.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
-                      {q.status === "accepted" ? "Accepted" : (rfq.status !== "open" && rfq.status !== "quotes_received") ? "Closed" : "Accept quote"}
+                      {q.status === "accepted" ? "Accepted" : q.status === "pending_acceptance" ? "Continue to checkout" : (rfq.status !== "open" && rfq.status !== "quotes_received" && rfq.status !== "checkout_pending") ? "Closed" : "Accept quote"}
                     </Button>
                     <Button variant="outline" onClick={() => message(q)}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
                   </div>

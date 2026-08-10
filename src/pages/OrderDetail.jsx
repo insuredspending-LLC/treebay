@@ -6,22 +6,41 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, MessageSquare, Star, Truck, Package, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, MessageSquare, Star, Truck, Package, Loader2, ShieldCheck, FileText } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { useAppUser } from "@/hooks/useAppUser";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
 
-const FULFILLMENT_SEQUENCE = ["awaiting_payment", "payment_confirmed", "inventory_reserved", "vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "picked_up", "in_transit", "delivered", "completed"];
-const VENDOR_NEXT_STATUS = {
-  inventory_reserved: "vendor_confirmed",
-  vendor_confirmed: "preparing",
-  preparing: "ready_for_pickup",
-  ready_for_pickup: "delivery_assigned",
-  delivery_assigned: "picked_up",
-  picked_up: "in_transit",
-  in_transit: "delivered",
-  delivered: "completed",
+// Fulfillment sequence depends on delivery method:
+//   buyer_pickup:  ... -> ready_for_pickup -> picked_up -> in_transit -> delivered
+//   delivery:      ... -> ready_for_pickup -> delivery_assigned -> picked_up -> in_transit -> delivered
+function getFulfillmentSequence(order) {
+  const isPickup = order?.fulfillment_method === "buyer_pickup" || order?.fulfillment_method === "pickup";
+  const base = ["awaiting_payment", "payment_confirmed", "inventory_reserved", "vendor_confirmed", "preparing", "ready_for_pickup"];
+  return isPickup ? [...base, "picked_up", "in_transit", "delivered", "completed"] : [...base, "delivery_assigned", "picked_up", "in_transit", "delivered", "completed"];
+}
+
+function getNextStatus(order) {
+  const s = order.order_status;
+  const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
+  if (s === "inventory_reserved") return "vendor_confirmed";
+  if (s === "vendor_confirmed") return "preparing";
+  if (s === "preparing") return "ready_for_pickup";
+  if (s === "ready_for_pickup") return isPickup ? "picked_up" : "delivery_assigned";
+  if (s === "delivery_assigned") return "picked_up";
+  if (s === "picked_up") return "in_transit";
+  if (s === "in_transit") return "delivered";
+  if (s === "delivered") return "completed";
+  return null;
+}
+
+const DOCUMENT_LABELS = {
+  buyer_order_confirmation: "Order Confirmation",
+  buyer_invoice: "Invoice",
+  buyer_receipt: "Receipt",
+  vendor_purchase_order: "Purchase Order",
+  vendor_settlement_statement: "Settlement Statement",
+  delivery_manifest: "Delivery Manifest",
 };
 
 export default function OrderDetail() {
@@ -33,10 +52,20 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [review, setReview] = useState({ rating: 5, text: "" });
+  const [documents, setDocuments] = useState([]);
 
   const load = async () => {
     setLoading(true);
-    try { setOrder(await base44.entities.Order.get(id)); } catch {}
+    try {
+      const o = await base44.entities.Order.get(id);
+      setOrder(o);
+      if (o) {
+        try {
+          const { data } = await base44.functions.invoke("listTransactionDocuments", { orderId: id });
+          setDocuments(data.documents || []);
+        } catch {}
+      }
+    } catch {}
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [id]);
@@ -46,14 +75,15 @@ export default function OrderDetail() {
 
   const isVendor = accountType === "vendor";
   const isBuyer = accountType === "buyer" || accountType === "admin";
-  const currentIndex = FULFILLMENT_SEQUENCE.indexOf(order.order_status);
-  const canAdvance = isVendor && !!VENDOR_NEXT_STATUS[order.order_status];
-  const nextStatus = VENDOR_NEXT_STATUS[order.order_status] || null;
+  const sequence = getFulfillmentSequence(order);
+  const currentIndex = sequence.indexOf(order.order_status);
+  const canAdvance = isVendor && !!getNextStatus(order);
+  const nextStatus = getNextStatus(order);
 
-  const advance = async (status) => {
+  const advance = async () => {
     try {
       await base44.functions.invoke("updateFulfillment", { orderId: id, action: "advance" });
-      toast({ title: "Order updated", description: ORDER_STATUS_LABELS[status] });
+      toast({ title: "Order updated", description: ORDER_STATUS_LABELS[nextStatus] });
       load();
     } catch (e) { toast({ title: "Could not update", description: apiError(e), variant: "destructive" }); }
   };
@@ -82,12 +112,19 @@ export default function OrderDetail() {
     } catch (e) { toast({ title: "Payment failed", description: apiError(e), variant: "destructive" }); }
   };
 
+  const openDocument = (doc) => {
+    const blob = new Blob([doc.html_content || "<p>No content</p>"], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">{order.order_number}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{isBuyer ? `Vendor: ${order.vendor_name}` : "Buyer order"} · {shortDate(order.created_date)}</p>
+          <p className="text-sm text-muted-foreground mt-1">{isBuyer ? `Seller: ${order.vendor_name}` : "Buyer order"} · {shortDate(order.created_date)}</p>
         </div>
         <div className="flex flex-col gap-1.5 items-end">
           <StatusBadge status={order.order_status} label={ORDER_STATUS_LABELS[order.order_status]} />
@@ -96,8 +133,8 @@ export default function OrderDetail() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 py-1">
-        {FULFILLMENT_SEQUENCE.map((s) => {
-          const idx = FULFILLMENT_SEQUENCE.indexOf(s);
+        {sequence.map((s) => {
+          const idx = sequence.indexOf(s);
           const done = currentIndex >= idx;
           return (
             <div key={s} className={"flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap " + (done ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground")}>
@@ -131,10 +168,23 @@ export default function OrderDetail() {
         {order.requested_date && <Row label="Requested date" value={shortDate(order.requested_date)} />}
       </Card>
 
+      {documents.length > 0 && (
+        <Card className="p-4 space-y-2">
+          <h2 className="font-semibold flex items-center gap-2"><FileText className="w-4 h-4" /> Documents</h2>
+          <div className="flex flex-wrap gap-2">
+            {documents.map((doc) => (
+              <Button key={doc.id} variant="outline" size="sm" onClick={() => openDocument(doc)}>
+                <FileText className="w-3.5 h-3.5 mr-1.5" /> {DOCUMENT_LABELS[doc.document_type] || doc.document_type.replace(/_/g, " ")}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
         {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> Pay (Test Mode)</Button>}
-        {isVendor && canAdvance && nextStatus && <Button onClick={() => advance(nextStatus)}>Advance to {ORDER_STATUS_LABELS[nextStatus]}</Button>}
+        {isVendor && canAdvance && nextStatus && <Button onClick={advance}>Advance to {ORDER_STATUS_LABELS[nextStatus]}</Button>}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>
 

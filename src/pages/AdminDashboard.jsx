@@ -11,7 +11,7 @@ import { useAppUser } from "@/hooks/useAppUser";
 import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
-import { REPORT_REASONS, VERIFICATION_LABELS, shortDate, formatCurrency } from "@/lib/treebay";
+import { REPORT_REASONS, VERIFICATION_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
 import { seedDemoData } from "@/lib/seed";
 
 export default function AdminDashboard() {
@@ -29,6 +29,9 @@ export default function AdminDashboard() {
   const [seeding, setSeeding] = useState(false);
 
   const seed = async () => { setSeeding(true); try { const r = await seedDemoData(); toast({ title: r.ok ? "Demo data loaded" : "Already seeded" }); load(); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } finally { setSeeding(false); } };
+  const [runningMaint, setRunningMaint] = useState(false);
+  const runMaintenance = async () => { setRunningMaint(true); try { const { data } = await base44.functions.invoke("runTransactionMaintenance", {}); toast({ title: "Maintenance complete", description: `Released: ${data.released}, Reminders: ${data.reminders}, Escalated: ${data.escalated}, Completed: ${data.completed}, Settled: ${data.settled}` }); load(); } catch (e) { toast({ title: "Maintenance failed", description: apiError(e), variant: "destructive" }); } finally { setRunningMaint(false); } };
+  const generateDocs = async (orderId) => { try { for (const dt of ["buyer_order_confirmation", "buyer_invoice", "buyer_receipt", "vendor_purchase_order", "vendor_settlement_statement", "delivery_manifest"]) { await base44.functions.invoke("generateTransactionDocument", { orderId, documentType: dt }); } toast({ title: "Documents generated" }); } catch (e) { toast({ title: "Failed", description: apiError(e), variant: "destructive" }); } };
 
   const load = async () => {
     setLoading(true);
@@ -39,9 +42,9 @@ export default function AdminDashboard() {
         base44.entities.ContentReport.filter({ status: "open" }, "-created_date", 50),
         base44.entities.Order.list("-created_date", 50),
         base44.entities.RFQ.list("-created_date", 50),
-        base44.entities.SystemException.filter({ status: "OPEN" }, "-created_date", 50),
+        base44.entities.SystemException.filter({ requires_admin: true }, "-created_date", 50),
       ]);
-      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []); setExceptions(exc || []);
+      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []); setExceptions((exc || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED"));
       try { setUsers(await base44.entities.User.list() || []); } catch {}
     } catch {}
     finally { setLoading(false); }
@@ -66,7 +69,10 @@ export default function AdminDashboard() {
           <ShieldAlert className="w-6 h-6 text-primary" />
           <div><h1 className="text-xl font-bold">Admin console</h1><p className="text-sm text-muted-foreground">Marketplace oversight & moderation.</p></div>
         </div>
-        <Button variant="outline" size="sm" onClick={seed} disabled={seeding}>{seeding ? "Loading…" : "Seed demo data"}</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={runMaintenance} disabled={runningMaint}>{runningMaint ? "Running…" : "Run maintenance"}</Button>
+          <Button variant="outline" size="sm" onClick={seed} disabled={seeding}>{seeding ? "Loading…" : "Seed demo data"}</Button>
+        </div>
       </div>
 
       {loading ? <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div> : (
@@ -191,7 +197,10 @@ export default function AdminDashboard() {
           <TabsContent value="orders">
             {orders.length === 0 ? <EmptyState icon={ShoppingCart} title="No orders" /> : (
               <div className="space-y-2">{orders.map((o) => (
-                <Link key={o.id} to={`/orders/${o.id}`}><Card className="p-3 flex justify-between"><div><p className="font-medium text-sm">{o.order_number}</p><p className="text-xs text-muted-foreground">{o.vendor_name} · {shortDate(o.created_date)}</p></div><div className="text-right"><p className="font-semibold text-sm">{formatCurrency(o.total)}</p><StatusBadge status={o.order_status} /></div></Card></Link>
+                <Card key={o.id} className="p-3 space-y-2">
+                  <Link to={`/orders/${o.id}`}><div className="flex justify-between"><div><p className="font-medium text-sm">{o.order_number}</p><p className="text-xs text-muted-foreground">{o.vendor_name} · {shortDate(o.created_date)}</p></div><div className="text-right"><p className="font-semibold text-sm">{formatCurrency(o.total)}</p><StatusBadge status={o.order_status} /></div></div></Link>
+                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => generateDocs(o.id)}>Generate all documents</Button>
+                </Card>
               ))}</div>
             )}
           </TabsContent>

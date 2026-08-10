@@ -113,10 +113,10 @@ export default function ProductDetail() {
     setSubmitting(true);
     try {
       const { data } = await base44.functions.invoke("calculateCheckout", {
-        productId: id, quantity: qty, delivery_method: "buyer_pickup",
+        productId: id, quantity: qty,
         destination: { city: buyerProfile?.city || "", state: buyerProfile?.state || "", zip: buyerProfile?.zip_code || "" },
       });
-      navigate(`/checkout?quote=${data.checkout_quote.id}`);
+      navigate(`/checkout?quote=${data.checkoutQuote.id}`);
     } catch (e) { toast({ title: "Could not start checkout", description: apiError(e), variant: "destructive" }); }
     finally { setSubmitting(false); }
   };

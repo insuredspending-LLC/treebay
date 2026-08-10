@@ -103,7 +103,7 @@ export async function assembleCheckout(svc, p) {
   const destLabel = [dest.city, dest.state].filter(Boolean).join(", ");
   for (const opt of deliveryOptions) {
     await svc.entities.DeliveryOption.create({
-      checkout_quote_id: quote.id, provider_type: opt.provider_type, service_type: opt.service_type,
+      checkout_quote_id: quote.id, buyer_id: p.buyer_id, provider_type: opt.provider_type, service_type: opt.service_type,
       delivery_price_cents: opt.delivery_price_cents, status: "available",
       expires_at: expiresAt, delivery_location: destLabel,
     });
