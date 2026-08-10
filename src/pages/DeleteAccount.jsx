@@ -29,7 +29,7 @@ export default function DeleteAccount() {
         await base44.functions.invoke("requestDeletion", { email, reason });
       }
       setDone(true);
-      toast({ title: "Request submitted", description: authed ? "Your marketplace data has been removed." : "Our team will process your request." });
+      toast({ title: "Request submitted", description: authed ? "Your marketplace data has been removed and your login disabled." : "Our team will process your request." });
     } catch (e) {
       toast({ title: "Could not submit", description: apiError(e), variant: "destructive" });
     } finally {
@@ -53,7 +53,7 @@ export default function DeleteAccount() {
           <p className="font-semibold text-foreground">What's retained</p>
           <p>Orders, reviews, and messages are retained as <span className="font-medium">de-identified transaction records</span> for accounting, fraud prevention, and legal compliance. They are no longer linked to an identifiable profile.</p>
           <p className="font-semibold text-foreground">Login account</p>
-          <p>If you're signed in, you'll be signed out as part of this process. Full removal of the underlying authentication account is completed by Treebay on request.</p>
+          <p>If you're signed in, your authentication account is disabled (can no longer be used to sign in) and you're signed out.</p>
         </Card>
 
         {done ? (

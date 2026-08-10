@@ -44,7 +44,7 @@ export default function Settings() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-rose-600" /> Delete account</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">This permanently removes your profile, projects, favorites, blocks, and notifications, and archives your inventory. Orders, reviews, and messages are retained as de-identified transaction records (required for accounting and fraud prevention) and are no longer linked to an identifiable profile. Your login account is signed out; full authentication-account removal is completed by Treebay on request. This cannot be undone.</p>
+            <p className="text-sm text-muted-foreground">This permanently removes your profile, projects, favorites, blocks, and notifications, and archives your inventory. Orders, reviews, and messages are retained as de-identified transaction records (required for accounting and fraud prevention) and are no longer linked to an identifiable profile. Your login account is disabled and can no longer be used to sign in. This cannot be undone.</p>
             <p className="text-sm">Type <span className="font-semibold">DELETE</span> to confirm.</p>
             <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="DELETE" />
           </div>
