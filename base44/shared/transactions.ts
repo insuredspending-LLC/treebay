@@ -219,7 +219,10 @@ export async function createLedgerEntry(svc, e) {
 }
 
 export async function createOrderLedger(svc, order, cq) {
-  const vendorMerchPayable = cq.merchandise_subtotal_cents - cq.marketplace_fee_cents;
+  // Vendor gets the full merchandise subtotal; the marketplace fee is a separate
+  // credit (the buyer pays it as a distinct line item). This reconciles:
+  // buyer debit = merch + delivery + tax + fee = sum of all credits.
+  const vendorMerchPayable = cq.merchandise_subtotal_cents;
   await createLedgerEntry(svc, { order_id: order.id, entry_type: "merchandise", party_type: "vendor", party_id: cq.vendor_id, description: "Vendor merchandise payable", credit_cents: vendorMerchPayable });
   if (cq.delivery_amount_cents > 0) {
     if (cq.delivery_method === "vendor_delivery") {
@@ -237,7 +240,9 @@ export async function createPaymentLedgerEntry(svc, order, paymentRef) {
 }
 
 export async function createSettlementLedgerEntry(svc, order, cq) {
-  const vendorPayable = (cq.merchandise_subtotal_cents - cq.marketplace_fee_cents) + (cq.delivery_method === "vendor_delivery" ? cq.delivery_amount_cents : 0);
+  // Vendor settlement payout = full merchandise + vendor delivery (if applicable).
+  // The marketplace fee was already credited to the marketplace at order creation.
+  const vendorPayable = cq.merchandise_subtotal_cents + (cq.delivery_method === "vendor_delivery" ? cq.delivery_amount_cents : 0);
   await createLedgerEntry(svc, { order_id: order.id, entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id, description: "Vendor settlement payout (TEST)", debit_cents: vendorPayable });
 }
 
