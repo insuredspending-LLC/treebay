@@ -42,6 +42,7 @@
         "draft",
         "open",
         "quotes_received",
+        "checkout_pending",
         "awarded",
         "closed",
         "cancelled"

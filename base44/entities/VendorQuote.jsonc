@@ -82,6 +82,7 @@
       "enum": [
         "submitted",
         "revised",
+        "pending_acceptance",
         "accepted",
         "declined",
         "expired",
