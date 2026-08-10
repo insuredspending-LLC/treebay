@@ -4,13 +4,13 @@ import {
   hasBlockingException, closeDeliveryOptions, raiseExceptionOnce,
 } from "../../shared/transactions.ts";
 import { releaseForOrder, checkoutHoldsInventory } from "../../shared/inventory.ts";
+import { recoverStaleInventoryReservation } from "../../shared/inventoryRecovery.ts";
 import { generateAndStoreDocument } from "../../shared/documents.ts";
 
 // Single source of truth for all recurring transaction maintenance.
 //
-// AUTHORIZATION: privileged, service-role work. Any authenticated caller must be
-// an admin; ordinary buyers/vendors are refused. Unauthenticated calls are only
-// possible from the platform's scheduled workflow execution context.
+// AUTHORIZATION: privileged, service-role work. Every caller must authenticate as
+// an admin; ordinary buyers/vendors and anonymous HTTP/workflow calls are refused.
 //
 // IDEMPOTENCY: every section is guarded by durable state —
 //   inventory   -> InventoryReservation.status (released exactly once)
@@ -35,9 +35,61 @@ export default async function(req) {
 
     const svc = base44.asServiceRole;
     const now = new Date();
+    const staleCutoff = new Date(now.getTime() - 5 * 60000);
     let released = 0, escalated = 0, completed = 0, settled = 0, reminders = 0, rolledBack = 0;
+    let checkoutLocksRecovered = 0, inventoryTransientsRecovered = 0, inventoryExceptions = 0;
 
-    // ---- 1. Release expired reservations (awaiting_payment past expiry) ----
+    // ---- 1. Recover stale CheckoutQuote order-creation locks ----
+    const consumingQuotes = await svc.entities.CheckoutQuote.filter({ processing_status: "consuming" }, "-processing_locked_at", 200);
+    for (const cq of (consumingQuotes || [])) {
+      const linkedOrders = await svc.entities.Order.filter({ checkout_quote_id: cq.id });
+      const referencedOrders = cq.order_id ? await svc.entities.Order.filter({ id: cq.order_id }) : [];
+      const candidates = [...new Map([...(linkedOrders || []), ...(referencedOrders || [])].map((o) => [o.id, o])).values()];
+      const valid = candidates.filter((o) => o.checkout_quote_id === cq.id);
+      const inconsistentReference = candidates.some((o) => o.checkout_quote_id !== cq.id);
+
+      if (valid.length === 1 && !inconsistentReference) {
+        const result = await svc.entities.CheckoutQuote.updateMany(
+          { id: cq.id, processing_status: "consuming" },
+          { $set: { processing_status: "consumed", pricing_status: "consumed", order_id: valid[0].id } },
+        );
+        const count = typeof result === "number" ? result : Array.isArray(result) ? result.length : (result?.updated ?? result?.updated_count ?? result?.modified_count ?? result?.modifiedCount ?? result?.matched_count ?? result?.count ?? 0);
+        if (count) checkoutLocksRecovered++;
+        continue;
+      }
+
+      if (valid.length > 1 || inconsistentReference || !cq.processing_locked_at || Number.isNaN(new Date(cq.processing_locked_at).getTime())) {
+        await raiseExceptionOnce(svc, {
+          severity: "CRITICAL", exception_type: "checkout_lock_recovery_failed", order_id: cq.order_id || cq.id,
+          buyer_id: cq.buyer_id, vendor_id: cq.vendor_id,
+          reason: "CheckoutQuote " + cq.id + " has an ambiguous consuming lock and was not reset.",
+          technical_details_private: "Candidate order count: " + candidates.length + "; processing_locked_at: " + (cq.processing_locked_at || "missing"),
+          recommended_action: "Inspect the CheckoutQuote and linked Orders before changing the processing lock.", requires_admin: true,
+        });
+        continue;
+      }
+
+      if (new Date(cq.processing_locked_at) > staleCutoff) continue;
+      const result = await svc.entities.CheckoutQuote.updateMany(
+        { id: cq.id, processing_status: "consuming", processing_locked_at: cq.processing_locked_at },
+        { $set: { processing_status: "available", processing_locked_at: null } },
+      );
+      const count = typeof result === "number" ? result : Array.isArray(result) ? result.length : (result?.updated ?? result?.updated_count ?? result?.modified_count ?? result?.modifiedCount ?? result?.matched_count ?? result?.count ?? 0);
+      if (count) checkoutLocksRecovered++;
+    }
+
+    // ---- 2. Recover stale transient inventory operations without guessing ----
+    for (const status of ["reserving", "committing", "releasing", "reversing"]) {
+      const rows = await svc.entities.InventoryReservation.filter({ status }, "-updated_date", 200);
+      for (const reservation of (rows || [])) {
+        if (!reservation.updated_date || new Date(reservation.updated_date) > staleCutoff) continue;
+        const recovery = await recoverStaleInventoryReservation(svc, reservation);
+        if (recovery.recovered) inventoryTransientsRecovered++;
+        if (recovery.exception) inventoryExceptions++;
+      }
+    }
+
+    // ---- 3. Release expired reservations (awaiting_payment past expiry) ----
     const awaiting = await svc.entities.Order.filter({ order_status: "awaiting_payment" }, "-created_date", 200);
     for (const order of (awaiting || [])) {
       if (!order.reservation_expires_at || new Date(order.reservation_expires_at) > now) continue;
@@ -159,7 +211,7 @@ export default async function(req) {
       }
     }
 
-    return Response.json({ released, escalated, completed, settled, reminders, rolledBack, ranBy: actorId });
+    return Response.json({ released, escalated, completed, settled, reminders, rolledBack, checkoutLocksRecovered, inventoryTransientsRecovered, inventoryExceptions, ranBy: actorId });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

@@ -2,6 +2,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
 const ALLOWED = ["common_name","botanical_name","cultivar","category","description","sku","container_size","box_size","caliper","current_height","approximate_spread","quantity_available","unit_price","minimum_order_quantity","wholesale_eligible","pickup_eligible","delivery_eligible","native_status","foliage_type","usda_zones","sun_requirement","water_requirement","mature_height","mature_spread","listing_status","bulk_price_tiers","images"];
 
+function affectedCount(result) {
+  if (typeof result === "number") return result;
+  if (Array.isArray(result)) return result.length;
+  return result?.updated ?? result?.updated_count ?? result?.modified_count ?? result?.modifiedCount ?? result?.matched_count ?? result?.count ?? 0;
+}
+
 function validateProductUpdate(body, product) {
   const errors = [];
   // quantity_available: non-negative whole number
@@ -59,17 +65,28 @@ export default async function(req) {
     const update = {};
     for (const k of ALLOWED) { if (body[k] !== undefined) update[k] = body[k]; }
     if (update.quantity_available !== undefined) {
-      // Seller enters total physical units on hand. Active reservations are never overwritten.
+      // Seller enters total physical units on hand. The reservation snapshot is part
+      // of the write condition, so a concurrent reserve/release cannot be overwritten.
       const physical = Number(update.quantity_available) || 0;
-      const reserved = product.quantity_reserved || 0;
-      if (physical < reserved) {
-        return Response.json({ error: "Physical stock cannot be lower than the " + reserved + " units currently reserved." }, { status: 409 });
+      const reservedSnapshot = product.quantity_reserved || 0;
+      if (physical < reservedSnapshot) {
+        return Response.json({ error: "Physical stock cannot be lower than the " + reservedSnapshot + " units currently reserved." }, { status: 409 });
       }
       update.physical_quantity = physical;
-      update.quantity_available = physical - reserved;
+      update.quantity_available = physical - reservedSnapshot;
       if (update.quantity_available <= 0) update.listing_status = update.listing_status || "sold_out";
       else if (product.listing_status === "sold_out" && update.listing_status === undefined) update.listing_status = "active";
+
+      const result = await svc.entities.Product.updateMany(
+        { id: productId, quantity_reserved: reservedSnapshot },
+        { $set: update },
+      );
+      if (!affectedCount(result)) {
+        return Response.json({ error: "Inventory changed while you were saving. Please review the updated stock and try again." }, { status: 409 });
+      }
+      return Response.json({ ok: true });
     }
+
     await svc.entities.Product.update(productId, update);
     return Response.json({ ok: true });
   } catch (error) {
