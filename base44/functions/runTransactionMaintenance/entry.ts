@@ -1,15 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { releaseInventory, transitionOrder, raiseException, createLedgerEntry } from "../../shared/transactions.ts";
+import { releaseInventory, transitionOrder, raiseException, resolveException, createSettlementLedgerEntry, rollbackExpiredRFQCheckout, recordOrderEvent } from "../../shared/transactions.ts";
+import { generateAndStoreDocument } from "../../shared/documents.ts";
 
-// Scheduled transaction maintenance: releases expired reservations, escalates
-// overdue vendor confirmations, auto-completes delivered orders, and settles
-// completed orders. Runs without a user (system schedule).
+// Single source of truth for all recurring transaction maintenance.
+// Idempotent: safe to run every 15 minutes. Each section is independently guarded.
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
     const svc = base44.asServiceRole;
     const now = new Date();
-    let released = 0, escalated = 0, completed = 0, settled = 0;
+    let released = 0, escalated = 0, completed = 0, settled = 0, reminders = 0, rolledBack = 0;
 
     // 1. Release expired reservations (awaiting_payment past reservation_expires_at)
     const awaiting = await svc.entities.Order.filter({ order_status: "awaiting_payment" }, "-created_date", 200);
@@ -22,29 +22,66 @@ export default async function(req) {
             const qty = (cq.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
             await releaseInventory(svc, cq.product_id, qty);
           }
+          if (cq && cq.source_type === "accepted_quote") {
+            await rollbackExpiredRFQCheckout(svc, cq);
+            rolledBack++;
+          }
         } catch {}
       }
       try { await transitionOrder(svc, order.id, "cancelled", { type: "system", description: "Reservation expired - payment not received" }); } catch {}
       released++;
     }
 
-    // 2. Escalate overdue vendor confirmations
-    const reserved = await svc.entities.Order.filter({ order_status: "inventory_reserved" }, "-created_date", 200);
-    for (const order of (reserved || [])) {
-      if (!order.vendor_confirm_deadline || new Date(order.vendor_confirm_deadline) > now) continue;
-      const existing = await svc.entities.SystemException.filter({ order_id: order.id, exception_type: "vendor_confirmation_timeout" });
-      if (existing && existing.length) continue;
-      await raiseException(svc, {
-        severity: "ACTION_REQUIRED", exception_type: "vendor_confirmation_timeout",
-        order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id,
-        reason: "Vendor did not confirm " + order.order_number + " within 24h",
-        recommended_action: "Contact vendor or cancel fulfillment.",
-        requires_admin: true, status: "WAITING_ON_VENDOR",
-      });
-      escalated++;
+    // 2. Rollback expired RFQ checkouts (CheckoutQuotes that expired without producing an order)
+    const expiredQuotes = await svc.entities.CheckoutQuote.filter({ pricing_status: "draft" }, "-created_date", 200);
+    for (const cq of (expiredQuotes || [])) {
+      if (!cq.expiration_at || new Date(cq.expiration_at) > now) continue;
+      if (cq.order_id) continue;
+      if (cq.source_type === "accepted_quote") {
+        try { await rollbackExpiredRFQCheckout(svc, cq); rolledBack++; } catch {}
+      } else {
+        try { await svc.entities.CheckoutQuote.update(cq.id, { pricing_status: "expired" }); } catch {}
+      }
     }
 
-    // 3. Auto-complete delivered orders (payment valid, no blocking exception)
+    // 3. Vendor confirmation reminders + escalation
+    const reserved = await svc.entities.Order.filter({ order_status: "inventory_reserved" }, "-created_date", 200);
+    for (const order of (reserved || [])) {
+      if (!order.vendor_confirm_deadline) continue;
+      const deadline = new Date(order.vendor_confirm_deadline);
+      // Find existing reminder exception
+      const excs = await svc.entities.SystemException.filter({ order_id: order.id, exception_type: "vendor_confirmation_reminder" });
+      let exc = (excs || [])[0];
+      if (!exc) continue; // exception created at payment time; skip if missing
+
+      if (now >= deadline) {
+        // Escalate to admin
+        if (exc.status !== "ADMIN_REVIEW" && exc.status !== "RESOLVED") {
+          await svc.entities.SystemException.update(exc.id, {
+            severity: "ACTION_REQUIRED", status: "ADMIN_REVIEW", requires_admin: true,
+            reason: "Vendor did not confirm " + order.order_number + " within " + Math.round((deadline - new Date(order.created_date)) / 3600000) + "h",
+            recommended_action: "Contact vendor or cancel fulfillment.",
+          });
+          escalated++;
+        }
+      } else if (exc.next_retry_at && now >= new Date(exc.next_retry_at) && exc.retry_count < exc.max_retries) {
+        // Send reminder notification
+        await svc.entities.Notification.create({
+          user_id: order.vendor_owner_id, type: "general",
+          title: "Reminder: Please confirm order " + order.order_number,
+          body: "Confirmation deadline: " + deadline.toLocaleString(),
+          reference_type: "order", reference_id: order.id, read: false,
+        });
+        const nextRetry = new Date(deadline.getTime() - (exc.max_retries - exc.retry_count - 1) * 4 * 3600000);
+        await svc.entities.SystemException.update(exc.id, {
+          retry_count: exc.retry_count + 1,
+          next_retry_at: nextRetry.toISOString(),
+        });
+        reminders++;
+      }
+    }
+
+    // 4. Auto-complete delivered orders (payment valid, no blocking exceptions)
     const delivered = await svc.entities.Order.filter({ order_status: "delivered" }, "-created_date", 100);
     for (const order of (delivered || [])) {
       if (order.payment_status !== "paid") continue;
@@ -58,20 +95,22 @@ export default async function(req) {
       } catch {}
     }
 
-    // 4. Settle completed orders (TEST settlement — no real payout)
+    // 5. Settle completed orders (TEST settlement — no real payout)
     const done = await svc.entities.Order.filter({ order_status: "completed" }, "-created_date", 100);
     for (const order of (done || [])) {
       try {
         await transitionOrder(svc, order.id, "settlement_pending", { type: "system", description: "Settlement prepared" });
-        const totalCents = order.total_cents || Math.round((order.total || 0) * 100);
-        const vendorPayable = totalCents - Math.round((order.platform_fees || 0) * 100);
-        await createLedgerEntry(svc, { order_id: order.id, entry_type: "payout", party_type: "vendor", party_id: order.vendor_id, description: "Vendor settlement (TEST)", credit_cents: vendorPayable });
+        const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
+        if (cq) {
+          await createSettlementLedgerEntry(svc, order, cq);
+          await generateAndStoreDocument(svc, order, "vendor_settlement_statement", cq);
+        }
         await transitionOrder(svc, order.id, "settled", { type: "system", description: "Settled (TEST)" });
         settled++;
       } catch {}
     }
 
-    return Response.json({ released, escalated, completed, settled });
+    return Response.json({ released, escalated, completed, settled, reminders, rolledBack });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

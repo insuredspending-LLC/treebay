@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { transitionOrder, commitInventory, releaseInventory, recordOrderEvent, createLedgerEntry, raiseException, resolveExceptionsForOrder, VENDOR_CONFIRM_HOURS } from "../../shared/transactions.ts";
+import { transitionOrder, reserveInventory, releaseInventory, recordOrderEvent, createPaymentLedgerEntry, raiseException, resolveExceptionsForOrder, VENDOR_CONFIRM_HOURS, RESERVATION_TTL_MINUTES } from "../../shared/transactions.ts";
+import { generateAndStoreDocument } from "../../shared/documents.ts";
 
 export default async function(req) {
   try {
@@ -18,6 +19,18 @@ export default async function(req) {
     // Idempotency: already paid
     if (order.payment_status === "paid") return Response.json({ order, alreadyPaid: true });
 
+    // On retry from payment_failed, re-reserve inventory before attempting payment.
+    if (order.order_status === "payment_failed" && order.checkout_quote_id) {
+      const cq = await svc.entities.CheckoutQuote.get(order.checkout_quote_id);
+      if (cq && cq.source_type === "direct_listing" && cq.product_id) {
+        const qty = (cq.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+        try { await reserveInventory(svc, cq.product_id, qty); }
+        catch (e) { return Response.json({ error: "Insufficient inventory for retry: " + e.message }, { status: 400 }); }
+      }
+      // Re-extend reservation
+      await svc.entities.Order.update(orderId, { reservation_expires_at: new Date(Date.now() + RESERVATION_TTL_MINUTES * 60000).toISOString() });
+    }
+
     // Find or create payment record (idempotent)
     let payments = await svc.entities.PaymentRecord.filter({ order_id: orderId });
     let payment = (payments || [])[0];
@@ -33,22 +46,41 @@ export default async function(req) {
     const now = new Date().toISOString();
 
     if (outcome === "TEST_SUCCESS") {
-      await svc.entities.PaymentRecord.update(payment.id, { status: "paid", paid_at: now, transaction_ref: "TEST-" + Date.now() });
-      await transitionOrder(svc, orderId, "payment_confirmed", { type: "payment_provider", id: "trebay_test", description: "Test payment confirmed" });
-      // Commit inventory (reservation -> sold) for direct listings
+      // Validate before marking paid: re-check inventory availability.
       if (order.checkout_quote_id) {
         const cq = await svc.entities.CheckoutQuote.get(order.checkout_quote_id);
         if (cq && cq.source_type === "direct_listing" && cq.product_id) {
+          const product = await svc.entities.Product.get(cq.product_id);
           const qty = (cq.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
-          try { await commitInventory(svc, cq.product_id, qty); } catch {}
+          if ((product?.quantity_available || 0) < qty) return Response.json({ error: "Insufficient inventory — product may have sold out. Please try again." }, { status: 409 });
         }
       }
-      await transitionOrder(svc, orderId, "inventory_reserved", { type: "system", description: "Inventory committed" });
+      // Mark payment record paid.
+      await svc.entities.PaymentRecord.update(payment.id, { status: "paid", paid_at: now, transaction_ref: "TEST-" + Date.now() });
+      // Transition order: payment_confirmed -> inventory_reserved (inventory stays reserved, NOT committed).
+      await transitionOrder(svc, orderId, "payment_confirmed", { type: "payment_provider", id: "trebay_test", description: "Test payment confirmed" });
+      await transitionOrder(svc, orderId, "inventory_reserved", { type: "system", description: "Inventory reserved for fulfillment" });
       const deadline = new Date(Date.now() + VENDOR_CONFIRM_HOURS * 3600000).toISOString();
       await svc.entities.Order.update(orderId, { vendor_confirm_deadline: deadline, payment_status: "paid" });
       await recordOrderEvent(svc, { order_id: orderId, event_type: "payment_succeeded", actor_type: "payment_provider", actor_id: "trebay_test", description: "Test payment succeeded" });
-      await createLedgerEntry(svc, { order_id: orderId, entry_type: "payment", party_type: "buyer", party_id: user.id, description: "Buyer payment (TEST)", debit_cents: totalCents, payment_reference: payment.transaction_ref });
-      await createLedgerEntry(svc, { order_id: orderId, entry_type: "vendor_payable", party_type: "vendor", party_id: order.vendor_id, description: "Vendor payable (pending settlement)", credit_cents: totalCents - Math.round((order.platform_fees || 0) * 100) });
+      // Authoritative ledger: debit buyer for total.
+      await createPaymentLedgerEntry(svc, order, payment.transaction_ref);
+      // Auto-resolve any prior payment_failed exception.
+      await resolveExceptionsForOrder(svc, orderId, "Payment succeeded on retry — exception auto-resolved");
+      // Create vendor confirmation reminder exception (WARNING, auto-retrying).
+      await raiseException(svc, {
+        severity: "WARNING", exception_type: "vendor_confirmation_reminder",
+        order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id,
+        reason: "Vendor confirmation pending for " + order.order_number,
+        recommended_action: "Vendor should confirm the order.",
+        requires_admin: false, status: "AUTO_RETRYING",
+        retry_count: 0, max_retries: 2,
+        next_retry_at: new Date(Date.now() + (VENDOR_CONFIRM_HOURS - 12) * 3600000).toISOString(),
+      });
+      // Generate invoice + receipt documents.
+      const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
+      await generateAndStoreDocument(svc, order, "buyer_invoice", cq, { payment });
+      await generateAndStoreDocument(svc, order, "buyer_receipt", cq, { payment });
       await svc.entities.Notification.create({ user_id: order.vendor_owner_id, type: "order_accepted", title: "Payment received — please confirm order", body: order.order_number, reference_type: "order", reference_id: orderId, read: false });
       return Response.json({ order: await svc.entities.Order.get(orderId), payment: "paid", outcome: "TEST_SUCCESS" });
     } else {
@@ -56,7 +88,7 @@ export default async function(req) {
       await svc.entities.PaymentRecord.update(payment.id, { status: "failed", failed_at: now });
       try { await transitionOrder(svc, orderId, "payment_failed", { type: "payment_provider", id: "trebay_test", description: "Test payment failed: " + outcome }); } catch {}
       await recordOrderEvent(svc, { order_id: orderId, event_type: "payment_failed", actor_type: "payment_provider", actor_id: "trebay_test", description: "Test payment failed: " + outcome });
-      // Release inventory reservation
+      // Release inventory reservation (reserved -> available)
       if (order.checkout_quote_id) {
         const cq = await svc.entities.CheckoutQuote.get(order.checkout_quote_id);
         if (cq && cq.source_type === "direct_listing" && cq.product_id) {

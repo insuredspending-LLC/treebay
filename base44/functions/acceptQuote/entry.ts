@@ -19,13 +19,12 @@ export default async function(req) {
     if (rfq.buyer_id !== user.id) return Response.json({ error: "Only the buyer can accept quotes." }, { status: 403 });
     if (rfq.status !== "open" && rfq.status !== "quotes_received") return Response.json({ error: "This RFQ is no longer accepting quotes." }, { status: 400 });
 
-    // Mark quote accepted, decline others, award RFQ
-    await svc.entities.VendorQuote.update(quoteId, { status: "accepted" });
-    const others = await svc.entities.VendorQuote.filter({ rfq_id: rfq.id, status: "submitted" });
-    if (others && others.length) await svc.entities.VendorQuote.bulkUpdate(others.map((o) => ({ id: o.id, status: "declined" })));
-    await svc.entities.RFQ.update(rfq.id, { status: "awarded" });
+    // Mark quote as pending_acceptance and RFQ as checkout_pending — do NOT finalize yet.
+    // Finalization (quote accepted, others declined, RFQ awarded) happens only when
+    // an authoritative Order is created via createOrderFromCheckout.
+    await svc.entities.VendorQuote.update(quoteId, { status: "pending_acceptance" });
+    await svc.entities.RFQ.update(rfq.id, { status: "checkout_pending" });
 
-    // Build checkout quote — lock vendor merchandise pricing; ignore vendor tax/fees as authoritative.
     const items = (quote.items || []).map((i) => {
       const qty = Number(i.quantity_offered) || 0;
       const up = toCents(Number(i.unit_price) || 0);
@@ -36,7 +35,7 @@ export default async function(req) {
       buyer_id: user.id, vendor_id: quote.vendor_id, vendor_owner_id: quote.vendor_owner_id,
       source_type: "accepted_quote", quote_id: quote.id, rfq_id: rfq.id, items, merchandise_cents: merchCents,
       destination: { city: rfq.delivery_city, state: rfq.delivery_state, zip: rfq.delivery_zip },
-      delivery_method: body.deliveryMethod || ((quote.items || []).some((i) => i.delivery_offered) ? "vendor_delivery" : "buyer_pickup"),
+      deliveryMethod: body.deliveryMethod || null,
     });
     await svc.entities.Notification.create({ user_id: quote.vendor_owner_id, type: "quote_accepted", title: "Quote accepted!", body: "Checkout started for " + rfq.delivery_city, reference_type: "rfq", reference_id: rfq.id, read: false });
     return Response.json({ checkoutQuote: result.checkoutQuote, deliveryOptions: result.deliveryOptions });

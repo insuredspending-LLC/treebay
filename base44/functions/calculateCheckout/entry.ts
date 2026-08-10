@@ -14,6 +14,9 @@ export default async function(req) {
       const product = await svc.entities.Product.get(body.productId);
       if (!product) return Response.json({ error: "Product not found" }, { status: 404 });
       if (product.listing_status !== "active") return Response.json({ error: "This listing is no longer available." }, { status: 400 });
+      // Enforce vendor verification — unverified vendors cannot sell.
+      const vendor = await svc.entities.VendorProfile.get(product.vendor_id);
+      if (!vendor || vendor.verification_status !== "verified") return Response.json({ error: "This vendor is not yet verified. Please check back soon." }, { status: 403 });
       const qty = Number(body.quantity);
       if (!qty || qty < (product.minimum_order_quantity || 1)) return Response.json({ error: "Quantity below minimum order." }, { status: 400 });
       if (qty > (product.quantity_available || 0)) return Response.json({ error: "Only " + (product.quantity_available || 0) + " available." }, { status: 400 });
@@ -24,11 +27,12 @@ export default async function(req) {
       const items = [{ line_name: lineName, quantity: qty, unit_price_cents: unitPriceCents, subtotal_cents: merchCents }];
       const buyerProfiles = await svc.entities.BuyerProfile.filter({ created_by_id: user.id });
       const buyer = (buyerProfiles || [])[0] || {};
+      // deliveryMethod is NOT defaulted — buyer selects from options in Checkout.
       const result = await assembleCheckout(svc, {
         buyer_id: user.id, vendor_id: product.vendor_id, vendor_owner_id: product.vendor_owner_id,
         source_type: "direct_listing", product, product_id: product.id, items, merchandise_cents: merchCents,
         destination: body.destination || { city: buyer.city, state: buyer.state, zip: buyer.zip_code },
-        delivery_method: body.deliveryMethod || "buyer_pickup",
+        deliveryMethod: body.deliveryMethod || null,
       });
       return Response.json(result);
     }
@@ -37,12 +41,11 @@ export default async function(req) {
     if (body.quoteId) {
       const quote = await svc.entities.VendorQuote.get(body.quoteId);
       if (!quote) return Response.json({ error: "Quote not found" }, { status: 404 });
-      if (quote.status !== "submitted" && quote.status !== "revised" && quote.status !== "accepted") return Response.json({ error: "This quote is no longer available." }, { status: 400 });
+      if (quote.status !== "submitted" && quote.status !== "revised" && quote.status !== "pending_acceptance") return Response.json({ error: "This quote is no longer available." }, { status: 400 });
       if (quote.expiration_date) { const exp = new Date(quote.expiration_date); if (!isNaN(exp) && exp < new Date()) return Response.json({ error: "This quote has expired." }, { status: 400 }); }
       const rfq = await svc.entities.RFQ.get(quote.rfq_id);
       if (!rfq) return Response.json({ error: "RFQ not found" }, { status: 404 });
       if (rfq.buyer_id !== user.id) return Response.json({ error: "Only the buyer can checkout this quote." }, { status: 403 });
-      // Lock vendor merchandise pricing; ignore vendor-entered tax/fees as authoritative.
       const items = (quote.items || []).map((i) => {
         const qty = Number(i.quantity_offered) || 0;
         const up = toCents(Number(i.unit_price) || 0);
@@ -53,7 +56,7 @@ export default async function(req) {
         buyer_id: user.id, vendor_id: quote.vendor_id, vendor_owner_id: quote.vendor_owner_id,
         source_type: "accepted_quote", quote_id: quote.id, rfq_id: rfq.id, items, merchandise_cents: merchCents,
         destination: { city: rfq.delivery_city, state: rfq.delivery_state, zip: rfq.delivery_zip },
-        delivery_method: body.deliveryMethod || ((quote.items || []).some((i) => i.delivery_offered) ? "vendor_delivery" : "buyer_pickup"),
+        deliveryMethod: body.deliveryMethod || null,
       });
       return Response.json(result);
     }
