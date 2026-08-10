@@ -31,6 +31,19 @@ const STATUS_STYLES = {
   in_transit: "bg-blue-100 text-blue-700",
   delivered: "bg-emerald-100 text-emerald-700",
   completed: "bg-emerald-100 text-emerald-700",
+  pricing_confirmed: "bg-blue-100 text-blue-700",
+  payment_confirmed: "bg-emerald-100 text-emerald-700",
+  inventory_reserved: "bg-violet-100 text-violet-700",
+  vendor_confirmed: "bg-blue-100 text-blue-700",
+  delivery_assigned: "bg-blue-100 text-blue-700",
+  picked_up: "bg-blue-100 text-blue-700",
+  settlement_pending: "bg-amber-100 text-amber-700",
+  settled: "bg-emerald-100 text-emerald-700",
+  payment_failed: "bg-rose-100 text-rose-700",
+  refund_pending: "bg-amber-100 text-amber-700",
+  fulfillment_exception: "bg-rose-100 text-rose-700",
+  delivery_exception: "bg-rose-100 text-rose-700",
+  disputed: "bg-rose-100 text-rose-700",
 };
 
 export default function StatusBadge({ status, label, className }) {

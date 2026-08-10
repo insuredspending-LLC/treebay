@@ -35,7 +35,7 @@ export default async function(req) {
       subtotal, delivery_charges: 0, taxes: 0, platform_fees: 0, total: subtotal,
       fulfillment_method: product.pickup_eligible ? "pickup" : "vendor_delivery",
       destination_city: buyer.city || "", destination_state: buyer.state || "", destination_zip: buyer.zip_code || "",
-      payment_status: "pending", order_status: "pending",
+      payment_status: "pending", order_status: "awaiting_payment",
     });
 
     const remaining = Math.max(0, (product.quantity_available || 0) - quantity);

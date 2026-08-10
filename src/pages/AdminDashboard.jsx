@@ -24,6 +24,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [rfqs, setRfqs] = useState([]);
   const [users, setUsers] = useState([]);
+  const [exceptions, setExceptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
@@ -32,14 +33,15 @@ export default function AdminDashboard() {
   const load = async () => {
     setLoading(true);
     try {
-      const [v, p, r, o, rfq] = await Promise.all([
+      const [v, p, r, o, rfq, exc] = await Promise.all([
         base44.entities.VendorProfile.list("-created_date", 100),
         base44.entities.Product.list("-created_date", 100),
         base44.entities.ContentReport.filter({ status: "open" }, "-created_date", 50),
         base44.entities.Order.list("-created_date", 50),
         base44.entities.RFQ.list("-created_date", 50),
+        base44.entities.SystemException.filter({ status: "OPEN" }, "-created_date", 50),
       ]);
-      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []);
+      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []); setExceptions(exc || []);
       try { setUsers(await base44.entities.User.list() || []); } catch {}
     } catch {}
     finally { setLoading(false); }
@@ -71,6 +73,7 @@ export default function AdminDashboard() {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="overview"><BarChart3 className="w-4 h-4 mr-1" /> Overview</TabsTrigger>
+            <TabsTrigger value="exceptions"><ShieldAlert className="w-4 h-4 mr-1" /> Exceptions {exceptions.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{exceptions.length}</span>}</TabsTrigger>
             <TabsTrigger value="vendors"><Store className="w-4 h-4 mr-1" /> Vendors {pendingVendors.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-amber-500 text-white text-[10px]">{pendingVendors.length}</span>}</TabsTrigger>
             <TabsTrigger value="listings"><Package className="w-4 h-4 mr-1" /> Listings</TabsTrigger>
             <TabsTrigger value="reports"><Flag className="w-4 h-4 mr-1" /> Reports {reports.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{reports.length}</span>}</TabsTrigger>
@@ -80,12 +83,31 @@ export default function AdminDashboard() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
+            {exceptions.length > 0 && (
+              <Card className="p-4 border-rose-200 bg-rose-50">
+                <div className="flex items-center justify-between">
+                  <div><p className="text-sm font-semibold text-rose-800">REQUIRES YOUR ATTENTION</p><p className="text-3xl font-bold text-rose-800">{exceptions.length}</p></div>
+                  <Button size="sm" onClick={() => setTab("exceptions")}>Review Exceptions</Button>
+                </div>
+              </Card>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Stat icon={ShoppingCart} label="Orders today" value={orders.filter((o) => shortDate(o.created_date) === shortDate(new Date())).length} />
+              <Stat icon={BarChart3} label="Gross volume" value={formatCurrency(orders.reduce((s, o) => s + (o.total || 0), 0))} />
               <Stat icon={Store} label="Vendors" value={vendors.length} />
               <Stat icon={Package} label="Listings" value={products.length} />
-              <Stat icon={ShoppingCart} label="Orders" value={orders.length} />
-              <Stat icon={BarChart3} label="Paid sales" value={formatCurrency(totalSales)} />
             </div>
+            <Card className="p-4">
+              <h2 className="font-semibold mb-2">System health</h2>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <HealthRow label="Marketplace" status="Operational" />
+                <HealthRow label="Payments" status="Test Mode" />
+                <HealthRow label="Tax calculation" status="Test/Estimated" />
+                <HealthRow label="Delivery quoting" status="Not Configured" />
+                <HealthRow label="Document generation" status="Not Configured" />
+                <HealthRow label="Notifications" status="Operational" />
+              </div>
+            </Card>
             {pendingVendors.length > 0 && (
               <Card className="p-4">
                 <h2 className="font-semibold mb-2">Pending vendor verifications</h2>
@@ -99,6 +121,14 @@ export default function AdminDashboard() {
                   </div>
                 ))}</div>
               </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="exceptions">
+            {exceptions.length === 0 ? <EmptyState icon={ShieldAlert} title="No open exceptions" description="The marketplace is operating normally. Autonomously resolved exceptions do not appear here." /> : (
+              <div className="space-y-2">{exceptions.map((e) => (
+                <Link key={e.id} to={`/admin/exceptions/${e.id}`}><Card className="p-3 flex justify-between"><div><p className="font-medium text-sm capitalize">{(e.exception_type || "").replace(/_/g, " ")}</p><p className="text-xs text-muted-foreground">{e.reason}</p></div><div className="text-right"><StatusBadge status={(e.severity || "").toLowerCase()} /><p className="text-xs text-muted-foreground mt-1">{shortDate(e.created_date)}</p></div></Card></Link>
+              ))}</div>
             )}
           </TabsContent>
 
@@ -189,4 +219,9 @@ export default function AdminDashboard() {
 
 function Stat({ icon: Icon, label, value }) {
   return <Card className="p-4"><Icon className="w-5 h-5 text-primary" /><p className="text-2xl font-bold mt-2">{value}</p><p className="text-xs text-muted-foreground">{label}</p></Card>;
+}
+
+function HealthRow({ label, status }) {
+  const color = status === "Operational" ? "text-emerald-600" : status === "Test Mode" || status === "Test/Estimated" ? "text-amber-600" : "text-muted-foreground";
+  return <div className="flex justify-between"><span className="text-muted-foreground">{label}</span><span className={"font-medium " + color}>{status}</span></div>;
 }

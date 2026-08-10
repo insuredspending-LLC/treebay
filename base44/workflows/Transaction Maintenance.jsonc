@@ -1,0 +1,44 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "transaction_maintenance",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_maintenance": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "runTransactionMaintenance"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Run transaction maintenance",
+            "description": "Reservations, escalations, auto-completion, settlement"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Releases expired reservations, escalates overdue vendor confirmations, auto-completes delivered orders, and settles completed orders every 15 minutes.",
+  "name": "Transaction Maintenance",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/15 * * * *",
+      "one_time_date": null,
+      "timezone": "America/Los_Angeles",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}

@@ -45,7 +45,7 @@ export default function Home() {
     <div className="space-y-8">
       <section className="rounded-3xl bg-gradient-to-br from-primary to-[#2d6a3e] text-primary-foreground p-6 md:p-8 -mx-1">
         <h1 className="text-2xl md:text-3xl font-extrabold leading-tight">Find plants. Compare prices.<br />Get them delivered.</h1>
-        <p className="text-primary-foreground/80 mt-2 text-sm">The marketplace for plants, trees, and delivery.</p>
+        <p className="text-primary-foreground/80 mt-2 text-sm">THE LANDSCAPE SUPPLY MARKETPLACE · SOURCE • CONNECT • GROW</p>
         <form onSubmit={search} className="mt-5 flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

@@ -70,7 +70,7 @@ function TopBar() {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Leaf className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-heading font-extrabold text-lg text-primary tracking-tight">Treebay</span>
+            <span className="font-heading font-extrabold text-lg text-primary tracking-tight">TreEbay</span>
           </button>
         )}
         <div className="flex items-center gap-1">

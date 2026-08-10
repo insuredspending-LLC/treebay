@@ -38,12 +38,12 @@ export default function Onboarding() {
           phone: f.phone, city: f.city, state: f.state, zip_code: f.zip_code,
         });
       } else if (role === "vendor") {
-        await base44.entities.VendorProfile.create({
+        await base44.functions.invoke("createVendorProfile", {
           business_name: f.business_name, contact_name: f.contact_name, phone: f.phone,
           address: f.address, city: f.city, state: f.state, zip_code: f.zip_code,
           website: f.website, description: f.description, service_area: f.service_area,
           pickup_available: f.pickup_available !== false, delivery_available: f.delivery_available !== false,
-          wholesale_available: !!f.wholesale_available, verification_status: "pending",
+          wholesale_available: !!f.wholesale_available,
         });
       } else {
         await base44.entities.CarrierProfile.create({
@@ -68,9 +68,9 @@ export default function Onboarding() {
       <div className="min-h-screen flex flex-col bg-background px-4 py-10">
         <div className="flex items-center gap-2 mb-8">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center"><Leaf className="w-5 h-5 text-primary-foreground" /></div>
-          <span className="font-heading font-extrabold text-xl text-primary">Treebay</span>
+          <span className="font-heading font-extrabold text-xl text-primary">TreEbay</span>
         </div>
-        <h1 className="text-2xl font-bold">How will you use Treebay?</h1>
+        <h1 className="text-2xl font-bold">How will you use TreEbay?</h1>
         <p className="text-muted-foreground mt-1">You can switch roles later from your account settings.</p>
         <div className="mt-8 space-y-3">
           {ROLES.map((r) => (

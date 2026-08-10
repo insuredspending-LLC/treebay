@@ -44,8 +44,8 @@ export default function RFQDetail() {
     setAccepting(q.id);
     try {
       const { data } = await base44.functions.invoke("acceptQuote", { quoteId: q.id });
-      toast({ title: "Quote accepted", description: `Order ${data.order.order_number} created.` });
-      navigate(`/orders/${data.order.id}`);
+      toast({ title: "Quote accepted", description: "Review your final delivered price." });
+      navigate(`/checkout/${data.checkoutQuote.id}`);
     } catch (e) { toast({ title: "Could not accept quote", description: apiError(e), variant: "destructive" }); }
     finally { setAccepting(null); }
   };

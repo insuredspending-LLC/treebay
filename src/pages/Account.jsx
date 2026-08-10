@@ -78,7 +78,7 @@ export default function Account() {
       <Button variant="outline" className="w-full h-12 text-rose-600" onClick={() => logout()}>
         <LogOut className="w-4 h-4 mr-2" /> Log out
       </Button>
-      <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1"><Leaf className="w-3 h-3" /> Treebay — the marketplace for plants, trees & delivery.</p>
+      <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1"><Leaf className="w-3 h-3" /> TreEbay — the marketplace for plants, trees & delivery.</p>
     </div>
   );
 }

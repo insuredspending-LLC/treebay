@@ -7,17 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, MessageSquare, Star, Truck, Package, Loader2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Star, Truck, Package, Loader2, ShieldCheck } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { useAppUser } from "@/hooks/useAppUser";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
 
-const FULFILLMENT_SEQUENCE = ["pending", "awaiting_payment", "paid", "confirmed", "preparing", "ready_for_pickup", "in_transit", "delivered", "completed"];
+const FULFILLMENT_SEQUENCE = ["awaiting_payment", "payment_confirmed", "inventory_reserved", "vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "picked_up", "in_transit", "delivered", "completed"];
 const VENDOR_NEXT_STATUS = {
-  pending: "confirmed",
-  confirmed: "preparing",
+  inventory_reserved: "vendor_confirmed",
+  vendor_confirmed: "preparing",
   preparing: "ready_for_pickup",
-  ready_for_pickup: "in_transit",
+  ready_for_pickup: "delivery_assigned",
+  delivery_assigned: "picked_up",
+  picked_up: "in_transit",
   in_transit: "delivered",
   delivered: "completed",
 };
@@ -72,6 +74,14 @@ export default function OrderDetail() {
     } catch (e) { toast({ title: "Could not submit", description: apiError(e), variant: "destructive" }); }
   };
 
+  const pay = async () => {
+    try {
+      await base44.functions.invoke("confirmTestPayment", { orderId: id, outcome: "TEST_SUCCESS" });
+      toast({ title: "Payment confirmed (Test)", description: "Inventory reserved. Vendor notified." });
+      load();
+    } catch (e) { toast({ title: "Payment failed", description: apiError(e), variant: "destructive" }); }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -116,13 +126,14 @@ export default function OrderDetail() {
 
       <Card className="p-4 text-sm space-y-1.5">
         <p className="font-semibold mb-1">Fulfillment</p>
-        <Row label="Method" value={order.fulfillment_method === "pickup" ? "Pickup" : order.fulfillment_method === "vendor_delivery" ? "Vendor delivery" : "Third-party delivery"} />
+        <Row label="Method" value={order.fulfillment_method === "pickup" || order.fulfillment_method === "buyer_pickup" ? "Pickup" : order.fulfillment_method === "vendor_delivery" ? "Vendor delivery" : "Third-party carrier"} />
         <Row label="Destination" value={[order.destination_city, order.destination_state, order.destination_zip].filter(Boolean).join(", ")} />
         {order.requested_date && <Row label="Requested date" value={shortDate(order.requested_date)} />}
       </Card>
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
+        {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> Pay (Test Mode)</Button>}
         {isVendor && canAdvance && nextStatus && <Button onClick={() => advance(nextStatus)}>Advance to {ORDER_STATUS_LABELS[nextStatus]}</Button>}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>

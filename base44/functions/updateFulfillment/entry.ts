@@ -1,5 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { VENDOR_NEXT_STATUS } from "../../shared/marketplace.ts";
+import { transitionOrder, recordOrderEvent, releaseInventory } from "../../shared/transactions.ts";
+
+const VENDOR_NEXT = {
+  inventory_reserved: "vendor_confirmed",
+  vendor_confirmed: "preparing",
+  preparing: "ready_for_pickup",
+  ready_for_pickup: "picked_up",
+  picked_up: "in_transit",
+  in_transit: "delivered",
+};
 
 export default async function(req) {
   try {
@@ -19,16 +28,26 @@ export default async function(req) {
 
     if (action === "advance") {
       if (!isVendor) return Response.json({ error: "Only the vendor can advance fulfillment." }, { status: 403 });
-      const next = VENDOR_NEXT_STATUS[order.order_status];
+      const next = VENDOR_NEXT[order.order_status];
       if (!next) return Response.json({ error: "Order cannot advance from its current state." }, { status: 400 });
-      await svc.entities.Order.update(orderId, { order_status: next });
-      const notifType = next === "ready_for_pickup" ? "order_ready" : next === "in_transit" ? "order_shipped" : next === "delivered" ? "order_delivered" : next === "completed" ? "order_completed" : "general";
-      await svc.entities.Notification.create({ user_id: order.buyer_id, type: notifType, title: "Order update", body: `${order.order_number} → ${next}`, reference_type: "order", reference_id: orderId, read: false });
+      await transitionOrder(svc, orderId, next, { type: "vendor", id: user.id, description: "Vendor advanced to " + next });
+      if (next === "vendor_confirmed") await svc.entities.Order.update(orderId, { vendor_confirmed_at: new Date().toISOString() });
+      if (next === "delivered") await svc.entities.Order.update(orderId, { delivered_at: new Date().toISOString() });
+      const notifType = next === "ready_for_pickup" ? "order_ready" : next === "in_transit" ? "order_shipped" : next === "delivered" ? "order_delivered" : next === "vendor_confirmed" ? "order_accepted" : "general";
+      await svc.entities.Notification.create({ user_id: order.buyer_id, type: notifType, title: "Order update", body: order.order_number + " -> " + next, reference_type: "order", reference_id: orderId, read: false });
       return Response.json({ order_status: next });
     } else if (action === "cancel") {
       if (!isVendor && !isBuyer) return Response.json({ error: "Not authorized" }, { status: 403 });
-      if (["completed", "cancelled", "refunded", "delivered", "in_transit"].includes(order.order_status)) return Response.json({ error: "Order cannot be cancelled in its current state." }, { status: 400 });
+      if (["completed", "settled", "cancelled", "refunded", "delivered", "in_transit"].includes(order.order_status)) return Response.json({ error: "Order cannot be cancelled in its current state." }, { status: 400 });
+      if (order.checkout_quote_id) {
+        const cq = await svc.entities.CheckoutQuote.get(order.checkout_quote_id);
+        if (cq && cq.source_type === "direct_listing" && cq.product_id) {
+          const qty = ((cq.items || [])[0] || {}).quantity || 1;
+          try { await releaseInventory(svc, cq.product_id, qty); } catch {}
+        }
+      }
       await svc.entities.Order.update(orderId, { order_status: "cancelled" });
+      await recordOrderEvent(svc, { order_id: orderId, event_type: "cancelled", new_status: "cancelled", actor_type: isVendor ? "vendor" : "buyer", actor_id: user.id, description: "Order cancelled" });
       return Response.json({ order_status: "cancelled" });
     }
     return Response.json({ error: "Unknown action" }, { status: 400 });

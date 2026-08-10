@@ -49,7 +49,7 @@ export default function VendorDashboard() {
   const activeListings = products.filter((p) => p.listing_status === "active");
   const totalInventory = products.reduce((s, p) => s + (p.quantity_available || 0), 0);
   const lowStock = products.filter((p) => p.quantity_available > 0 && p.quantity_available <= 5);
-  const pendingOrders = orders.filter((o) => ["pending", "awaiting_payment", "confirmed", "preparing"].includes(o.order_status));
+  const pendingOrders = orders.filter((o) => ["awaiting_payment", "payment_confirmed", "inventory_reserved", "vendor_confirmed", "preparing"].includes(o.order_status));
   const salesTotal = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (o.total || 0), 0);
 
   return (

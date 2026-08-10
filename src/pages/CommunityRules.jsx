@@ -3,7 +3,7 @@ import LegalPage from "@/components/LegalPage";
 export default function CommunityRules() {
   return (
     <LegalPage title="Marketplace Rules">
-      <p>Treebay is a professional marketplace. To keep it trustworthy, everyone must follow these rules.</p>
+      <p>TreEbay is a professional marketplace. To keep it trustworthy, everyone must follow these rules.</p>
       <h3>Be honest</h3>
       <p>Accurate listings, real availability, and fair pricing. No bait-and-switch or false quantities.</p>
       <h3>Be professional</h3>

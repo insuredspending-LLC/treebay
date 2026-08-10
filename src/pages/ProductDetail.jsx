@@ -112,10 +112,12 @@ export default function ProductDetail() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const { data } = await base44.functions.invoke("createOrder", { productId: id, quantity: qty });
-      toast({ title: "Order placed", description: `Order ${data.order.order_number} created.` });
-      navigate(`/orders/${data.order.id}`);
-    } catch (e) { toast({ title: "Could not place order", description: apiError(e), variant: "destructive" }); }
+      const { data } = await base44.functions.invoke("calculateCheckout", {
+        productId: id, quantity: qty, delivery_method: "buyer_pickup",
+        destination: { city: buyerProfile?.city || "", state: buyerProfile?.state || "", zip: buyerProfile?.zip_code || "" },
+      });
+      navigate(`/checkout?quote=${data.checkout_quote.id}`);
+    } catch (e) { toast({ title: "Could not start checkout", description: apiError(e), variant: "destructive" }); }
     finally { setSubmitting(false); }
   };
 

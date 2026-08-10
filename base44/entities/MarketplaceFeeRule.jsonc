@@ -18,15 +18,15 @@
       "type": "number",
       "description": "Percentage of merchandise subtotal, e.g. 4 for 4%"
     },
-    "flat_fee": {
+    "flat_fee_cents": {
       "type": "number",
       "default": 0
     },
-    "minimum_fee": {
+    "minimum_fee_cents": {
       "type": "number",
       "default": 0
     },
-    "maximum_fee": {
+    "maximum_fee_cents": {
       "type": "number",
       "default": 0,
       "description": "0 = no cap"

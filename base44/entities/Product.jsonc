@@ -58,7 +58,18 @@
     },
     "quantity_available": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Units currently available for new reservation/order"
+    },
+    "quantity_reserved": {
+      "type": "number",
+      "default": 0,
+      "description": "Units held for active checkout/payment/fulfillment"
+    },
+    "quantity_sold": {
+      "type": "number",
+      "default": 0,
+      "description": "Completed/committed sold units"
     },
     "unit_price": {
       "type": "number"

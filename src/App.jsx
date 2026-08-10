@@ -18,6 +18,8 @@ import RFQs from '@/pages/RFQs';
 import RFQDetail from '@/pages/RFQDetail';
 import Orders from '@/pages/Orders';
 import OrderDetail from '@/pages/OrderDetail';
+import Checkout from '@/pages/Checkout';
+import ExceptionDetail from '@/pages/ExceptionDetail';
 import Messages from '@/pages/Messages';
 import Conversation from '@/pages/Conversation';
 import Favorites from '@/pages/Favorites';
@@ -97,12 +99,14 @@ const AuthenticatedApp = () => {
             <Route path="/rfqs/:id" element={<RFQDetail />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/orders/:id" element={<OrderDetail />} />
+            <Route path="/checkout" element={<Checkout />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/messages/:id" element={<Conversation />} />
             <Route path="/favorites" element={<Favorites />} />
             <Route path="/account" element={<Account />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/exceptions/:id" element={<ExceptionDetail />} />
             <Route element={<VendorGuard />}>
               <Route path="/vendor" element={<VendorDashboard />} />
               <Route path="/vendor/inventory" element={<VendorInventory />} />

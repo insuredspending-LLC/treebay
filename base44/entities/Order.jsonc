@@ -75,9 +75,8 @@
       "enum": [
         "buyer_pickup",
         "vendor_delivery",
-        "third_party_delivery",
-        "pickup",
-        "vendor_delivery"
+        "third_party_carrier",
+        "pickup"
       ],
       "default": "buyer_pickup"
     },

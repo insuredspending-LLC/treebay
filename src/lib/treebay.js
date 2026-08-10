@@ -25,18 +25,35 @@ export const REPORT_REASONS = [
   { value: "other", label: "Other" },
 ];
 
+export const TEST_MODE = true; // TEST/ESTIMATED payment & tax — not production. No real money is charged.
+
 export const ORDER_STATUS_LABELS = {
-  pending: "Pending",
+  draft: "Draft",
+  pricing_confirmed: "Pricing Confirmed",
   awaiting_payment: "Awaiting Payment",
-  paid: "Paid",
-  confirmed: "Confirmed",
+  payment_confirmed: "Payment Confirmed",
+  inventory_reserved: "Inventory Reserved",
+  vendor_confirmed: "Vendor Confirmed",
   preparing: "Preparing",
   ready_for_pickup: "Ready for Pickup",
+  delivery_assigned: "Delivery Assigned",
+  picked_up: "Picked Up",
   in_transit: "In Transit",
   delivered: "Delivered",
   completed: "Completed",
+  settlement_pending: "Settlement Pending",
+  settled: "Settled",
+  payment_failed: "Payment Failed",
   cancelled: "Cancelled",
+  refund_pending: "Refund Pending",
   refunded: "Refunded",
+  fulfillment_exception: "Fulfillment Exception",
+  delivery_exception: "Delivery Exception",
+  disputed: "Disputed",
+  // legacy compat
+  pending: "Pending",
+  paid: "Paid",
+  confirmed: "Confirmed",
 };
 
 export const RFQ_STATUS_LABELS = {
@@ -153,4 +170,8 @@ export function classNames(...arr) {
 
 export function apiError(e) {
   return e?.response?.data?.error || e?.data?.error || e?.message || "Something went wrong. Please try again.";
+}
+
+export function formatCents(cents) {
+  return formatCurrency((Number(cents) || 0) / 100);
 }

@@ -24,14 +24,13 @@ export default function BecomeSeller() {
     }
     setLoading(true);
     try {
-      await base44.entities.VendorProfile.create({
+      await base44.functions.invoke("createVendorProfile", {
         business_name: f.business_name, contact_name: f.contact_name, phone: f.phone,
         address: f.address, city: f.city, state: f.state, zip_code: f.zip_code,
         website: f.website, description: f.description, service_area: f.service_area,
         pickup_available: f.pickup_available !== false, delivery_available: f.delivery_available !== false,
-        wholesale_available: !!f.wholesale_available, verification_status: "pending",
+        wholesale_available: !!f.wholesale_available,
       });
-      await base44.auth.updateMe({ account_type: "vendor", terms_accepted_at: new Date().toISOString(), terms_version: "1" });
       await refresh();
       toast({ title: "Vendor profile created", description: "Verification starts as pending." });
       navigate("/vendor", { replace: true });

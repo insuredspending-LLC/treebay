@@ -34,10 +34,12 @@ export async function isBlocked(svc, a, b) {
 }
 
 export const VENDOR_NEXT_STATUS = {
-  pending: "confirmed",
-  confirmed: "preparing",
+  inventory_reserved: "vendor_confirmed",
+  vendor_confirmed: "preparing",
   preparing: "ready_for_pickup",
-  ready_for_pickup: "in_transit",
+  ready_for_pickup: "delivery_assigned",
+  delivery_assigned: "picked_up",
+  picked_up: "in_transit",
   in_transit: "delivered",
   delivered: "completed",
 };
