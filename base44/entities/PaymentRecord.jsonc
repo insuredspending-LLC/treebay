@@ -11,7 +11,17 @@
     "vendor_owner_id": {
       "type": "string"
     },
+    "provider": {
+      "type": "string",
+      "default": "trebay_test"
+    },
+    "provider_payment_id": {
+      "type": "string"
+    },
     "amount": {
+      "type": "number"
+    },
+    "amount_cents": {
       "type": "number"
     },
     "currency": {
@@ -25,13 +35,42 @@
         "authorized",
         "paid",
         "failed",
+        "partially_refunded",
         "refunded",
-        "partially_refunded"
+        "disputed"
       ],
       "default": "pending"
     },
+    "authorized_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "paid_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "failed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "refunded_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "refund_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending",
+        "partial",
+        "full"
+      ]
+    },
     "transaction_ref": {
       "type": "string"
+    },
+    "metadata": {
+      "type": "object"
     }
   },
   "required": [

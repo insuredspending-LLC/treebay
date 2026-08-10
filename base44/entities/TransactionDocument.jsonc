@@ -1,0 +1,75 @@
+{
+  "name": "TransactionDocument",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "shipment_id": {
+      "type": "string"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": [
+        "buyer_order_confirmation",
+        "buyer_invoice",
+        "buyer_receipt",
+        "vendor_purchase_order",
+        "vendor_settlement_statement",
+        "delivery_manifest",
+        "carrier_settlement_statement",
+        "proof_of_delivery",
+        "refund_statement"
+      ]
+    },
+    "file_url": {
+      "type": "string"
+    },
+    "html_content": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number",
+      "default": 1
+    },
+    "recipient_type": {
+      "type": "string",
+      "enum": [
+        "buyer",
+        "vendor",
+        "carrier",
+        "admin"
+      ]
+    }
+  },
+  "required": [
+    "order_id",
+    "document_type"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

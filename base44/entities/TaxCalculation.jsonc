@@ -1,0 +1,70 @@
+{
+  "name": "TaxCalculation",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "checkout_quote_id": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "jurisdiction": {
+      "type": "string"
+    },
+    "taxable_amount_cents": {
+      "type": "number"
+    },
+    "tax_amount_cents": {
+      "type": "number"
+    },
+    "rate": {
+      "type": "number"
+    },
+    "calculation_reference": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "test_estimated",
+        "not_configured",
+        "calculated",
+        "failed"
+      ],
+      "default": "test_estimated"
+    }
+  },
+  "required": [
+    "taxable_amount_cents",
+    "tax_amount_cents"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

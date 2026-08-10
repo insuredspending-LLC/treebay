@@ -1,0 +1,90 @@
+{
+  "name": "TransactionLedgerEntry",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "transaction_id": {
+      "type": "string"
+    },
+    "entry_type": {
+      "type": "string",
+      "enum": [
+        "merchandise",
+        "delivery",
+        "tax",
+        "marketplace_fee",
+        "payment",
+        "refund",
+        "vendor_payable",
+        "carrier_payable",
+        "payout",
+        "adjustment"
+      ]
+    },
+    "party_type": {
+      "type": "string",
+      "enum": [
+        "buyer",
+        "vendor",
+        "carrier",
+        "marketplace",
+        "tax_authority"
+      ]
+    },
+    "party_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "debit_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "credit_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "currency": {
+      "type": "string",
+      "default": "USD"
+    },
+    "payment_reference": {
+      "type": "string"
+    },
+    "payout_reference": {
+      "type": "string"
+    },
+    "tax_reference": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "order_id",
+    "entry_type"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -24,6 +24,10 @@
     "rfq_id": {
       "type": "string"
     },
+    "checkout_quote_id": {
+      "type": "string",
+      "description": "Authoritative financial snapshot"
+    },
     "items": {
       "type": "array",
       "items": {
@@ -62,14 +66,26 @@
     "total": {
       "type": "number"
     },
+    "total_cents": {
+      "type": "number",
+      "description": "Authoritative total in cents (mirror of CheckoutQuote)"
+    },
     "fulfillment_method": {
       "type": "string",
       "enum": [
-        "pickup",
+        "buyer_pickup",
         "vendor_delivery",
-        "third_party_delivery"
+        "third_party_delivery",
+        "pickup",
+        "vendor_delivery"
       ],
-      "default": "pickup"
+      "default": "buyer_pickup"
+    },
+    "destination_name": {
+      "type": "string"
+    },
+    "destination_street": {
+      "type": "string"
     },
     "destination_city": {
       "type": "string"
@@ -78,6 +94,15 @@
       "type": "string"
     },
     "destination_zip": {
+      "type": "string"
+    },
+    "destination_instructions": {
+      "type": "string"
+    },
+    "contact_name": {
+      "type": "string"
+    },
+    "contact_phone": {
       "type": "string"
     },
     "requested_date": {
@@ -92,26 +117,58 @@
         "paid",
         "failed",
         "refunded",
-        "partially_refunded"
+        "partially_refunded",
+        "disputed"
       ],
       "default": "pending"
     },
     "order_status": {
       "type": "string",
       "enum": [
-        "pending",
+        "draft",
+        "pricing_confirmed",
         "awaiting_payment",
-        "paid",
-        "confirmed",
+        "payment_confirmed",
+        "inventory_reserved",
+        "vendor_confirmed",
         "preparing",
         "ready_for_pickup",
+        "delivery_assigned",
+        "picked_up",
         "in_transit",
         "delivered",
         "completed",
+        "settlement_pending",
+        "settled",
+        "payment_failed",
         "cancelled",
-        "refunded"
+        "refund_pending",
+        "refunded",
+        "fulfillment_exception",
+        "delivery_exception",
+        "disputed"
       ],
-      "default": "pending"
+      "default": "draft"
+    },
+    "reservation_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "vendor_confirmed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "vendor_confirm_deadline": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "delivered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
     },
     "vendor_notes": {
       "type": "string"

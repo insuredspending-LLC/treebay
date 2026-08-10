@@ -1,0 +1,65 @@
+{
+  "name": "OrderEvent",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string"
+    },
+    "previous_status": {
+      "type": "string"
+    },
+    "new_status": {
+      "type": "string"
+    },
+    "actor_type": {
+      "type": "string",
+      "enum": [
+        "system",
+        "buyer",
+        "vendor",
+        "carrier",
+        "admin",
+        "payment_provider"
+      ]
+    },
+    "actor_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "order_id",
+    "event_type",
+    "actor_type"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

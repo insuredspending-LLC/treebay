@@ -1,0 +1,96 @@
+{
+  "name": "DeliveryOption",
+  "type": "object",
+  "properties": {
+    "checkout_quote_id": {
+      "type": "string"
+    },
+    "order_id": {
+      "type": "string"
+    },
+    "provider_type": {
+      "type": "string",
+      "enum": [
+        "buyer_pickup",
+        "vendor_delivery",
+        "third_party_carrier"
+      ]
+    },
+    "vendor_id": {
+      "type": "string"
+    },
+    "carrier_id": {
+      "type": "string"
+    },
+    "service_type": {
+      "type": "string"
+    },
+    "pickup_location": {
+      "type": "string"
+    },
+    "delivery_location": {
+      "type": "string"
+    },
+    "estimated_pickup_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "estimated_delivery_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "delivery_price_cents": {
+      "type": "number"
+    },
+    "equipment_type": {
+      "type": "string"
+    },
+    "quote_reference": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "selected",
+        "expired",
+        "unavailable"
+      ],
+      "default": "available"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "provider_type",
+    "delivery_price_cents"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

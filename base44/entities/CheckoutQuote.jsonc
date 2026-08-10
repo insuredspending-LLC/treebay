@@ -1,0 +1,162 @@
+{
+  "name": "CheckoutQuote",
+  "type": "object",
+  "properties": {
+    "buyer_id": {
+      "type": "string"
+    },
+    "vendor_id": {
+      "type": "string"
+    },
+    "vendor_owner_id": {
+      "type": "string"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "direct_listing",
+        "accepted_quote"
+      ]
+    },
+    "product_id": {
+      "type": "string"
+    },
+    "quote_id": {
+      "type": "string"
+    },
+    "rfq_id": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line_name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit_price_cents": {
+            "type": "number"
+          },
+          "subtotal_cents": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "merchandise_subtotal_cents": {
+      "type": "number"
+    },
+    "bulk_discount_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "delivery_amount_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "taxable_amount_cents": {
+      "type": "number"
+    },
+    "tax_amount_cents": {
+      "type": "number"
+    },
+    "marketplace_fee_cents": {
+      "type": "number"
+    },
+    "other_fees_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "total_amount_cents": {
+      "type": "number"
+    },
+    "currency": {
+      "type": "string",
+      "default": "USD"
+    },
+    "delivery_method": {
+      "type": "string",
+      "enum": [
+        "buyer_pickup",
+        "vendor_delivery",
+        "third_party_carrier"
+      ]
+    },
+    "tax_status": {
+      "type": "string",
+      "enum": [
+        "test_estimated",
+        "not_configured",
+        "calculated"
+      ],
+      "default": "test_estimated"
+    },
+    "pricing_status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "confirmed",
+        "expired",
+        "consumed"
+      ],
+      "default": "draft"
+    },
+    "destination_city": {
+      "type": "string"
+    },
+    "destination_state": {
+      "type": "string"
+    },
+    "destination_zip": {
+      "type": "string"
+    },
+    "expiration_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "order_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "buyer_id",
+    "vendor_id",
+    "total_amount_cents"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.buyer_id": "{{user.id}}"
+        },
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
