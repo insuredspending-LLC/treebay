@@ -27,7 +27,7 @@ export function isNonNegativeNumber(n) {
 // that are silently discarded later.
 export function computeQuoteTotal(items) {
   return (items || []).reduce((s, i) =>
-    s + (Number(i.subtotal) || 0) + (Number(i.delivery_price) || 0), 0);
+    s + (Number(i.subtotal) || 0) + (i.delivery_offered ? (Number(i.delivery_price) || 0) : 0), 0);
 }
 
 // Vendor-offered delivery across a quote, used to seed the vendor_delivery option.

@@ -42,10 +42,8 @@ export default async function(req) {
       availability: it.availability || "",
       estimated_ready_date: it.estimated_ready_date || "",
       delivery_offered: !!it.delivery_offered,
-      delivery_price: Number(it.delivery_price) || 0,
-      // Tax and marketplace fees are computed authoritatively by TreEbay at checkout.
-      taxes: 0,
-      additional_fees: 0,
+      // If delivery is not offered, force delivery_price to 0 regardless of input.
+      delivery_price: it.delivery_offered ? (Number(it.delivery_price) || 0) : 0,
       substitution_details: it.substitution_details || "",
       subtotal: (Number(it.quantity_offered) || 0) * (Number(it.unit_price) || 0),
     }));

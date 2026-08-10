@@ -1,0 +1,16 @@
+{
+  "name": "runTransactionMaintenance",
+  "entry": "entry.ts",
+  "automations": [
+    {
+      "type": "scheduled",
+      "name": "transaction_maintenance_15min",
+      "description": "Releases expired reservations, escalates overdue vendor confirmations, auto-completes delivered orders, settles completed orders, and recovers staged refunds every 15 minutes.",
+      "function_args": {},
+      "is_active": true,
+      "schedule_mode": "recurring",
+      "schedule_type": "cron",
+      "cron_expression": "*/15 * * * *"
+    }
+  ]
+}

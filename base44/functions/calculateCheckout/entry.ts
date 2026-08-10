@@ -58,11 +58,16 @@ export default async function(req) {
         return { line_name: i.line_name, quantity: qty, unit_price_cents: up, subtotal_cents: up * qty };
       });
       const merchCents = items.reduce((s, i) => s + i.subtotal_cents, 0);
+      const vendorDeliveryOffered = (quote.items || []).some((i) => i.delivery_offered);
+      const vendorDeliveryCents = vendorDeliveryOffered
+        ? toCents((quote.items || []).filter((i) => i.delivery_offered).reduce((sum, i) => sum + (Number(i.delivery_price) || 0), 0))
+        : 0;
       const result = await assembleCheckout(svc, {
         buyer_id: user.id, vendor_id: quote.vendor_id, vendor_owner_id: quote.vendor_owner_id,
         source_type: "accepted_quote", quote_id: quote.id, rfq_id: rfq.id, items, merchandise_cents: merchCents,
         destination: { city: rfq.delivery_city, state: rfq.delivery_state, zip: rfq.delivery_zip },
-        vendor_delivery_cents: toCents((quote.items || []).filter((i) => i.delivery_offered).reduce((sum, i) => sum + (Number(i.delivery_price) || 0), 0)),
+        vendor_delivery_cents: vendorDeliveryCents,
+        vendor_delivery_available: vendorDeliveryOffered,
         deliveryMethod: body.deliveryMethod || null,
       });
       return Response.json(result);

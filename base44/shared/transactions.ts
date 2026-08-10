@@ -64,12 +64,16 @@ export function calculateTestTaxCents(taxableCents) {
 }
 
 // ---- Delivery options ----
-export function calculateDeliveryOptionsCents(product, vendorDeliveryCents) {
+export function calculateDeliveryOptionsCents(product, vendorDeliveryCents, vendorDeliveryAvailable) {
   const options = [];
   if (!product || product.pickup_eligible !== false) {
     options.push({ provider_type: "buyer_pickup", delivery_price_cents: 0, service_type: "Customer Pickup", estimated_delivery_days: 0 });
   }
-  if (!product || product.delivery_eligible !== false) {
+  // Vendor delivery: for accepted quotes, vendorDeliveryAvailable controls whether the
+  // vendor offered delivery. For direct listings, product.delivery_eligible controls it.
+  // If the vendor did not offer delivery, DO NOT create a vendor_delivery option.
+  const vendorDeliveryOk = vendorDeliveryAvailable === false ? false : (!product || product.delivery_eligible !== false);
+  if (vendorDeliveryOk) {
     options.push({ provider_type: "vendor_delivery", delivery_price_cents: vendorDeliveryCents ?? 50000, service_type: "Vendor Delivery", estimated_delivery_days: 3 });
   }
   options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "Third Party Carrier — TEST ESTIMATE", estimated_delivery_days: 2 });
@@ -101,7 +105,7 @@ export async function assembleCheckout(svc, p) {
   const feePayer = feePayerOf(feeRule);
   const feeCents = calculateMarketplaceFeeCents(p.merchandise_cents, feeRule);
   const buyerFeeCents = buyerFeePortionCents(feeCents, feePayer);
-  const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true }, p.vendor_delivery_cents);
+  const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true }, p.vendor_delivery_cents, p.vendor_delivery_available);
   const selected = p.deliveryMethod ? deliveryOptions.find((o) => o.provider_type === p.deliveryMethod) : null;
   const deliveryCents = selected ? selected.delivery_price_cents : 0;
   const deliveryMethod = selected ? selected.provider_type : null;
@@ -232,9 +236,20 @@ export async function ledgerGroupExists(svc, orderId, transactionId) {
   return !!(rows && rows.length);
 }
 
+// Per-entry idempotency: each expected ledger entry has a unique durable key within
+// its transaction group. Retries create only the missing entries — a partially-written
+// group is completed, not skipped.
+export async function ledgerEntryExists(svc, orderId, transactionId, entryKey) {
+  const rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: orderId, transaction_id: transactionId, entry_key: entryKey });
+  return !!(rows && rows.length);
+}
+
 export async function createLedgerEntry(svc, e) {
+  if (e.entry_key && await ledgerEntryExists(svc, e.order_id, e.transaction_id, e.entry_key)) {
+    return null; // already created — per-entry idempotency
+  }
   return svc.entities.TransactionLedgerEntry.create({
-    order_id: e.order_id, transaction_id: e.transaction_id || null, entry_type: e.entry_type,
+    order_id: e.order_id, transaction_id: e.transaction_id || null, entry_key: e.entry_key || null, entry_type: e.entry_type,
     party_type: e.party_type || null, party_id: e.party_id || null,
     description: e.description || "", debit_cents: e.debit_cents || 0, credit_cents: e.credit_cents || 0,
     currency: "USD", payment_reference: e.payment_reference || null,
@@ -244,9 +259,10 @@ export async function createLedgerEntry(svc, e) {
 
 // The ONE financial allocation, written only after payment is confirmed.
 // An unpaid or abandoned order never carries vendor/carrier/tax payables.
+// Per-entry idempotency: each entry has a unique durable key; retries create only
+// missing entries, so a partially-written allocation is completed — not skipped.
 export async function createAllocationLedger(svc, order, cq, paymentRef) {
   const group = allocationGroup(order.id);
-  if (await ledgerGroupExists(svc, order.id, group)) return { created: false };
 
   const feePayer = cq.fee_payer || DEFAULT_FEE_PAYER;
   const feeCents = cq.marketplace_fee_cents || 0;
@@ -257,33 +273,33 @@ export async function createAllocationLedger(svc, order, cq, paymentRef) {
 
   // Money in.
   await createLedgerEntry(svc, {
-    order_id: order.id, transaction_id: group, entry_type: "payment", party_type: "buyer", party_id: order.buyer_id,
+    order_id: order.id, transaction_id: group, entry_key: "payment", entry_type: "payment", party_type: "buyer", party_id: order.buyer_id,
     description: "Buyer payment (TEST MODE)", debit_cents: order.total_cents || cq.total_amount_cents, payment_reference: paymentRef || null,
   });
   // Money out (payables).
   await createLedgerEntry(svc, {
-    order_id: order.id, transaction_id: group, entry_type: "merchandise", party_type: "vendor", party_id: cq.vendor_id,
+    order_id: order.id, transaction_id: group, entry_key: "merchandise", entry_type: "merchandise", party_type: "vendor", party_id: cq.vendor_id,
     description: "Vendor merchandise payable", credit_cents: vendorMerchPayable, payment_reference: paymentRef || null,
   });
   if ((cq.delivery_amount_cents || 0) > 0) {
     if (cq.delivery_method === "vendor_delivery") {
       await createLedgerEntry(svc, {
-        order_id: order.id, transaction_id: group, entry_type: "delivery", party_type: "vendor", party_id: cq.vendor_id,
+        order_id: order.id, transaction_id: group, entry_key: "delivery", entry_type: "delivery", party_type: "vendor", party_id: cq.vendor_id,
         description: "Vendor delivery payable", credit_cents: cq.delivery_amount_cents, payment_reference: paymentRef || null,
       });
     } else if (cq.delivery_method === "third_party_carrier") {
       await createLedgerEntry(svc, {
-        order_id: order.id, transaction_id: group, entry_type: "delivery", party_type: "carrier",
+        order_id: order.id, transaction_id: group, entry_key: "delivery", entry_type: "delivery", party_type: "carrier",
         description: "Carrier delivery payable", credit_cents: cq.delivery_amount_cents, payment_reference: paymentRef || null,
       });
     }
   }
   await createLedgerEntry(svc, {
-    order_id: order.id, transaction_id: group, entry_type: "tax", party_type: "tax_authority",
+    order_id: order.id, transaction_id: group, entry_key: "tax", entry_type: "tax", party_type: "tax_authority",
     description: "Sales tax (TEST/ESTIMATED)", credit_cents: cq.tax_amount_cents || 0, payment_reference: paymentRef || null,
   });
   await createLedgerEntry(svc, {
-    order_id: order.id, transaction_id: group, entry_type: "marketplace_fee", party_type: "marketplace",
+    order_id: order.id, transaction_id: group, entry_key: "marketplace_fee", entry_type: "marketplace_fee", party_type: "marketplace",
     description: "TreEbay marketplace fee", credit_cents: feeCents, payment_reference: paymentRef || null,
   });
   return { created: true };
@@ -298,18 +314,33 @@ export async function verifyAllocationForSettlement(svc, order, cq) {
     throw new Error("Financial reconciliation: paid amount does not equal Order.total_cents.");
   }
 
+  // Ensure all expected allocation entries exist (creates only missing ones via per-entry idempotency).
+  await createAllocationLedger(svc, order, cq, paid.transaction_ref || paid.provider_payment_id);
   const group = allocationGroup(order.id);
-  let rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: order.id, transaction_id: group });
-  if (!(rows || []).length) {
-    await createAllocationLedger(svc, order, cq, paid.transaction_ref || paid.provider_payment_id);
-    rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: order.id, transaction_id: group });
-  }
+  const rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: order.id, transaction_id: group });
   const debitTotal = (rows || []).reduce((sum, row) => sum + (row.debit_cents || 0), 0);
   const creditTotal = (rows || []).reduce((sum, row) => sum + (row.credit_cents || 0), 0);
   if (debitTotal !== totalCents || creditTotal !== totalCents) {
     throw new Error("Financial reconciliation: allocation debits " + debitTotal + ", credits " + creditTotal + ", expected " + totalCents + ".");
   }
-  return { paid, debitTotal, creditTotal, reconstructed: rows.length > 0 };
+  return { paid, debitTotal, creditTotal };
+}
+
+// Verify refund reversal entries reconcile before refund finalization.
+// Refund debits (reversals) and credits (buyer repayment) must each equal Order.total_cents.
+export async function verifyRefundReconciliation(svc, order, cq) {
+  const totalCents = order.total_cents || Math.round((order.total || 0) * 100);
+  const group = refundGroup(order.id);
+  const rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: order.id, transaction_id: group });
+  if (!(rows || []).length) {
+    throw new Error("Refund reconciliation: no refund ledger entries found.");
+  }
+  const debitTotal = (rows || []).reduce((sum, row) => sum + (row.debit_cents || 0), 0);
+  const creditTotal = (rows || []).reduce((sum, row) => sum + (row.credit_cents || 0), 0);
+  if (debitTotal !== totalCents || creditTotal !== totalCents) {
+    throw new Error("Refund reconciliation: reversal debits " + debitTotal + ", credits " + creditTotal + ", expected " + totalCents + ".");
+  }
+  return { debitTotal, creditTotal };
 }
 
 // Net amount owed to the vendor at settlement.
@@ -322,20 +353,20 @@ export function vendorPayableCents(cq) {
 
 export async function createSettlementLedgerEntry(svc, order, cq) {
   const group = settlementGroup(order.id);
-  if (await ledgerGroupExists(svc, order.id, group)) return { created: false };
   await createLedgerEntry(svc, {
-    order_id: order.id, transaction_id: group, entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id,
+    order_id: order.id, transaction_id: group, entry_key: "payout", entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id,
     description: "Vendor settlement payout (TEST)", debit_cents: vendorPayableCents(cq),
   });
   return { created: true };
 }
 
 // Refunds NEVER edit or delete history — they add explicit reversal entries.
+// Per-entry idempotency: each reversal entry has a unique durable key; retries create
+// only missing entries, so an interrupted refund ledger is completed — not skipped.
 export async function createRefundLedger(svc, order, cq, amountCents, reason) {
   const group = refundGroup(order.id);
-  if (await ledgerGroupExists(svc, order.id, group)) return { created: false };
   await createLedgerEntry(svc, {
-    order_id: order.id, transaction_id: group, entry_type: "refund", party_type: "buyer", party_id: order.buyer_id,
+    order_id: order.id, transaction_id: group, entry_key: "buyer_refund", entry_type: "refund", party_type: "buyer", party_id: order.buyer_id,
     description: "Refund to buyer (TEST) — " + (reason || "buyer refund"), credit_cents: amountCents,
   });
   if (cq) {
@@ -343,23 +374,23 @@ export async function createRefundLedger(svc, order, cq, amountCents, reason) {
     const feePayer = cq.fee_payer || DEFAULT_FEE_PAYER;
     const vendorFee = vendorFeePortionCents(cq.marketplace_fee_cents || 0, feePayer);
     await createLedgerEntry(svc, {
-      order_id: order.id, transaction_id: group, entry_type: "adjustment", party_type: "vendor", party_id: cq.vendor_id,
+      order_id: order.id, transaction_id: group, entry_key: "vendor_merchandise_reversal", entry_type: "adjustment", party_type: "vendor", party_id: cq.vendor_id,
       description: "Reversal of vendor merchandise payable (refund)", debit_cents: (cq.merchandise_subtotal_cents || 0) - vendorFee,
     });
     if ((cq.delivery_amount_cents || 0) > 0) {
       await createLedgerEntry(svc, {
-        order_id: order.id, transaction_id: group, entry_type: "adjustment",
+        order_id: order.id, transaction_id: group, entry_key: "delivery_reversal", entry_type: "adjustment",
         party_type: cq.delivery_method === "third_party_carrier" ? "carrier" : "vendor",
         party_id: cq.delivery_method === "third_party_carrier" ? null : cq.vendor_id,
         description: "Reversal of delivery payable (refund)", debit_cents: cq.delivery_amount_cents,
       });
     }
     await createLedgerEntry(svc, {
-      order_id: order.id, transaction_id: group, entry_type: "adjustment", party_type: "tax_authority",
+      order_id: order.id, transaction_id: group, entry_key: "tax_reversal", entry_type: "adjustment", party_type: "tax_authority",
       description: "Reversal of sales tax liability (refund)", debit_cents: cq.tax_amount_cents || 0,
     });
     await createLedgerEntry(svc, {
-      order_id: order.id, transaction_id: group, entry_type: "adjustment", party_type: "marketplace",
+      order_id: order.id, transaction_id: group, entry_key: "marketplace_fee_reversal", entry_type: "adjustment", party_type: "marketplace",
       description: "Reversal of TreEbay marketplace fee (refund)", debit_cents: cq.marketplace_fee_cents || 0,
     });
   }

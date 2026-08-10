@@ -23,6 +23,8 @@ export default function Checkout() {
   const [applyingDelivery, setApplyingDelivery] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
   const [address, setAddress] = useState({ name: "", street: "", city: "", state: "", zip: "", instructions: "", contact_name: "", contact_phone: "" });
+  const [appliedAddress, setAppliedAddress] = useState(null);
+  const [addressDirty, setAddressDirty] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -43,6 +45,16 @@ export default function Checkout() {
     })();
   }, [quoteId]);
 
+  useEffect(() => {
+    if (!appliedAddress) { setAddressDirty(false); return; }
+    const a = address, b = appliedAddress;
+    setAddressDirty(
+      a.name !== b.name || a.street !== b.street || a.city !== b.city ||
+      a.state !== b.state || a.zip !== b.zip || a.instructions !== b.instructions ||
+      a.contact_name !== b.contact_name || a.contact_phone !== b.contact_phone
+    );
+  }, [address, appliedAddress]);
+
   const applyDelivery = async (optionId, addr) => {
     setApplyingDelivery(true);
     try {
@@ -54,6 +66,7 @@ export default function Checkout() {
       });
       setQuote(data.checkoutQuote);
       setSelectedOption(optionId);
+      setAppliedAddress(isPickup ? null : { ...addr });
       toast({ title: "Delivery option applied" });
     } catch (e) { toast({ title: "Could not apply delivery option", description: apiError(e), variant: "destructive" }); }
     finally { setApplyingDelivery(false); }
@@ -75,7 +88,9 @@ export default function Checkout() {
 
   const expired = quote.expiration_at && new Date(quote.expiration_at) < new Date();
   const visibleOption = options.find((o) => o.id === selectedOption);
+  const isPickup = visibleOption?.provider_type === "buyer_pickup";
   const deliveryReady = !!quote.delivery_method && visibleOption?.provider_type === quote.delivery_method;
+  const confirmDisabled = placing || expired || !deliveryReady || (!isPickup && addressDirty);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
@@ -175,10 +190,11 @@ export default function Checkout() {
 
       <div className="text-xs text-muted-foreground">Pricing is valid until {new Date(quote.expiration_at).toLocaleTimeString()}. Inventory will be reserved when you confirm the order.</div>
 
-      <Button onClick={placeOrder} disabled={placing || expired || !deliveryReady} className="w-full h-12 text-base font-medium">
+      <Button onClick={placeOrder} disabled={confirmDisabled} className="w-full h-12 text-base font-medium">
         {placing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />} Confirm & Place Order
       </Button>
       {!deliveryReady && <p className="text-xs text-center text-muted-foreground">Apply the selected delivery option to continue.</p>}
+      {deliveryReady && !isPickup && addressDirty && <p className="text-xs text-center text-amber-600 font-medium">Apply your updated delivery information before confirming the order.</p>}
     </div>
   );
 }

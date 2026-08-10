@@ -8,6 +8,10 @@
     "transaction_id": {
       "type": "string"
     },
+    "entry_key": {
+      "type": "string",
+      "description": "Unique durable key for idempotent per-entry creation within a transaction group"
+    },
     "entry_type": {
       "type": "string",
       "enum": [
