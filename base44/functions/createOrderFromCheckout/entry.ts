@@ -11,12 +11,14 @@ export default async function(req) {
     const checkoutQuoteId = body?.checkoutQuoteId;
     if (!checkoutQuoteId) return Response.json({ error: "checkoutQuoteId required" }, { status: 400 });
     const svc = base44.asServiceRole;
-    const { order, checkoutQuote: cq } = await createOrderFromQuote(svc, checkoutQuoteId, user);
-    // Generate initial documents (order confirmation + purchase order).
-    await generateAndStoreDocument(svc, order, "buyer_order_confirmation", cq);
-    await generateAndStoreDocument(svc, order, "vendor_purchase_order", cq);
-    return Response.json({ order });
+    const { order, checkoutQuote: cq, existing } = await createOrderFromQuote(svc, checkoutQuoteId, user);
+    if (!existing) {
+      await generateAndStoreDocument(svc, order, "buyer_order_confirmation", cq);
+      await generateAndStoreDocument(svc, order, "vendor_purchase_order", cq);
+    }
+    return Response.json({ order, existing: !!existing });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: error.message?.includes("expired") ? 400 : 500 });
+    const status = error.message?.includes("processing") ? 409 : error.message?.includes("expired") ? 400 : 500;
+    return Response.json({ error: error.message }, { status });
   }
 }

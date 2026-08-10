@@ -1,14 +1,7 @@
 // TreEbay order-level inventory authority.
-//
-// InventoryReservation is the RECORD OF TRUTH for every inventory movement.
-// Product.quantity_available / quantity_reserved / quantity_sold are cached
-// aggregate totals kept in sync from here — they are NEVER used for idempotency.
-//
-// Lifecycle: reserved -> committed (vendor confirms)
-//            reserved -> released/expired (cancel, payment failure, expiry)
-//            committed -> released (reversal when policy permits)
-//
-// Every operation below is idempotent: repeating it does not move stock twice.
+// One InventoryReservation row is reused for the full Order/Product lifecycle.
+// Product counter changes use guarded updateMany + $inc; lifecycle transitions use
+// conditional status claims so retries cannot move stock twice.
 
 export const RESERVATION_TTL_MINUTES = 30;
 
@@ -16,17 +9,41 @@ export function checkoutQuantity(cq) {
   return (cq?.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
 }
 
-// Only direct-listing checkouts hold platform inventory. Accepted quotes rely on
-// vendor-declared stock that TreEbay does not track as listing quantity.
 export function checkoutHoldsInventory(cq) {
   return !!(cq && cq.source_type === "direct_listing" && cq.product_id);
+}
+
+function affectedCount(result) {
+  if (typeof result === "number") return result;
+  if (Array.isArray(result)) return result.length;
+  return result?.updated_count ?? result?.modified_count ?? result?.modifiedCount ?? result?.matched_count ?? result?.count ?? 0;
 }
 
 async function reservationsForOrder(svc, orderId, productId) {
   const query = { order_id: orderId };
   if (productId) query.product_id = productId;
-  const rows = await svc.entities.InventoryReservation.filter(query);
-  return rows || [];
+  return await svc.entities.InventoryReservation.filter(query) || [];
+}
+
+async function setCheckoutInventoryState(svc, checkoutQuoteId, fromStates, toState) {
+  if (!checkoutQuoteId) return 1;
+  const result = await svc.entities.CheckoutQuote.updateMany(
+    { id: checkoutQuoteId, inventory_status: { $in: fromStates } },
+    { $set: { inventory_status: toState } },
+  );
+  return affectedCount(result);
+}
+
+async function raiseInventoryCritical(svc, p, reason) {
+  const existing = await svc.entities.SystemException.filter({ order_id: p.order_id, exception_type: "inventory_reconciliation_failed" });
+  if ((existing || []).some((e) => e.status !== "RESOLVED" && e.status !== "CLOSED")) return;
+  await svc.entities.SystemException.create({
+    severity: "CRITICAL", exception_type: "inventory_reconciliation_failed", order_id: p.order_id,
+    buyer_id: p.buyer_id || null, vendor_id: p.vendor_id || null,
+    reason, technical_details_private: reason,
+    recommended_action: "Reconcile the Product counters and InventoryReservation before processing this order.",
+    requires_admin: true, status: "ADMIN_REVIEW",
+  });
 }
 
 export async function getActiveReservation(svc, orderId, productId) {
@@ -36,11 +53,11 @@ export async function getActiveReservation(svc, orderId, productId) {
 
 export async function getReservation(svc, orderId, productId) {
   const rows = await reservationsForOrder(svc, orderId, productId);
-  return rows.find((r) => r.status === "reserved" || r.status === "committed") || rows[0] || null;
+  return rows[0] || null;
 }
 
 export function isReservationExpired(reservation) {
-  return !!(reservation && reservation.expires_at && new Date(reservation.expires_at) < new Date());
+  return !!(reservation?.expires_at && new Date(reservation.expires_at) < new Date());
 }
 
 export async function extendReservation(svc, reservationId, minutes) {
@@ -49,160 +66,138 @@ export async function extendReservation(svc, reservationId, minutes) {
   });
 }
 
-// ---- reserve: available -> reserved ----
-// Idempotent per (order_id, product_id): an existing reserved/committed
-// reservation short-circuits and NO additional stock is moved.
 export async function reserveForOrder(svc, p) {
-  const existing = await reservationsForOrder(svc, p.order_id, p.product_id);
-  const active = existing.find((r) => r.status === "reserved" || r.status === "committed");
-  if (active) return { reservation: active, created: false };
-
-  const product = await svc.entities.Product.get(p.product_id);
-  if (!product) throw new Error("Product not found");
-  const available = product.quantity_available || 0;
-  if (available < p.quantity) {
-    throw new Error("Insufficient inventory: " + available + " available, " + p.quantity + " requested");
+  if (!Number.isInteger(p.quantity) || p.quantity < 1) throw new Error("Reservation quantity must be a positive whole number.");
+  const rows = await reservationsForOrder(svc, p.order_id, p.product_id);
+  const reservation = rows[0] || null;
+  if (reservation && ["reserving", "reserved", "committing", "committed"].includes(reservation.status)) {
+    return { reservation, created: false };
   }
 
-  await svc.entities.Product.update(p.product_id, {
-    quantity_available: available - p.quantity,
-    quantity_reserved: (product.quantity_reserved || 0) + p.quantity,
-  });
+  const priorCheckoutState = reservation ? "released" : "available";
+  const claimed = await setCheckoutInventoryState(svc, p.checkout_quote_id, [priorCheckoutState], "reserving");
+  if (!claimed) {
+    const current = await getReservation(svc, p.order_id, p.product_id);
+    if (current && ["reserving", "reserved", "committing", "committed"].includes(current.status)) return { reservation: current, created: false };
+    throw new Error("Inventory reservation is already being processed for this order.");
+  }
 
-  const reservation = await svc.entities.InventoryReservation.create({
-    order_id: p.order_id,
-    checkout_quote_id: p.checkout_quote_id || null,
-    product_id: p.product_id,
-    buyer_id: p.buyer_id || null,
-    vendor_id: p.vendor_id || null,
-    quantity: p.quantity,
-    status: "reserved",
-    reserved_at: new Date().toISOString(),
-    expires_at: p.expires_at || new Date(Date.now() + RESERVATION_TTL_MINUTES * 60000).toISOString(),
-  });
-  return { reservation, created: true };
+  const stockResult = await svc.entities.Product.updateMany(
+    { id: p.product_id, quantity_available: { $gte: p.quantity } },
+    { $inc: { quantity_available: -p.quantity, quantity_reserved: p.quantity } },
+  );
+  if (!affectedCount(stockResult)) {
+    await setCheckoutInventoryState(svc, p.checkout_quote_id, ["reserving"], priorCheckoutState);
+    throw new Error("Insufficient inventory for this reservation.");
+  }
+
+  try {
+    const data = {
+      checkout_quote_id: p.checkout_quote_id || null, buyer_id: p.buyer_id || null, vendor_id: p.vendor_id || null,
+      quantity: p.quantity, status: "reserved", reserved_at: new Date().toISOString(), committed_at: null,
+      released_at: null, release_reason: "",
+      expires_at: p.expires_at || new Date(Date.now() + RESERVATION_TTL_MINUTES * 60000).toISOString(),
+    };
+    const saved = reservation
+      ? await svc.entities.InventoryReservation.update(reservation.id, data)
+      : await svc.entities.InventoryReservation.create({ order_id: p.order_id, product_id: p.product_id, ...data });
+    await setCheckoutInventoryState(svc, p.checkout_quote_id, ["reserving"], "reserved");
+    return { reservation: saved, created: !reservation };
+  } catch (error) {
+    const compensation = await svc.entities.Product.updateMany(
+      { id: p.product_id, quantity_reserved: { $gte: p.quantity } },
+      { $inc: { quantity_available: p.quantity, quantity_reserved: -p.quantity } },
+    );
+    await setCheckoutInventoryState(svc, p.checkout_quote_id, ["reserving"], priorCheckoutState);
+    if (!affectedCount(compensation)) {
+      await raiseInventoryCritical(svc, p, "Reservation record failed after stock was decremented, and automatic compensation also failed: " + error.message);
+    }
+    throw error;
+  }
 }
 
-// Reserve the inventory described by a CheckoutQuote for an Order.
 export async function reserveForCheckout(svc, order, cq, expiresAt) {
   if (!checkoutHoldsInventory(cq)) return null;
-  const { reservation } = await reserveForOrder(svc, {
+  return (await reserveForOrder(svc, {
     order_id: order.id, checkout_quote_id: cq.id, product_id: cq.product_id,
     buyer_id: order.buyer_id, vendor_id: order.vendor_id,
     quantity: checkoutQuantity(cq), expires_at: expiresAt,
-  });
-  return reservation;
+  })).reservation;
 }
 
-// ---- release: reserved -> available ----
-// Only `reserved` rows move. Never returns more units than the product actually
-// holds as reserved, and never releases the same reservation twice.
 export async function releaseForOrder(svc, orderId, reason, markExpired) {
   const rows = await reservationsForOrder(svc, orderId);
-  let releasedQty = 0;
+  let released = 0;
   for (const r of rows) {
-    if (r.status !== "reserved") continue; // already released/committed/expired — no-op
-    const product = await svc.entities.Product.get(r.product_id);
-    if (product) {
-      const reserved = product.quantity_reserved || 0;
-      const qty = Math.min(r.quantity, reserved); // safety clamp
-      const patch = {
-        quantity_reserved: reserved - qty,
-        quantity_available: (product.quantity_available || 0) + qty,
-      };
-      if (patch.quantity_available > 0 && product.listing_status === "sold_out") patch.listing_status = "active";
-      await svc.entities.Product.update(r.product_id, patch);
-      releasedQty += qty;
+    const claim = await svc.entities.InventoryReservation.updateMany({ id: r.id, status: "reserved" }, { $set: { status: "releasing" } });
+    if (!affectedCount(claim)) continue;
+    const moved = await svc.entities.Product.updateMany(
+      { id: r.product_id, quantity_reserved: { $gte: r.quantity } },
+      { $inc: { quantity_reserved: -r.quantity, quantity_available: r.quantity } },
+    );
+    if (!affectedCount(moved)) {
+      await raiseInventoryCritical(svc, r, "Could not release reserved Product counters for reservation " + r.id);
+      continue;
     }
     await svc.entities.InventoryReservation.update(r.id, {
-      status: markExpired ? "expired" : "released",
-      released_at: new Date().toISOString(),
-      release_reason: reason || "",
+      status: markExpired ? "expired" : "released", released_at: new Date().toISOString(), release_reason: reason || "",
     });
+    await setCheckoutInventoryState(svc, r.checkout_quote_id, ["reserved", "releasing"], "released");
+    released += r.quantity;
   }
-  return releasedQty;
+  return released;
 }
 
-// ---- commit: reserved -> sold ----
-// Throws if the product does not actually hold enough reserved units — the
-// caller must surface that as a fulfillment exception, never swallow it.
 export async function commitForOrder(svc, orderId) {
   const rows = await reservationsForOrder(svc, orderId);
-  const pending = rows.filter((r) => r.status === "reserved");
-  if (!pending.length) {
-    return { committed: 0, alreadyCommitted: rows.some((r) => r.status === "committed") };
+  const r = rows[0];
+  if (!r) return { committed: 0, alreadyCommitted: false };
+  if (r.status === "committed") return { committed: 0, alreadyCommitted: true };
+  const claim = await svc.entities.InventoryReservation.updateMany({ id: r.id, status: "reserved" }, { $set: { status: "committing" } });
+  if (!affectedCount(claim)) return { committed: 0, alreadyCommitted: ["committing", "committed"].includes(r.status) };
+  const moved = await svc.entities.Product.updateMany(
+    { id: r.product_id, quantity_reserved: { $gte: r.quantity }, physical_quantity: { $gte: r.quantity } },
+    { $inc: { quantity_reserved: -r.quantity, physical_quantity: -r.quantity, quantity_sold: r.quantity } },
+  );
+  if (!affectedCount(moved)) {
+    await raiseInventoryCritical(svc, r, "Could not commit Product counters for reservation " + r.id);
+    throw new Error("Reserved inventory could not be committed safely.");
   }
-  let committed = 0;
-  for (const r of pending) {
-    const product = await svc.entities.Product.get(r.product_id);
-    if (!product) throw new Error("Product missing for reservation " + r.id);
-    const reserved = product.quantity_reserved || 0;
-    if (reserved < r.quantity) {
-      throw new Error("Cannot commit " + r.quantity + " units — only " + reserved + " reserved on this listing.");
-    }
-    const patch = {
-      quantity_reserved: reserved - r.quantity,
-      quantity_sold: (product.quantity_sold || 0) + r.quantity,
-    };
-    if ((product.quantity_available || 0) === 0 && patch.quantity_reserved === 0) patch.listing_status = "sold_out";
-    await svc.entities.Product.update(r.product_id, patch);
-    await svc.entities.InventoryReservation.update(r.id, {
-      status: "committed", committed_at: new Date().toISOString(),
-    });
-    committed += r.quantity;
-  }
-  return { committed, alreadyCommitted: false };
+  await svc.entities.InventoryReservation.update(r.id, { status: "committed", committed_at: new Date().toISOString(), expires_at: null });
+  await setCheckoutInventoryState(svc, r.checkout_quote_id, ["reserved", "committing"], "committed");
+  return { committed: r.quantity, alreadyCommitted: false };
 }
 
-// ---- reverse a commit: sold -> available ----
-// Never restores more units than were actually committed.
 export async function reverseCommitForOrder(svc, orderId, reason) {
   const rows = await reservationsForOrder(svc, orderId);
-  let reversed = 0;
-  for (const r of rows) {
-    if (r.status !== "committed") continue;
-    const product = await svc.entities.Product.get(r.product_id);
-    if (product) {
-      const sold = product.quantity_sold || 0;
-      const qty = Math.min(r.quantity, sold); // safety clamp
-      const patch = {
-        quantity_sold: sold - qty,
-        quantity_available: (product.quantity_available || 0) + qty,
-      };
-      if (patch.quantity_available > 0) patch.listing_status = "active";
-      await svc.entities.Product.update(r.product_id, patch);
-      reversed += qty;
-    }
-    await svc.entities.InventoryReservation.update(r.id, {
-      status: "released", released_at: new Date().toISOString(),
-      release_reason: reason || "Reversed after vendor commit",
-    });
+  const r = rows[0];
+  if (!r) return 0;
+  const claim = await svc.entities.InventoryReservation.updateMany({ id: r.id, status: "committed" }, { $set: { status: "reversing" } });
+  if (!affectedCount(claim)) return 0;
+  const moved = await svc.entities.Product.updateMany(
+    { id: r.product_id, quantity_sold: { $gte: r.quantity } },
+    { $inc: { quantity_sold: -r.quantity, physical_quantity: r.quantity, quantity_available: r.quantity } },
+  );
+  if (!affectedCount(moved)) {
+    await raiseInventoryCritical(svc, r, "Could not reverse committed Product counters for reservation " + r.id);
+    throw new Error("Committed inventory could not be reversed safely.");
   }
-  return reversed;
+  await svc.entities.InventoryReservation.update(r.id, { status: "released", released_at: new Date().toISOString(), release_reason: reason || "Pre-pickup cancellation" });
+  await setCheckoutInventoryState(svc, r.checkout_quote_id, ["committed", "reversing"], "released");
+  return r.quantity;
 }
 
-// ---- refund inventory policy ----
-// Explicit rules — inventory is NOT blindly moved on every refund.
-//   before vendor confirmation (reserved)  -> release back to available
-//   after confirmation, before delivery    -> reverse the commit (restock)
-//   delivered / completed / settled        -> NO automatic restock (goods shipped)
 export function refundInventoryAction(orderStatus) {
   const preConfirm = ["draft", "pricing_confirmed", "awaiting_payment", "payment_confirmed", "inventory_reserved", "payment_failed"];
-  const preDelivery = ["vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "picked_up", "in_transit", "fulfillment_exception"];
+  const prePickupCommitted = ["vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "fulfillment_exception"];
   if (preConfirm.includes(orderStatus)) return "release";
-  if (preDelivery.includes(orderStatus)) return "reverse_commit";
-  return "none"; // delivered and beyond — plants already handed over
+  if (prePickupCommitted.includes(orderStatus)) return "reverse_commit";
+  return "none";
 }
 
 export async function applyRefundInventoryPolicy(svc, order, reason) {
   const action = refundInventoryAction(order.order_status);
-  if (action === "release") {
-    const qty = await releaseForOrder(svc, order.id, reason || "Refund before vendor confirmation");
-    return { action, quantity: qty };
-  }
-  if (action === "reverse_commit") {
-    const qty = await reverseCommitForOrder(svc, order.id, reason || "Refund before delivery");
-    return { action, quantity: qty };
-  }
+  if (action === "release") return { action, quantity: await releaseForOrder(svc, order.id, reason || "Refund before vendor confirmation") };
+  if (action === "reverse_commit") return { action, quantity: await reverseCommitForOrder(svc, order.id, reason || "Refund before pickup") };
   return { action: "none", quantity: 0 };
 }

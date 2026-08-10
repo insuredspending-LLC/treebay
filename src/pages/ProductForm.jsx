@@ -118,7 +118,7 @@ export default function ProductForm() {
         <Separator />
         <h2 className="font-semibold text-sm uppercase text-muted-foreground">Pricing & quantity</h2>
         <div className="grid grid-cols-3 gap-3">
-          <NumField label="Total physical stock" value={f.quantity_available} onChange={(v) => set("quantity_available", v)} />
+          <NumField label="Current unsold physical units" value={f.quantity_available} onChange={(v) => set("quantity_available", v)} />
           <NumField label="Unit price *" value={f.unit_price} onChange={(v) => set("unit_price", v)} />
           <NumField label="Min order" value={f.minimum_order_quantity} onChange={(v) => set("minimum_order_quantity", v)} />
         </div>

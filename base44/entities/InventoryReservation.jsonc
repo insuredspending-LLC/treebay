@@ -18,17 +18,22 @@
       "type": "string"
     },
     "quantity": {
-      "type": "number"
+      "type": "integer",
+      "minimum": 1
     },
     "status": {
       "type": "string",
       "enum": [
+        "reserving",
         "reserved",
+        "committing",
         "committed",
+        "releasing",
+        "reversing",
         "released",
         "expired"
       ],
-      "default": "reserved"
+      "default": "reserving"
     },
     "expires_at": {
       "type": "string",

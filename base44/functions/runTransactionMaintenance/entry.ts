@@ -21,12 +21,17 @@ export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
 
-    let caller = null;
-    try { caller = await base44.auth.me(); } catch { caller = null; }
-    if (caller && caller.role !== "admin") {
+    let caller;
+    try {
+      caller = await base44.auth.me();
+    } catch {
+      return Response.json({ error: "Authentication required." }, { status: 401 });
+    }
+    if (!caller) return Response.json({ error: "Authentication required." }, { status: 401 });
+    if (caller.role !== "admin") {
       return Response.json({ error: "Transaction maintenance is restricted to administrators." }, { status: 403 });
     }
-    const actorId = caller ? caller.id : "scheduled_workflow";
+    const actorId = caller.id;
 
     const svc = base44.asServiceRole;
     const now = new Date();

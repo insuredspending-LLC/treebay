@@ -117,7 +117,7 @@ export async function assembleCheckout(svc, p) {
     delivery_amount_cents: deliveryCents, taxable_amount_cents: taxableCents, tax_amount_cents: tax.taxCents,
     marketplace_fee_cents: feeCents, fee_payer: feePayer, other_fees_cents: 0, total_amount_cents: totalCents,
     currency: "USD", delivery_method: deliveryMethod,
-    tax_status: tax.status, pricing_status: "draft",
+    tax_status: tax.status, pricing_status: "draft", processing_status: "available", inventory_status: "available",
     destination_name: dest.name || null, destination_street: dest.street || null,
     destination_city: dest.city || null, destination_state: dest.state || null, destination_zip: dest.zip || null,
     delivery_instructions: dest.instructions || null, contact_name: dest.contact_name || null, contact_phone: dest.contact_phone || null,
@@ -540,14 +540,14 @@ export async function assertVendorSellable(svc, vendorId) {
 
 // ---- Order creation from CheckoutQuote (shared authoritative path) ----
 export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
-  const cq = await svc.entities.CheckoutQuote.get(checkoutQuoteId);
+  let cq = await svc.entities.CheckoutQuote.get(checkoutQuoteId);
   if (!cq) throw new Error("Checkout quote not found");
   if (cq.buyer_id !== user.id) throw new Error("This checkout quote belongs to another buyer.");
-  // Idempotency: if this quote already produced an order, return it.
-  if (cq.order_id) {
+  if (cq.processing_status === "consumed" && cq.order_id) {
     const existing = await svc.entities.Order.get(cq.order_id);
-    if (existing) return { order: existing, checkoutQuote: cq };
+    if (existing) return { order: existing, checkoutQuote: cq, existing: true };
   }
+  if (cq.processing_status === "consuming") throw new Error("Checkout is processing. Please retry shortly.");
   if (cq.expiration_at && new Date(cq.expiration_at) < new Date()) throw new Error("This checkout quote has expired. Please recalculate.");
   if (!cq.delivery_method) throw new Error("Please select a delivery option before placing your order.");
   if (cq.delivery_method !== "buyer_pickup") {
@@ -555,13 +555,27 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
       throw new Error("A complete delivery address is required before placing your order.");
     }
   }
-  // Re-verify the seller at the moment of commercial commitment — a vendor
-  // suspended between quote and checkout cannot receive a new paid order.
+  // Re-verify the seller before claiming the durable single-winner lock.
   const vendor = await assertVendorSellable(svc, cq.vendor_id);
+  const lockResult = await svc.entities.CheckoutQuote.updateMany(
+    { id: cq.id, processing_status: "available" },
+    { $set: { processing_status: "consuming", processing_locked_at: new Date().toISOString() } },
+  );
+  const lockCount = typeof lockResult === "number" ? lockResult : Array.isArray(lockResult) ? lockResult.length : (lockResult?.updated_count ?? lockResult?.modified_count ?? lockResult?.modifiedCount ?? lockResult?.count ?? 0);
+  if (!lockCount) {
+    cq = await svc.entities.CheckoutQuote.get(checkoutQuoteId);
+    if (cq.processing_status === "consumed" && cq.order_id) {
+      const existing = await svc.entities.Order.get(cq.order_id);
+      if (existing) return { order: existing, checkoutQuote: cq, existing: true };
+    }
+    throw new Error("Checkout is processing. Please retry shortly.");
+  }
 
   const orderNumber = genOrderNumber();
   const reservationExpiry = new Date(Date.now() + RESERVATION_TTL_MINUTES * 60000).toISOString();
-  const order = await svc.entities.Order.create({
+  let order = null;
+  try {
+    order = await svc.entities.Order.create({
     order_number: orderNumber, buyer_id: cq.buyer_id, vendor_id: cq.vendor_id, vendor_owner_id: cq.vendor_owner_id,
     vendor_name: vendor?.business_name || "", quote_id: cq.quote_id || "", rfq_id: cq.rfq_id || "", checkout_quote_id: cq.id,
     items: (cq.items || []).map((i) => ({ line_name: i.line_name, quantity: i.quantity, unit_price: fromCents(i.unit_price_cents), subtotal: fromCents(i.subtotal_cents) })),
@@ -576,18 +590,26 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
     reservation_expires_at: reservationExpiry,
   });
 
-  // Reserve inventory against an order-level InventoryReservation record.
-  if (cq.source_type === "direct_listing" && cq.product_id) {
-    try {
+    // Persist the created order id while the quote remains consuming. Concurrent callers
+    // still receive a safe processing response and can never create another Order.
+    await svc.entities.CheckoutQuote.update(cq.id, { order_id: order.id });
+    if (cq.source_type === "direct_listing" && cq.product_id) {
       await reserveForCheckout(svc, order, cq, reservationExpiry);
-    } catch (err) {
-      await svc.entities.Order.update(order.id, { order_status: "cancelled" });
-      await recordOrderEvent(svc, { order_id: order.id, event_type: "order_cancelled", new_status: "cancelled", actor_type: "system", description: "Inventory unavailable: " + err.message });
-      throw err;
     }
+    await svc.entities.CheckoutQuote.update(cq.id, { pricing_status: "consumed", processing_status: "consumed", order_id: order.id });
+  } catch (err) {
+    if (!order) {
+      await svc.entities.CheckoutQuote.updateMany(
+        { id: cq.id, processing_status: "consuming" },
+        { $set: { processing_status: "available", processing_locked_at: null } },
+      );
+    } else {
+      await svc.entities.Order.update(order.id, { order_status: "cancelled" });
+      await svc.entities.CheckoutQuote.update(cq.id, { pricing_status: "consumed", processing_status: "consumed", order_id: order.id });
+      await recordOrderEvent(svc, { order_id: order.id, event_type: "order_cancelled", new_status: "cancelled", actor_type: "system", description: "Order creation failed after durable id assignment: " + err.message });
+    }
+    throw err;
   }
-
-  await svc.entities.CheckoutQuote.update(cq.id, { pricing_status: "consumed", order_id: order.id });
   await closeDeliveryOptions(svc, cq.id);
   await recordOrderEvent(svc, { order_id: order.id, event_type: "order_created", new_status: "awaiting_payment", actor_type: "buyer", actor_id: user.id, description: "Order created from checkout quote " + cq.id });
   // NOTE: no payable ledger here. The financial allocation is written only once

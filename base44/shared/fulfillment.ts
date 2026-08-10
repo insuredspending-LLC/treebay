@@ -94,11 +94,11 @@ export async function advanceFulfillment(svc, orderId, actor) {
 export async function cancelOrder(svc, orderId, actor) {
   const order = await svc.entities.Order.get(orderId);
   if (!order) return err(404, "Order not found");
-  if (["completed", "settled", "cancelled", "refunded", "delivered", "in_transit"].includes(order.order_status)) {
+  if (["picked_up", "in_transit", "delivered", "completed", "settlement_pending", "settled", "cancelled", "refunded"].includes(order.order_status)) {
     return err(400, "Order cannot be cancelled in its current state.");
   }
   const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
-  const committed = ["vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "picked_up"].includes(order.order_status);
+  const committed = ["vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "fulfillment_exception"].includes(order.order_status);
   if (checkoutHoldsInventory(cq)) {
     if (committed) await reverseCommitForOrder(svc, orderId, "Order cancelled after vendor confirmation");
     else await releaseForOrder(svc, orderId, "Order cancelled before vendor confirmation");

@@ -131,6 +131,21 @@
       "type": "string",
       "format": "date-time"
     },
+    "inventory_status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "reserving",
+        "reserved",
+        "committing",
+        "committed",
+        "releasing",
+        "reversing",
+        "released"
+      ],
+      "default": "available",
+      "description": "Single-winner inventory reservation lifecycle for this checkout"
+    },
     "destination_name": {
       "type": "string"
     },
