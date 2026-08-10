@@ -33,7 +33,8 @@
             "type": "string"
           },
           "quantity_offered": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1
           },
           "unit_price": {
             "type": "number"
@@ -53,12 +54,6 @@
             "default": false
           },
           "delivery_price": {
-            "type": "number"
-          },
-          "taxes": {
-            "type": "number"
-          },
-          "additional_fees": {
             "type": "number"
           },
           "substitution_details": {
@@ -127,16 +122,9 @@
       }
     },
     "delete": {
-      "$or": [
-        {
-          "data.vendor_owner_id": "{{user.id}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     }
   }
 }
