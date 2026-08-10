@@ -82,7 +82,6 @@ export default function Conversation() {
   return (
     <div className="flex flex-col h-[calc(100vh-9rem)]">
       <div className="flex items-center justify-between gap-2 pb-3 border-b border-border">
-        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1 no-tap-highlight"><ArrowLeft className="w-4 h-4" /></button>
         <div className="text-center flex-1">
           <p className="font-semibold text-sm">{otherName}</p>
           <p className="text-xs text-muted-foreground">{conv.reference_label}</p>

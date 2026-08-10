@@ -24,7 +24,9 @@ export default function Settings() {
     setDeleting(true);
     try {
       const me = await base44.auth.me();
-      // delete user's data across entities they own
+      // Unlist any vendor inventory (records retained for order history)
+      try { await base44.entities.Product.updateMany({ vendor_owner_id: me.id }, { $set: { listing_status: "archived" } }); } catch {}
+      // Remove personal marketplace data the user owns
       await Promise.all([
         base44.entities.BuyerProfile.deleteMany({}).catch(() => {}),
         base44.entities.VendorProfile.deleteMany({}).catch(() => {}),
@@ -34,7 +36,7 @@ export default function Settings() {
         base44.entities.Notification.deleteMany({}).catch(() => {}),
         base44.entities.Project.deleteMany({}).catch(() => {}),
       ]);
-      toast({ title: "Account data deleted", description: "Your marketplace data has been removed." });
+      toast({ title: "Account data deleted", description: "Your profile and listings have been removed. Order records are retained for accounting." });
       logout();
     } catch (e) { toast({ title: "Could not fully delete", description: e.message, variant: "destructive" }); }
     finally { setDeleting(false); }
@@ -53,7 +55,7 @@ export default function Settings() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-rose-600" /> Delete account</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">This will permanently delete your profile, projects, favorites, messages, orders, and notifications. This cannot be undone.</p>
+            <p className="text-sm text-muted-foreground">This permanently removes your profile, projects, favorites, blocks, notifications, and unlists your inventory. Orders, reviews, and messages are retained as transaction records (required for accounting and fraud prevention) but no longer linked to an active profile. This cannot be undone.</p>
             <p className="text-sm">Type <span className="font-semibold">DELETE</span> to confirm.</p>
             <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="DELETE" />
           </div>

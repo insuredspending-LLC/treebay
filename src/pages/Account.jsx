@@ -49,7 +49,6 @@ export default function Account() {
             <SelectItem value="buyer">Buyer</SelectItem>
             <SelectItem value="vendor">Vendor</SelectItem>
             <SelectItem value="carrier">Carrier (coming soon)</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[11px] text-muted-foreground mt-2">Switch roles to experience each side of the marketplace. (Demo convenience.)</p>

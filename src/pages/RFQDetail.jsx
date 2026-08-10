@@ -37,6 +37,10 @@ export default function RFQDetail() {
   const myCity = `${rfq.delivery_city}, ${rfq.delivery_state}`;
 
   const acceptQuote = async (q) => {
+    if (q.status === "accepted" || rfq.status === "awarded" || rfq.status === "closed" || rfq.status === "cancelled") {
+      toast({ title: "This RFQ is no longer accepting quotes", variant: "destructive" });
+      return;
+    }
     setAccepting(q.id);
     try {
       const me = await base44.auth.me();
@@ -140,9 +144,9 @@ export default function RFQDetail() {
                   {q.vendor_notes && <p className="text-xs text-muted-foreground mt-2 italic">"{q.vendor_notes}"</p>}
 
                   <div className="flex gap-2 mt-3">
-                    <Button onClick={() => acceptQuote(q)} disabled={q.status === "accepted" || q.status === "declined" || accepting === q.id} className="flex-1">
+                    <Button onClick={() => acceptQuote(q)} disabled={q.status === "accepted" || q.status === "declined" || accepting === q.id || (rfq.status !== "open" && rfq.status !== "quotes_received")} className="flex-1">
                       {accepting === q.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
-                      {q.status === "accepted" ? "Accepted" : "Accept quote"}
+                      {q.status === "accepted" ? "Accepted" : (rfq.status !== "open" && rfq.status !== "quotes_received") ? "Closed" : "Accept quote"}
                     </Button>
                     <Button variant="outline" onClick={() => message(q)}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
                   </div>

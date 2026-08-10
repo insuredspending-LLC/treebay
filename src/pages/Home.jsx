@@ -7,31 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Image } from "@/components/ui/image";
-import { Search, MapPin, Package, Truck, FileText, ArrowRight, Leaf, Sparkles, Loader2 } from "lucide-react";
+import { Search, MapPin, Package, Truck, FileText, ArrowRight, Leaf } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import PullToRefresh from "@/components/PullToRefresh";
-import { seedDemoData } from "@/lib/seed";
-import { useToast } from "@/components/ui/use-toast";
 
 export default function Home() {
   const { buyerProfile, accountType } = useAppUser();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [q, setQ] = useState("");
   const [popular, setPopular] = useState([]);
   const [near, setNear] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
-
-  const seed = async () => {
-    setSeeding(true);
-    try {
-      const res = await seedDemoData();
-      if (res.ok) { toast({ title: "Demo data loaded", description: `${res.vendors} vendors and ${res.products} products added.` }); window.location.reload(); }
-      else { toast({ title: "Demo data already exists" }); }
-    } catch (e) { toast({ title: "Could not load demo data", description: e.message, variant: "destructive" }); }
-    finally { setSeeding(false); }
-  };
 
   const myCity = buyerProfile ? `${buyerProfile.city}, ${buyerProfile.state}` : null;
 
@@ -57,15 +43,6 @@ export default function Home() {
   return (
     <PullToRefresh onRefresh={() => load(true)}>
     <div className="space-y-8">
-      {!loading && popular.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-primary/40 bg-secondary/60 p-5 flex flex-col sm:flex-row items-center gap-4 justify-between">
-          <div>
-            <p className="font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Welcome to Treebay</p>
-            <p className="text-sm text-muted-foreground mt-1">Load demo inventory from sample nurseries to explore the marketplace.</p>
-          </div>
-          <Button onClick={seed} disabled={seeding} className="shrink-0">{seeding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Load demo data</Button>
-        </div>
-      )}
       <section className="rounded-3xl bg-gradient-to-br from-primary to-[#2d6a3e] text-primary-foreground p-6 md:p-8 -mx-1">
         <h1 className="text-2xl md:text-3xl font-extrabold leading-tight">Find plants. Compare prices.<br />Get them delivered.</h1>
         <p className="text-primary-foreground/80 mt-2 text-sm">The marketplace for plants, trees, and delivery.</p>

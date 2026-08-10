@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Heart, MessageSquare, FileText, ShoppingCart, ShieldCheck, Truck, Package, Leaf, ChevronLeft, ChevronRight } from "lucide-react";
+import { MapPin, Heart, MessageSquare, FileText, ShoppingCart, ShieldCheck, Truck, Package, Leaf, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { formatCurrency, formatNumber, priceForQuantity, approxDistance, createNotification } from "@/lib/treebay";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import StarRating from "@/components/StarRating";
@@ -31,6 +31,7 @@ export default function ProductDetail() {
   const [addProject, setAddProject] = useState("");
   const [report, setReport] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -94,6 +95,8 @@ export default function ProductDetail() {
   };
 
   const requestQuote = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const me = await base44.auth.me();
       const rfq = await base44.entities.RFQ.create({
@@ -108,9 +111,12 @@ export default function ProductDetail() {
       toast({ title: "Quote request sent", description: "The vendor will respond with pricing." });
       navigate(`/rfqs/${rfq.id}`);
     } catch (e) { toast({ title: "Could not send", description: e.message, variant: "destructive" }); }
+    finally { setSubmitting(false); }
   };
 
   const buyNow = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const me = await base44.auth.me();
       const orderNumber = "TB-" + Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -125,10 +131,12 @@ export default function ProductDetail() {
         payment_status: "pending", order_status: "pending",
       });
       await createNotification(product.vendor_owner_id, "new_order", "New order received", orderNumber, "order", "");
-      await base44.entities.Product.update(product.id, { quantity_available: Math.max(0, product.quantity_available - qty) });
+      const remaining = Math.max(0, product.quantity_available - qty);
+      await base44.entities.Product.update(product.id, { quantity_available: remaining, listing_status: remaining === 0 ? "sold_out" : product.listing_status });
       toast({ title: "Order placed", description: `Order ${orderNumber} created.` });
       navigate("/orders");
     } catch (e) { toast({ title: "Could not place order", description: e.message, variant: "destructive" }); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -202,9 +210,9 @@ export default function ProductDetail() {
           )}
 
           <div className="grid grid-cols-1 gap-2">
-            <Button onClick={buyNow} disabled={!canOrder} className="h-12 text-base"><ShoppingCart className="w-4 h-4 mr-2" /> {showReqQuote ? "Request quote to buy" : "Buy now"}</Button>
+            <Button onClick={buyNow} disabled={!canOrder || submitting} className="h-12 text-base">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}{showReqQuote ? "Request quote to buy" : "Buy now"}</Button>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={requestQuote} className="h-11"><FileText className="w-4 h-4 mr-2" /> Request quote</Button>
+              <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />} Request quote</Button>
               <Button variant="outline" onClick={startConversation} className="h-11"><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
             </div>
           </div>

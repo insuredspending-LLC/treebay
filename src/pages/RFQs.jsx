@@ -10,16 +10,20 @@ import StatusBadge from "@/components/StatusBadge";
 import { RFQ_STATUS_LABELS, shortDate, formatNumber } from "@/lib/treebay";
 
 export default function RFQs() {
-  const { accountType } = useAppUser();
+  const { accountType, user } = useAppUser();
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      try { setRfqs(await base44.entities.RFQ.list("-created_date", 100) || []); } catch {}
+      if (!user?.id) { setLoading(false); return; }
+      try {
+        const all = await base44.entities.RFQ.list("-created_date", 100) || [];
+        setRfqs(all.filter((r) => r.buyer_id === user.id));
+      } catch {}
       finally { setLoading(false); }
     })();
-  }, []);
+  }, [user?.id]);
 
   return (
     <div className="space-y-4">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useAppUser } from "@/hooks/useAppUser";
 import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
@@ -15,6 +16,7 @@ import { seedDemoData } from "@/lib/seed";
 
 export default function AdminDashboard() {
   const { toast } = useToast();
+  const { user } = useAppUser();
   const [tab, setTab] = useState("overview");
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
@@ -43,6 +45,9 @@ export default function AdminDashboard() {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  if (user && user.role !== "admin") return <Navigate to="/" replace />;
+  if (!user) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
   const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } };
   const setListingStatus = async (id, status) => { try { await base44.entities.Product.update(id, { listing_status: status }); load(); toast({ title: `Listing ${status}` }); } catch {} };

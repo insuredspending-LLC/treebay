@@ -13,6 +13,14 @@ import { useAppUser } from "@/hooks/useAppUser";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, createNotification } from "@/lib/treebay";
 
 const FULFILLMENT_SEQUENCE = ["pending", "awaiting_payment", "paid", "confirmed", "preparing", "ready_for_pickup", "in_transit", "delivered", "completed"];
+const VENDOR_NEXT_STATUS = {
+  pending: "confirmed",
+  confirmed: "preparing",
+  preparing: "ready_for_pickup",
+  ready_for_pickup: "in_transit",
+  in_transit: "delivered",
+  delivered: "completed",
+};
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -36,9 +44,9 @@ export default function OrderDetail() {
 
   const isVendor = accountType === "vendor";
   const isBuyer = accountType === "buyer" || accountType === "admin";
-  const canAdvance = isVendor && order.order_status !== "completed" && order.order_status !== "cancelled";
   const currentIndex = FULFILLMENT_SEQUENCE.indexOf(order.order_status);
-  const nextStatus = currentIndex >= 0 && currentIndex < FULFILLMENT_SEQUENCE.length - 1 ? FULFILLMENT_SEQUENCE[currentIndex + 1] : null;
+  const canAdvance = isVendor && !!VENDOR_NEXT_STATUS[order.order_status];
+  const nextStatus = VENDOR_NEXT_STATUS[order.order_status] || null;
 
   const advance = async (status) => {
     try {
@@ -48,11 +56,6 @@ export default function OrderDetail() {
       toast({ title: "Order updated", description: ORDER_STATUS_LABELS[status] });
       load();
     } catch (e) { toast({ title: "Could not update", description: e.message, variant: "destructive" }); }
-  };
-
-  const markPaid = async () => {
-    try { await base44.entities.Order.update(id, { payment_status: "paid", order_status: order.order_status === "pending" ? "confirmed" : order.order_status }); await base44.entities.PaymentRecord.create({ order_id: id, buyer_id: order.buyer_id, vendor_owner_id: order.vendor_owner_id, amount: order.total, status: "paid", transaction_ref: "demo-" + Date.now() }); toast({ title: "Marked as paid" }); load(); }
-    catch (e) { toast({ title: "Could not update", description: e.message, variant: "destructive" }); }
   };
 
   const message = async () => {
@@ -78,7 +81,6 @@ export default function OrderDetail() {
 
   return (
     <div className="space-y-5">
-      <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1 no-tap-highlight"><ArrowLeft className="w-4 h-4" /> Back</button>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">{order.order_number}</h1>
@@ -128,10 +130,8 @@ export default function OrderDetail() {
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
-        {isVendor && order.payment_status !== "paid" && <Button onClick={markPaid} variant="secondary">Mark paid</Button>}
         {isVendor && canAdvance && nextStatus && <Button onClick={() => advance(nextStatus)}>Advance to {ORDER_STATUS_LABELS[nextStatus]}</Button>}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
-        {isVendor && order.order_status === "in_transit" && <Button variant="outline" onClick={() => advance("completed")}>Complete</Button>}
       </div>
 
       {reviewOpen && (
