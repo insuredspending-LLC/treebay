@@ -6,15 +6,17 @@ import { Image } from "@/components/ui/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Heart, MessageSquare, FileText, ShoppingCart, ShieldCheck, Truck, Package, Leaf, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { formatCurrency, formatNumber, priceForQuantity, approxDistance, apiError } from "@/lib/treebay";
+import { MapPin, Heart, MessageSquare, FileText, ShoppingCart, ShieldCheck, Truck, Package, Leaf, ChevronLeft, ChevronRight, Loader2, Store, AlertCircle } from "lucide-react";
+import { formatCurrency, formatNumber, priceForQuantity, apiError } from "@/lib/treebay";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import StarRating from "@/components/StarRating";
 import ReportDialog from "@/components/ReportDialog";
 import StatusBadge from "@/components/StatusBadge";
+import SectionHeader from "@/components/SectionHeader";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -47,11 +49,21 @@ export default function ProductDetail() {
     })();
   }, [id]);
 
-  if (loading) return <div className="flex justify-center py-20"><div className="w-7 h-7 border-4 border-secondary border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="space-y-4">
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="aspect-square rounded-2xl bg-muted skeleton-shimmer" />
+        <div className="space-y-4">
+          <div className="h-8 w-2/3 rounded-lg bg-muted skeleton-shimmer" />
+          <div className="h-4 w-1/2 rounded-lg bg-muted skeleton-shimmer" />
+          <div className="h-24 rounded-2xl bg-muted skeleton-shimmer" />
+          <div className="h-12 rounded-2xl bg-muted skeleton-shimmer" />
+        </div>
+      </div>
+    </div>
+  );
   if (!product) return <div className="py-20 text-center text-muted-foreground">This listing is no longer available.</div>;
 
-  const myCity = buyerProfile ? `${buyerProfile.city}, ${buyerProfile.state}` : null;
-  const dist = myCity ? approxDistance(myCity, `${product.vendor_city}, ${product.vendor_state}`) : null;
   const imgs = product.images?.length ? product.images : [];
   const unitPrice = priceForQuantity(product, qty);
   const showReqQuote = unitPrice === null;
@@ -125,33 +137,54 @@ export default function ProductDetail() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => setReport(true)}>Report listing</Button>
+        <Button variant="ghost" size="sm" onClick={() => setReport(true)} className="text-muted-foreground">Report listing</Button>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-2xl overflow-hidden border border-border bg-muted aspect-square relative">
-          {imgs.length ? (
-            <Image src={imgs[imgIdx]} alt={product.common_name} fittingType="fill" className="w-full h-full" />
-          ) : <div className="w-full h-full flex items-center justify-center text-muted-foreground">No photo</div>}
+        {/* Image gallery */}
+        <div className="space-y-3">
+          <div className="rounded-2xl overflow-hidden border border-border bg-muted aspect-square relative">
+            {imgs.length ? (
+              <Image src={imgs[imgIdx]} alt={product.common_name} fittingType="fill" className="w-full h-full" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/40 gap-2">
+                <Package className="w-16 h-16" />
+                <span className="text-sm">No photo available</span>
+              </div>
+            )}
+            {imgs.length > 1 && (
+              <>
+                <button onClick={() => setImgIdx((i) => (i - 1 + imgs.length) % imgs.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow-sm no-tap-highlight"><ChevronLeft className="w-5 h-5" /></button>
+                <button onClick={() => setImgIdx((i) => (i + 1) % imgs.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow-sm no-tap-highlight"><ChevronRight className="w-5 h-5" /></button>
+                <div className="absolute bottom-3 inset-x-0 flex justify-center gap-1.5">{imgs.map((_, i) => <span key={i} className={"w-1.5 h-1.5 rounded-full transition " + (i === imgIdx ? "bg-white w-4" : "bg-white/50")} />)}</div>
+              </>
+            )}
+          </div>
           {imgs.length > 1 && (
-            <>
-              <button onClick={() => setImgIdx((i) => (i - 1 + imgs.length) % imgs.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
-              <button onClick={() => setImgIdx((i) => (i + 1) % imgs.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 flex items-center justify-center"><ChevronRight className="w-5 h-5" /></button>
-              <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1">{imgs.map((_, i) => <span key={i} className={"w-1.5 h-1.5 rounded-full " + (i === imgIdx ? "bg-white" : "bg-white/50")} />)}</div>
-            </>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+              {imgs.map((src, i) => (
+                <button key={i} onClick={() => setImgIdx(i)} className={"w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 no-tap-highlight " + (i === imgIdx ? "border-primary" : "border-border")}>
+                  <Image src={src} alt="" fittingType="fill" className="w-full h-full" />
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
-        <div className="space-y-4">
+        {/* Product info */}
+        <div className="space-y-5">
           <div>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h1 className="text-2xl font-bold">{product.common_name}</h1>
-                {product.botanical_name && <p className="italic text-muted-foreground">{product.botanical_name}</p>}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-heading font-bold text-foreground">{product.common_name}</h1>
+                {product.botanical_name && <p className="italic text-muted-foreground mt-0.5">{product.botanical_name}</p>}
+                {product.cultivar && <p className="text-sm text-muted-foreground mt-0.5">Cultivar: {product.cultivar}</p>}
               </div>
-              <Button variant="outline" size="icon" onClick={toggleFav} aria-label="Save"><Heart className={fav ? "fill-rose-500 text-rose-500" : ""} /></Button>
+              <Button variant="outline" size="icon" onClick={toggleFav} aria-label="Save" className="shrink-0">
+                <Heart className={fav ? "fill-rose-500 text-rose-500" : ""} />
+              </Button>
             </div>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
               {product.listing_status !== "active" && <StatusBadge status={product.listing_status} />}
               {product.native_status && <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200"><Leaf className="w-3 h-3 mr-1" /> Native</Badge>}
               {product.foliage_type && product.foliage_type !== "n/a" && <Badge variant="outline" className="capitalize">{product.foliage_type}</Badge>}
@@ -160,49 +193,63 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border p-4 bg-card">
-            <p className="text-3xl font-bold text-primary">{showReqQuote ? "Request Quote" : formatCurrency(product.unit_price)}<span className="text-sm font-normal text-muted-foreground"> /ea</span></p>
-            <p className="text-sm text-muted-foreground mt-1">{formatNumber(product.quantity_available)} available · min order {product.minimum_order_quantity || 1}</p>
+          {/* Pricing card */}
+          <Card className="p-5 card-shadow">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-3xl font-heading font-bold text-primary">{showReqQuote ? "Request Quote" : formatCurrency(product.unit_price)}<span className="text-sm font-normal text-muted-foreground"> /ea</span></p>
+                <p className="text-sm text-muted-foreground mt-1">{formatNumber(product.quantity_available)} available · min order {product.minimum_order_quantity || 1}</p>
+              </div>
+              {sellerVerified && <VerifiedBadge status="verified" />}
+            </div>
             {(product.bulk_price_tiers || []).length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border">
+              <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Bulk pricing</p>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {(product.bulk_price_tiers || []).slice().sort((a, b) => a.min_qty - b.min_qty).map((t, i) => (
                     <div key={i} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{t.min_qty}{t.max_qty ? `–${t.max_qty}` : "+"}</span>
-                      <span className="font-medium">{t.request_quote ? "Request quote" : formatCurrency(t.unit_price)}</span>
+                      <span className="text-muted-foreground">{t.min_qty}{t.max_qty ? `–${t.max_qty}` : "+"} units</span>
+                      <span className="font-medium">{t.request_quote ? "Request quote" : formatCurrency(t.unit_price) + "/ea"}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-          </div>
+          </Card>
 
-          <div className="flex items-end gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Quantity</label>
-              <Input type="number" min={product.minimum_order_quantity || 1} max={product.quantity_available} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} className="w-24 h-11" />
+          {/* Quantity + CTAs */}
+          <div className="space-y-3">
+            <div className="flex items-end gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground font-medium">Quantity</label>
+                <Input type="number" min={product.minimum_order_quantity || 1} max={product.quantity_available} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} className="w-28 h-11" />
+              </div>
+              <div className="flex-1 text-right">
+                {!showReqQuote && <p className="text-xs text-muted-foreground">Subtotal</p>}
+                <p className="text-xl font-heading font-bold text-foreground">{showReqQuote ? "—" : formatCurrency(subtotal)}</p>
+              </div>
             </div>
-            <div className="flex-1">
-              {!showReqQuote && <p className="text-sm text-muted-foreground">Subtotal</p>}
-              <p className="text-xl font-bold">{showReqQuote ? "—" : formatCurrency(subtotal)}</p>
-            </div>
-          </div>
-          {qty > product.quantity_available && product.quantity_available > 0 && (
-            <p className="text-xs text-rose-600">Only {product.quantity_available} available. Reduce quantity or request a quote.</p>
-          )}
+            {qty > product.quantity_available && product.quantity_available > 0 && (
+              <p className="text-xs text-rose-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Only {product.quantity_available} available. Reduce quantity or request a quote.</p>
+            )}
 
-          <div className="grid grid-cols-1 gap-2">
-            <Button onClick={buyNow} disabled={!canOrder || submitting} className="h-12 text-base">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}{sellerVerified ? (showReqQuote ? "Request quote to buy" : "Place Order Request") : "Seller unavailable for purchase"}</Button>
-            {!sellerVerified && <p className="text-sm text-amber-700">Purchasing is disabled while this seller is {vendor?.verification_status || "unverified"}.</p>}
+            <Button onClick={buyNow} disabled={!canOrder || submitting} size="lg" className="w-full h-12 text-base">
+              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
+              {!sellerVerified ? "Seller not verified" : showReqQuote ? "Request quote to buy" : "Start Order"}
+            </Button>
+            {!sellerVerified && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Purchasing is disabled while this seller is {vendor?.verification_status || "unverified"}.</p>}
+
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">{submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />} Request quote</Button>
-              <Button variant="outline" onClick={startConversation} className="h-11"><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
+              <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">
+                {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />} Request Quote
+              </Button>
+              <Button variant="outline" onClick={startConversation} className="h-11"><MessageSquare className="w-4 h-4 mr-2" /> Message Seller</Button>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border p-4 bg-card space-y-2">
-            <label className="text-xs text-muted-foreground">Add to a project</label>
+          {/* Add to project */}
+          <Card className="p-4 space-y-2">
+            <label className="text-xs text-muted-foreground font-medium">Add to a project</label>
             <div className="flex gap-2">
               <Select value={addProject} onValueChange={setAddProject}>
                 <SelectTrigger className="h-11"><SelectValue placeholder="Select project" /></SelectTrigger>
@@ -210,33 +257,38 @@ export default function ProductDetail() {
               </Select>
               <Button variant="secondary" onClick={addToProject} className="h-11">Add</Button>
             </div>
-            <Button asChild variant="link" className="h-auto p-0 text-sm"><Link to="/projects/new">+ Create a project</Link></Button>
-          </div>
+            <Button asChild variant="link" className="h-auto p-0 text-sm"><Link to="/projects">+ Create a project</Link></Button>
+          </Card>
         </div>
       </div>
 
+      {/* Grower card */}
       {vendor && (
-        <div className="rounded-2xl border border-border p-5 bg-card">
+        <Card className="p-5 card-shadow">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <Link to={`/vendor/${vendor.id}`} className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center font-bold text-primary">{(vendor.business_name || "V").slice(0, 1)}</div>
+            <Link to={`/vendor/${vendor.id}`} className="flex items-center gap-3 no-tap-highlight">
+              <div className="w-14 h-14 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                {vendor.logo_url ? <Image src={vendor.logo_url} alt={vendor.business_name} fittingType="fill" className="w-full h-full rounded-xl" /> : <Store className="w-7 h-7 text-primary" />}
+              </div>
               <div>
-                <p className="font-semibold flex items-center gap-2">{vendor.business_name}</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {vendor.city}, {vendor.state} {dist !== null && `· ${dist} mi away`}</p>
+                <p className="font-heading font-semibold text-foreground flex items-center gap-2">{vendor.business_name}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {vendor.city}, {vendor.state}</p>
                 <div className="mt-1"><StarRating value={vendor.rating} count={vendor.review_count} /></div>
               </div>
             </Link>
             <div className="flex items-center gap-2">
               {vendor.verification_status === "verified" ? <VerifiedBadge status="verified" /> : <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50"><ShieldCheck className="w-3 h-3 mr-1" /> Verification pending</Badge>}
+              <Button variant="outline" size="sm" asChild><Link to={`/vendor/${vendor.id}`}>View Storefront</Link></Button>
             </div>
           </div>
-        </div>
+        </Card>
       )}
 
+      {/* Specifications */}
       <div className="grid md:grid-cols-2 gap-4">
         <SpecBlock title="Specifications" specs={[
           ["Container", product.container_size], ["Box", product.box_size], ["Caliper", product.caliper],
-          ["Current height", product.current_height], ["Spread", product.approximate_spread], ["SKU", product.sku],
+          ["Current height", product.current_height], ["Approx. spread", product.approximate_spread], ["SKU", product.sku],
         ]} />
         <SpecBlock title="Plant characteristics" specs={[
           ["Native", product.native_status ? "Yes" : ""], ["Foliage", product.foliage_type],
@@ -246,21 +298,21 @@ export default function ProductDetail() {
       </div>
 
       {product.description && (
-        <div className="rounded-2xl border border-border p-5 bg-card">
-          <h2 className="font-semibold mb-2">Description</h2>
-          <p className="text-sm text-muted-foreground whitespace-pre-line">{product.description}</p>
-        </div>
+        <Card className="p-5 card-shadow">
+          <h2 className="font-heading font-semibold mb-2">Description</h2>
+          <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{product.description}</p>
+        </Card>
       )}
 
       {reviews.length > 0 && (
-        <div className="rounded-2xl border border-border p-5 bg-card">
-          <h2 className="font-semibold mb-3">Vendor reviews</h2>
-          <div className="space-y-4">
+        <div>
+          <SectionHeader title="Vendor reviews" />
+          <div className="space-y-3 mt-3">
             {reviews.map((r) => (
-              <div key={r.id} className="pb-4 border-b border-border last:border-0 last:pb-0">
+              <Card key={r.id} className="p-4 card-shadow">
                 <div className="flex items-center justify-between"><span className="text-sm font-medium">{r.reviewer_name}</span><StarRating value={r.rating} showNumber={false} /></div>
-                {r.review_text && <p className="text-sm text-muted-foreground mt-1">{r.review_text}</p>}
-              </div>
+                {r.review_text && <p className="text-sm text-muted-foreground mt-1.5">{r.review_text}</p>}
+              </Card>
             ))}
           </div>
         </div>
@@ -275,11 +327,11 @@ function SpecBlock({ title, specs }) {
   const rows = specs.filter(([, v]) => v !== undefined && v !== null && v !== "");
   if (!rows.length) return null;
   return (
-    <div className="rounded-2xl border border-border p-5 bg-card">
-      <h2 className="font-semibold mb-3">{title}</h2>
-      <dl className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-        {rows.map(([k, v]) => <div key={k}><dt className="text-muted-foreground">{k}</dt><dd className="font-medium">{v}</dd></div>)}
+    <Card className="p-5 card-shadow">
+      <h2 className="font-heading font-semibold mb-3">{title}</h2>
+      <dl className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+        {rows.map(([k, v]) => <div key={k}><dt className="text-muted-foreground text-xs">{k}</dt><dd className="font-medium mt-0.5">{v}</dd></div>)}
       </dl>
-    </div>
+    </Card>
   );
 }

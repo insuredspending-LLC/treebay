@@ -6,14 +6,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, MessageSquare, Star, Truck, Package, Loader2, ShieldCheck, FileText } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { MessageSquare, Star, Truck, Package, Loader2, ShieldCheck, FileText, MapPin, AlertCircle, CheckCircle2, Clock, Store } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { useAppUser } from "@/hooks/useAppUser";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
+import SectionHeader from "@/components/SectionHeader";
 
-// Fulfillment sequence depends on delivery method:
-//   buyer_pickup:  ... -> ready_for_pickup -> picked_up -> in_transit -> delivered
-//   delivery:      ... -> ready_for_pickup -> delivery_assigned -> picked_up -> in_transit -> delivered
 function getFulfillmentSequence(order) {
   const isPickup = order?.fulfillment_method === "buyer_pickup" || order?.fulfillment_method === "pickup";
   const base = ["awaiting_payment", "payment_confirmed", "inventory_reserved", "vendor_confirmed", "preparing", "ready_for_pickup"];
@@ -42,12 +41,16 @@ const DOCUMENT_LABELS = {
   delivery_manifest: "Delivery Manifest",
 };
 
+const EXCEPTION_STATUSES = ["fulfillment_exception", "delivery_exception", "disputed", "payment_failed", "refund_pending"];
+
 export default function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { accountType } = useAppUser();
   const [order, setOrder] = useState(null);
+  const [shipment, setShipment] = useState(null);
+  const [exceptions, setExceptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [review, setReview] = useState({ rating: 5, text: "" });
@@ -59,6 +62,8 @@ export default function OrderDetail() {
       const o = await base44.entities.Order.get(id);
       setOrder(o);
       if (o) {
+        try { const s = await base44.entities.Shipment.filter({ order_id: id }); setShipment(s?.[0] || null); } catch {}
+        try { const ex = await base44.entities.SystemException.filter({ order_id: id, status: "OPEN" }); setExceptions(ex || []); } catch {}
         try {
           const { data } = await base44.functions.invoke("listTransactionDocuments", { orderId: id });
           setDocuments(data.documents || []);
@@ -69,7 +74,13 @@ export default function OrderDetail() {
   };
   useEffect(() => { load(); }, [id]);
 
-  if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
+  if (loading) return (
+    <div className="space-y-4">
+      <div className="h-8 w-1/3 rounded-lg bg-muted skeleton-shimmer" />
+      <div className="h-32 rounded-2xl bg-muted skeleton-shimmer" />
+      <div className="h-48 rounded-2xl bg-muted skeleton-shimmer" />
+    </div>
+  );
   if (!order) return <p className="text-center text-muted-foreground py-16">Order not found.</p>;
 
   const isVendor = accountType === "vendor";
@@ -78,6 +89,8 @@ export default function OrderDetail() {
   const currentIndex = sequence.indexOf(order.order_status);
   const canAdvance = isVendor && !!getNextStatus(order);
   const nextStatus = getNextStatus(order);
+  const hasException = EXCEPTION_STATUSES.includes(order.order_status) || exceptions.length > 0;
+  const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
 
   const advance = async () => {
     try {
@@ -120,10 +133,13 @@ export default function OrderDetail() {
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">{order.order_number}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{isBuyer ? `Seller: ${order.vendor_name}` : "Buyer order"} · {shortDate(order.created_date)}</p>
+          <h1 className="text-2xl font-heading font-bold">{order.order_number}</h1>
+          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
+            <Store className="w-3.5 h-3.5" /> {isBuyer ? order.vendor_name : "Buyer order"} · {shortDate(order.created_date)}
+          </p>
         </div>
         <div className="flex flex-col gap-1.5 items-end">
           <StatusBadge status={order.order_status} label={ORDER_STATUS_LABELS[order.order_status]} />
@@ -131,66 +147,124 @@ export default function OrderDetail() {
         </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 py-1">
-        {sequence.map((s) => {
-          const idx = sequence.indexOf(s);
-          const done = currentIndex >= idx;
-          return (
-            <div key={s} className={"flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap " + (done ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground")}>
-              {done && <span>✓</span>}{ORDER_STATUS_LABELS[s]}
+      {/* Exception banner */}
+      {hasException && (
+        <Card className="p-4 border-amber-300 bg-amber-50">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm text-amber-900">This order needs attention</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {exceptions.length > 0 ? exceptions[0].reason : `Order status: ${ORDER_STATUS_LABELS[order.order_status]}`}
+              </p>
+              {exceptions[0]?.recommended_action && <p className="text-xs text-amber-700 mt-1">Recommended: {exceptions[0].recommended_action}</p>}
             </div>
-          );
-        })}
-      </div>
-
-      <Card className="p-4 space-y-2">
-        <h2 className="font-semibold mb-2">Items</h2>
-        {(order.items || []).map((it, i) => (
-          <div key={i} className="flex justify-between text-sm py-1.5 border-b border-border last:border-0">
-            <div><p className="font-medium">{it.line_name}</p><p className="text-xs text-muted-foreground">{it.quantity} × {formatCurrency(it.unit_price)}</p></div>
-            <span className="font-medium">{formatCurrency(it.subtotal)}</span>
           </div>
-        ))}
-        <div className="space-y-1 pt-2 text-sm">
-          <Row label="Subtotal" value={formatCurrency(order.subtotal)} />
-          <Row label="Delivery" value={formatCurrency(order.delivery_charges)} />
-          <Row label="Taxes" value={formatCurrency(order.taxes)} />
-          <Row label="Platform fees" value={formatCurrency(order.platform_fees)} />
-          <div className="flex justify-between font-bold text-base pt-1 border-t border-border"><span>Total</span><span className="text-primary">{formatCurrency(order.total)}</span></div>
+        </Card>
+      )}
+
+      {/* Timeline */}
+      <Card className="p-5 card-shadow">
+        <h2 className="font-heading font-semibold mb-4">Tracking</h2>
+        <div className="space-y-0">
+          {sequence.map((s, idx) => {
+            const done = currentIndex >= idx;
+            const current = currentIndex === idx;
+            const isLast = idx === sequence.length - 1;
+            return (
+              <div key={s} className="flex gap-3">
+                <div className="flex flex-col items-center">
+                  <div className={"w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition " + (done ? "bg-primary text-primary-foreground" : current ? "bg-primary/20 border-2 border-primary" : "bg-muted border border-border")}>
+                    {done ? <CheckCircle2 className="w-4 h-4" /> : <span className="w-2 h-2 rounded-full bg-muted-foreground/40" />}
+                  </div>
+                  {!isLast && <div className={"w-0.5 flex-1 min-h-[24px] " + (done ? "bg-primary" : "bg-border")} />}
+                </div>
+                <div className={"pb-4 " + (isLast ? "pb-0" : "")}>
+                  <p className={"text-sm font-medium " + (done || current ? "text-foreground" : "text-muted-foreground")}>{ORDER_STATUS_LABELS[s]}</p>
+                  {current && <p className="text-xs text-primary mt-0.5">In progress</p>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
-      <Card className="p-4 text-sm space-y-1.5">
-        <p className="font-semibold mb-1">Fulfillment</p>
-        <Row label="Method" value={order.fulfillment_method === "pickup" || order.fulfillment_method === "buyer_pickup" ? "Pickup" : order.fulfillment_method === "vendor_delivery" ? "Vendor delivery" : "Third-party carrier"} />
-        <Row label="Destination" value={[order.destination_city, order.destination_state, order.destination_zip].filter(Boolean).join(", ")} />
-        {order.requested_date && <Row label="Requested date" value={shortDate(order.requested_date)} />}
-      </Card>
+      {/* Items */}
+      <div>
+        <SectionHeader title="Items" />
+        <Card className="p-4 mt-3 card-shadow">
+          <div className="space-y-2">
+            {(order.items || []).map((it, i) => (
+              <div key={i} className="flex justify-between text-sm py-1.5 border-b border-border last:border-0">
+                <div><p className="font-medium">{it.line_name}</p><p className="text-xs text-muted-foreground">{it.quantity} × {formatCurrency(it.unit_price)}</p></div>
+                <span className="font-medium">{formatCurrency(it.subtotal)}</span>
+              </div>
+            ))}
+          </div>
+          <Separator className="my-3" />
+          <div className="space-y-1.5 text-sm">
+            <Row label="Merchandise" value={formatCurrency(order.subtotal)} />
+            <Row label="Delivery" value={formatCurrency(order.delivery_charges)} />
+            <Row label="Taxes" value={formatCurrency(order.taxes)} />
+            <Row label="TreEbay fee" value={formatCurrency(order.platform_fees)} />
+            <div className="flex justify-between font-bold text-base pt-1.5 border-t border-border"><span>Final delivered price</span><span className="text-primary">{formatCurrency(order.total)}</span></div>
+          </div>
+        </Card>
+      </div>
 
+      {/* Jobsite / fulfillment */}
+      <div>
+        <SectionHeader title="Jobsite & fulfillment" />
+        <Card className="p-4 mt-3 card-shadow text-sm space-y-2">
+          <Row label="Method" value={isPickup ? "Buyer pickup" : order.fulfillment_method === "vendor_delivery" ? "Vendor delivery" : "Third-party carrier"} />
+          <Row label="Destination" value={[order.destination_city, order.destination_state, order.destination_zip].filter(Boolean).join(", ") || "—"} />
+          {order.destination_street && <Row label="Street" value={order.destination_street} />}
+          {order.destination_name && <Row label="Contact" value={order.destination_name} />}
+          {order.requested_date && <Row label="Requested date" value={shortDate(order.requested_date)} />}
+        </Card>
+      </div>
+
+      {/* Shipment */}
+      {shipment && (
+        <div>
+          <SectionHeader title="Shipment" />
+          <Card className="p-4 mt-3 card-shadow text-sm space-y-2">
+            <Row label="Status" value={<StatusBadge status={shipment.shipment_status} />} />
+            {shipment.pickup_location && <Row label="Pickup" value={shipment.pickup_location} />}
+            {shipment.delivery_location && <Row label="Delivery" value={shipment.delivery_location} />}
+            {shipment.delivery_window && <Row label="Window" value={shipment.delivery_window} />}
+            {shipment.delivery_timestamp && <Row label="Delivered" value={shortDate(shipment.delivery_timestamp)} />}
+            {shipment.confirmation_code && <Row label="Confirmation" value={shipment.confirmation_code} />}
+          </Card>
+        </div>
+      )}
+
+      {/* Documents */}
       {documents.length > 0 && (
-        <Card className="p-4 space-y-2">
-          <h2 className="font-semibold flex items-center gap-2"><FileText className="w-4 h-4" /> Documents</h2>
-          <div className="flex flex-wrap gap-2">
+        <div>
+          <SectionHeader title="Documents" />
+          <div className="flex flex-wrap gap-2 mt-3">
             {documents.map((doc) => (
               <Button key={doc.id} variant="outline" size="sm" onClick={() => openDocument(doc)}>
                 <FileText className="w-3.5 h-3.5 mr-1.5" /> {DOCUMENT_LABELS[doc.document_type] || doc.document_type.replace(/_/g, " ")}
               </Button>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      {/* Actions */}
+      <div className="flex flex-wrap gap-2 pt-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
-        {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> Pay (Test Mode)</Button>}
+        {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> Pay (Test)</Button>}
         {isVendor && canAdvance && nextStatus && <Button onClick={advance}>Advance to {ORDER_STATUS_LABELS[nextStatus]}</Button>}
-        {order.order_status === "delivered" && <p className="text-sm text-muted-foreground self-center">TreEbay will complete this order automatically.</p>}
+        {order.order_status === "delivered" && <p className="text-sm text-muted-foreground self-center flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> TreEbay will complete this order automatically.</p>}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>
 
       {reviewOpen && (
-        <Card className="p-4 space-y-3">
-          <h2 className="font-semibold">Review {order.vendor_name}</h2>
+        <Card className="p-4 space-y-3 card-shadow">
+          <h2 className="font-heading font-semibold">Review {order.vendor_name}</h2>
           <div className="flex gap-1">{[1, 2, 3, 4, 5].map((i) => <button key={i} onClick={() => setReview((p) => ({ ...p, rating: i }))}><Star className={"w-7 h-7 " + (i <= review.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40")} /></button>)}</div>
           <div className="space-y-1.5"><Label>Your review</Label><Textarea value={review.text} onChange={(e) => setReview((p) => ({ ...p, text: e.target.value }))} rows={3} /></div>
           <div className="flex gap-2"><Button variant="outline" onClick={() => setReviewOpen(false)}>Cancel</Button><Button onClick={submitReview}>Submit review</Button></div>
@@ -200,4 +274,4 @@ export default function OrderDetail() {
   );
 }
 
-function Row({ label, value }) { return <div className="flex justify-between"><span className="text-muted-foreground">{label}</span><span className="font-medium">{value}</span></div>; }
+function Row({ label, value }) { return <div className="flex justify-between items-center"><span className="text-muted-foreground">{label}</span><span className="font-medium text-right">{value}</span></div>; }

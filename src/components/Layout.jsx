@@ -52,35 +52,95 @@ function getHeaderState(pathname) {
   return { isChild: false, title: "" };
 }
 
+const BUYER_NAV = [
+  { to: "/", label: "Home", icon: HomeIcon, match: ["/"] },
+  { to: "/marketplace", label: "Marketplace", icon: Store, match: ["/marketplace", "/product", "/vendor"] },
+  { to: "/projects", label: "Projects", icon: FolderKanban, match: ["/projects", "/rfqs"] },
+  { to: "/orders", label: "Orders", icon: ShoppingCart, match: ["/orders"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
+];
+
+const VENDOR_NAV = [
+  { to: "/vendor", label: "Dashboard", icon: LayoutDashboard, match: ["/vendor"], exact: true },
+  { to: "/vendor/inventory", label: "Inventory", icon: Package, match: ["/vendor/inventory"] },
+  { to: "/vendor/rfqs", label: "RFQs", icon: FileText, match: ["/vendor/rfqs"] },
+  { to: "/vendor/orders", label: "Orders", icon: ShoppingCart, match: ["/vendor/orders", "/orders"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
+];
+
+const BUYER_DESKTOP_NAV = [
+  { to: "/marketplace", label: "Marketplace", match: ["/marketplace", "/product", "/vendor"] },
+  { to: "/projects", label: "Projects", match: ["/projects", "/rfqs"] },
+  { to: "/orders", label: "Orders", match: ["/orders"] },
+];
+
+const VENDOR_DESKTOP_NAV = [
+  { to: "/vendor", label: "Dashboard", match: ["/vendor"], exact: true },
+  { to: "/vendor/inventory", label: "Inventory", match: ["/vendor/inventory"] },
+  { to: "/vendor/rfqs", label: "RFQs", match: ["/vendor/rfqs"] },
+  { to: "/orders", label: "Orders", match: ["/orders", "/vendor/orders"] },
+];
+
+function isItemActive(pathname, item) {
+  const prefixes = item.match || [item.to];
+  return prefixes.some((p) => {
+    if (p === "/") return pathname === "/";
+    if (item.exact) return pathname === p;
+    return pathname === p || pathname.startsWith(p + "/");
+  });
+}
+
 function TopBar() {
   const { user, accountType, vendorProfiles, switchAccountType } = useAppUser();
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const { isChild, title } = getHeaderState(location.pathname);
+  const desktopNav = accountType === "vendor" ? VENDOR_DESKTOP_NAV : BUYER_DESKTOP_NAV;
+
   return (
     <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border pt-[env(safe-area-inset-top)]">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        {isChild ? (
-          <div className="flex items-center gap-1 min-w-0">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back" className="shrink-0 -ml-2"><ChevronLeft className="w-5 h-5" /></Button>
-            <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
-          </div>
-        ) : (
-          <button onClick={() => navigate("/")} className="flex items-center gap-2 no-tap-highlight">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Leaf className="w-5 h-5 text-primary-foreground" />
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+        {/* Left: brand + desktop nav */}
+        <div className="flex items-center gap-6 min-w-0">
+          {isChild ? (
+            <div className="flex items-center gap-1 min-w-0">
+              <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back" className="shrink-0 -ml-2"><ChevronLeft className="w-5 h-5" /></Button>
+              <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
             </div>
-            <span className="font-heading font-extrabold text-lg text-primary tracking-tight">TreEbay</span>
-          </button>
-        )}
-        {vendorProfiles?.length > 0 && !isChild && (
-          <div className="ml-2 flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium">
-            <button onClick={() => switchAccountType("buyer")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
-            <button onClick={() => switchAccountType("vendor")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>
-          </div>
-        )}
-        <div className="flex items-center gap-1">
+          ) : (
+            <button onClick={() => navigate("/")} className="flex items-center gap-2 no-tap-highlight shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <Leaf className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="font-heading font-extrabold text-lg text-primary tracking-tight">TreEbay</span>
+            </button>
+          )}
+          {!isChild && (
+            <nav className="hidden md:flex items-center gap-1">
+              {desktopNav.map((item) => {
+                const active = isItemActive(location.pathname, item);
+                return (
+                  <Link key={item.to} to={item.to} className={cn("px-3 py-1.5 rounded-lg text-sm font-medium no-tap-highlight transition", active ? "bg-secondary text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
+        </div>
+
+        {/* Right: role switch + actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          {vendorProfiles?.length > 0 && !isChild && (
+            <div className="hidden sm:flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium">
+              <button onClick={() => switchAccountType("buyer")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
+              <button onClick={() => switchAccountType("vendor")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>
+            </div>
+          )}
+          <Button variant="ghost" size="icon" asChild aria-label="Messages">
+            <Link to="/messages"><MessageSquare className="w-5 h-5" /></Link>
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="TreEbay Assistant">
             <Sparkles className="w-5 h-5 text-primary" />
           </Button>
@@ -109,35 +169,13 @@ function TopBar() {
               </ScrollArea>
             </PopoverContent>
           </Popover>
+          <Button variant="ghost" size="icon" asChild aria-label="Account">
+            <Link to="/account"><User className="w-5 h-5" /></Link>
+          </Button>
         </div>
       </div>
     </header>
   );
-}
-
-const BUYER_NAV = [
-  { to: "/", label: "Home", icon: HomeIcon, match: ["/"] },
-  { to: "/marketplace", label: "Marketplace", icon: Store, match: ["/marketplace", "/product", "/vendor"] },
-  { to: "/projects", label: "Projects", icon: FolderKanban, match: ["/projects"] },
-  { to: "/messages", label: "Messages", icon: MessageSquare, match: ["/messages"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
-];
-
-const VENDOR_NAV = [
-  { to: "/vendor", label: "Dashboard", icon: LayoutDashboard, match: ["/vendor"], exact: true },
-  { to: "/vendor/inventory", label: "Inventory", icon: Package, match: ["/vendor/inventory"] },
-  { to: "/vendor/rfqs", label: "RFQs", icon: FileText, match: ["/vendor/rfqs"] },
-  { to: "/vendor/orders", label: "Orders", icon: ShoppingCart, match: ["/vendor/orders", "/orders"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
-];
-
-function isItemActive(pathname, item) {
-  const prefixes = item.match || [item.to];
-  return prefixes.some((p) => {
-    if (p === "/") return pathname === "/";
-    if (item.exact) return pathname === p;
-    return pathname === p || pathname.startsWith(p + "/");
-  });
 }
 
 export default function Layout() {
@@ -148,7 +186,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar />
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-5 pb-24">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-5 pb-24 md:pb-8">
         <KeepAliveOutlet key={accountType} keepPaths={nav.map((n) => n.to)} />
       </main>
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">

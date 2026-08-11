@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, X, Send, ShoppingBag, Store, Package, FileText, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Sparkles, X, Send, Store, Package, FileText, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import { formatCurrency, formatNumber, ORDER_STATUS_LABELS, RFQ_STATUS_LABELS } from "@/lib/treebay";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +26,7 @@ const SELLER_SUGGESTIONS = [
 export default function AIAssistant() {
   const { accountType } = useAppUser();
   const location = useLocation();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -50,9 +50,12 @@ export default function AIAssistant() {
     setInput("");
     setLoading(true);
     try {
+      // Send last 8 turns of history for multi-turn context
+      const history = [...messages, userMsg].slice(-8).map((m) => ({ role: m.role, text: m.text }));
       const res = await base44.functions.invoke("trebayAssistant", {
         message: text,
         context: { role: accountType, page: location.pathname },
+        history,
       });
       const data = res.data || res;
       setMessages((m) => [...m, { role: "assistant", text: data.reply || "I'm here to help.", cards: data.results?.cards || [], actions: data.results?.actions || [] }]);
@@ -63,11 +66,15 @@ export default function AIAssistant() {
     }
   };
 
+  const handleAction = (action) => {
+    setOpen(false);
+    navigate(action.path);
+  };
+
   const suggestions = accountType === "vendor" ? SELLER_SUGGESTIONS : BUYER_SUGGESTIONS;
 
   return (
     <>
-      {/* Floating button — hidden when sheet is open */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
@@ -78,7 +85,6 @@ export default function AIAssistant() {
         </button>
       )}
 
-      {/* Mobile: full-height sheet / Desktop: side panel via Sheet on right */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
           {/* Header */}
@@ -95,56 +101,61 @@ export default function AIAssistant() {
             <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close"><X className="w-5 h-5" /></Button>
           </div>
 
-          {/* Messages */}
+          {/* Messages — chronological: each turn renders text + cards + actions together */}
           <ScrollArea className="flex-1 px-4 py-4">
-          <div ref={scrollRef} className="space-y-4 min-h-full">
-            {messages.length === 0 && (
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-secondary p-4 text-sm text-foreground">
-                  Hi! I'm your TreEbay Assistant. I can help you find plants, compare suppliers, build RFQs, track orders, and navigate the marketplace. What do you need?
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Try asking:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestions.map((s) => (
-                      <button key={s} onClick={() => send(s)} className="px-3 py-1.5 rounded-full border border-border bg-card text-xs font-medium text-foreground hover:border-primary/40 hover:bg-secondary no-tap-highlight">
-                        {s}
-                      </button>
-                    ))}
+            <div ref={scrollRef} className="space-y-4 min-h-full">
+              {messages.length === 0 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-secondary p-4 text-sm text-foreground">
+                    Hi! I'm your TreEbay Assistant. I can help you find plants, compare suppliers, build RFQs, track orders, and navigate the marketplace. What do you need?
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Try asking:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.map((s) => (
+                        <button key={s} onClick={() => send(s)} className="px-3 py-1.5 rounded-full border border-border bg-card text-xs font-medium text-foreground hover:border-primary/40 hover:bg-secondary no-tap-highlight">
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            {messages.map((m, i) => (
-              <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
-                <div className={cn("max-w-[85%] rounded-2xl px-4 py-2.5 text-sm", m.role === "user" ? "bg-primary text-primary-foreground" : m.error ? "bg-rose-50 text-rose-900 border border-rose-200" : "bg-secondary text-foreground")}>
-                  <p className="leading-relaxed">{m.text}</p>
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className="space-y-2">
+                  {/* Text bubble */}
+                  <div className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+                    <div className={cn("max-w-[85%] rounded-2xl px-4 py-2.5 text-sm", m.role === "user" ? "bg-primary text-primary-foreground" : m.error ? "bg-rose-50 text-rose-900 border border-rose-200" : "bg-secondary text-foreground")}>
+                      <p className="leading-relaxed">{m.text}</p>
+                    </div>
+                  </div>
+                  {/* This turn's cards */}
+                  {m.cards?.length > 0 && (
+                    <div className="space-y-2">
+                      {m.cards.map((card, ci) => <ResultCard key={ci} card={card} />)}
+                    </div>
+                  )}
+                  {/* This turn's actions */}
+                  {m.actions?.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {m.actions.map((a, ai) => (
+                        <Button key={ai} variant="outline" size="sm" onClick={() => handleAction(a)}>
+                          {a.label} <ArrowRight className="w-3 h-3" />
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
-            {messages.map((m, i) => m.cards?.length > 0 && (
-              <div key={"cards-" + i} className="space-y-2">
-                {m.cards.map((card, ci) => <ResultCard key={ci} card={card} />)}
-              </div>
-            ))}
-            {messages.map((m, i) => m.actions?.length > 0 && (
-              <div key={"actions-" + i} className="flex flex-wrap gap-2">
-                {m.actions.map((a, ai) => (
-                  <Button key={ai} asChild variant="outline" size="sm" onClick={() => setOpen(false)}>
-                    <Link to={a.path}>{a.label} <ArrowRight className="w-3 h-3" /></Link>
-                  </Button>
-                ))}
-              </div>
-            ))}
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-secondary rounded-2xl px-4 py-3 flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Searching TreEbay…</span>
+              ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-secondary rounded-2xl px-4 py-3 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Searching TreEbay…</span>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
           </ScrollArea>
 
           {/* Input */}
@@ -171,11 +182,12 @@ function ResultCard({ card }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-sm text-foreground truncate">{p.common_name}</p>
-            <p className="text-xs text-muted-foreground italic truncate">{p.botanical_name}</p>
+            {p.botanical_name && <p className="text-xs text-muted-foreground italic truncate">{p.botanical_name}</p>}
             <div className="flex items-center justify-between mt-1">
               <p className="text-sm font-bold text-primary">{formatCurrency(p.unit_price)}</p>
               <p className="text-[11px] text-muted-foreground">{formatNumber(p.quantity_available)} avail.</p>
             </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{p.vendor_name} · {[p.vendor_city, p.vendor_state].filter(Boolean).join(", ")}</p>
           </div>
         </div>
       </Link>

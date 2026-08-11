@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Trash2, FileText, Package, Calendar, MapPin, Plus, Loader2 } from "lucide-react";
+import { Trash2, FileText, Package, Calendar, MapPin, Plus, Loader2, ArrowRight, ShoppingCart, Check } from "lucide-react";
 import { shortDate, formatNumber, formatCurrency, apiError } from "@/lib/treebay";
+import SectionHeader from "@/components/SectionHeader";
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -29,11 +30,17 @@ export default function ProjectDetail() {
   };
   useEffect(() => { load(); }, [id]);
 
-  if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
+  if (loading) return (
+    <div className="space-y-4">
+      <div className="h-8 w-1/2 rounded-lg bg-muted skeleton-shimmer" />
+      <div className="h-40 rounded-2xl bg-muted skeleton-shimmer" />
+    </div>
+  );
   if (!project) return <p className="text-center text-muted-foreground py-16">Project not found.</p>;
 
   const items = project.items || [];
   const total = items.reduce((s, i) => s + (i.unit_price || 0) * (i.quantity || 0), 0);
+  const totalUnits = items.reduce((s, i) => s + (i.quantity || 0), 0);
 
   const removeItem = async (idx) => {
     const items2 = items.filter((_, i) => i !== idx);
@@ -65,8 +72,9 @@ export default function ProjectDetail() {
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">{project.name}</h1>
+        <h1 className="text-2xl font-heading font-bold">{project.name}</h1>
         <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1">
           <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {project.delivery_city}, {project.delivery_state} {project.delivery_zip}</span>
           {project.desired_delivery_date && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {shortDate(project.desired_delivery_date)}</span>}
@@ -74,56 +82,86 @@ export default function ProjectDetail() {
         {project.notes && <p className="text-sm text-muted-foreground mt-2">{project.notes}</p>}
       </div>
 
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold flex items-center gap-2"><Package className="w-4 h-4" /> Requested items</h2>
-          <Button asChild size="sm" variant="outline"><Link to="/marketplace"><Plus className="w-4 h-4 mr-1" /> Add</Link></Button>
-        </div>
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">No items yet. Browse the marketplace and add products to this project.</p>
-        ) : (
-          <div className="space-y-2">
-            {items.map((it, i) => (
-              <div key={i} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                <div className="flex-1">
-                  <p className="font-medium text-sm">{it.common_name}</p>
-                  {it.botanical_name && <p className="text-xs text-muted-foreground italic">{it.botanical_name}</p>}
-                  {it.size_spec && <p className="text-xs text-muted-foreground">{it.size_spec}</p>}
-                </div>
-                <Input type="number" min={1} value={it.quantity} onChange={(e) => updateQty(i, Number(e.target.value))} className="w-20 h-9" />
-                <span className="text-sm font-medium w-20 text-right">{formatCurrency((it.unit_price || 0) * (it.quantity || 0))}</span>
-                <Button variant="ghost" size="icon" onClick={() => removeItem(i)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
-              </div>
-            ))}
-            <Separator className="my-2" />
-            <div className="flex justify-between font-semibold"><span>Estimated total</span><span>{formatCurrency(total)}</span></div>
-          </div>
-        )}
-      </Card>
+      {/* Workflow steps */}
+      <div className="flex items-center gap-2 text-xs">
+        <StepBadge num={1} label="Build list" active />
+        <ArrowRight className="w-3 h-3 text-muted-foreground" />
+        <StepBadge num={2} label="Request quotes" active={items.length > 0} />
+        <ArrowRight className="w-3 h-3 text-muted-foreground" />
+        <StepBadge num={3} label="Compare & order" />
+      </div>
 
+      {/* Items */}
+      <div>
+        <SectionHeader title="Material list" icon={Package} />
+        <Card className="p-4 mt-3 card-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm text-muted-foreground">{items.length} item{items.length === 1 ? "" : "s"} · {formatNumber(totalUnits)} units</p>
+            <Button asChild size="sm" variant="outline"><Link to="/marketplace"><Plus className="w-4 h-4 mr-1" /> Add from marketplace</Link></Button>
+          </div>
+          {items.length === 0 ? (
+            <div className="py-8 text-center">
+              <Package className="w-10 h-10 text-muted-foreground/30 mx-auto" />
+              <p className="text-sm text-muted-foreground mt-2">No items yet. Browse the marketplace and add products to this project.</p>
+              <Button asChild className="mt-3" size="sm"><Link to="/marketplace">Browse Marketplace</Link></Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {items.map((it, i) => (
+                <div key={i} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{it.common_name}</p>
+                    {it.botanical_name && <p className="text-xs text-muted-foreground italic">{it.botanical_name}</p>}
+                    {it.size_spec && <p className="text-xs text-muted-foreground">{it.size_spec}</p>}
+                  </div>
+                  <Input type="number" min={1} value={it.quantity} onChange={(e) => updateQty(i, Number(e.target.value))} className="w-20 h-9" />
+                  <span className="text-sm font-medium w-20 text-right hidden sm:block">{formatCurrency((it.unit_price || 0) * (it.quantity || 0))}</span>
+                  <Button variant="ghost" size="icon" onClick={() => removeItem(i)} className="shrink-0"><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+                </div>
+              ))}
+              <Separator className="my-2" />
+              <div className="flex justify-between font-semibold"><span>Estimated total</span><span>{formatCurrency(total)}</span></div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Create RFQ */}
       {items.length > 0 && (
-        <Button onClick={() => setRfqOpen(true)} className="w-full h-12 text-base"><FileText className="w-4 h-4 mr-2" /> Create RFQ from project</Button>
+        <Button onClick={() => setRfqOpen(true)} className="w-full h-12 text-base"><FileText className="w-4 h-4 mr-2" /> Request quotes from growers</Button>
       )}
 
+      {/* RFQ dialog */}
       <Dialog open={rfqOpen} onOpenChange={setRfqOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Request for Quote</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Send this project to vendors as an RFQ. Vendors will respond with pricing for {formatNumber(items.reduce((s, i) => s + i.quantity, 0))} units across {items.length} item{items.length === 1 ? "" : "s"}.</p>
+            <p className="text-sm text-muted-foreground">Send this material list to growers as an RFQ. They'll respond with pricing for {formatNumber(totalUnits)} units across {items.length} item{items.length === 1 ? "" : "s"}.</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5"><Label>Quote deadline</Label><Input type="date" value={rfq.quote_deadline} onChange={(e) => setRfq((p) => ({ ...p, quote_deadline: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Desired delivery</Label><Input type="date" value={rfq.requested_delivery_date} onChange={(e) => setRfq((p) => ({ ...p, requested_delivery_date: e.target.value }))} /></div>
             </div>
-            <div className="space-y-1.5"><Label>Notes to vendors</Label><Textarea value={rfq.notes} onChange={(e) => setRfq((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Delivery requirements, site access, etc." /></div>
+            <div className="space-y-1.5"><Label>Notes to growers</Label><Textarea value={rfq.notes} onChange={(e) => setRfq((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Delivery requirements, site access, etc." /></div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rfq.substitution_allowed} onChange={(e) => setRfq((p) => ({ ...p, substitution_allowed: e.target.checked }))} /> Substitutions allowed</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rfq.delivery_required} onChange={(e) => setRfq((p) => ({ ...p, delivery_required: e.target.checked }))} /> Delivery required</label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRfqOpen(false)}>Cancel</Button>
-            <Button onClick={createRFQ} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Send RFQ</Button>
+            <Button onClick={createRFQ} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />} Send RFQ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function StepBadge({ num, label, active }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={"w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold " + (active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+        {active ? <Check className="w-3 h-3" /> : num}
+      </div>
+      <span className={active ? "text-foreground font-medium" : "text-muted-foreground"}>{label}</span>
     </div>
   );
 }

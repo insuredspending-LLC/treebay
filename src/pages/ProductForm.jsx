@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link, useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,8 @@ export default function ProductForm() {
   const [loading, setLoading] = useState(!!id);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
+  const [searchParams] = useSearchParams();
+
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -46,6 +48,26 @@ export default function ProductForm() {
       finally { setLoading(false); }
     })();
   }, [id]);
+
+  // AI listing draft prefill
+  useEffect(() => {
+    if (id) return;
+    const draftParam = searchParams.get("ai_draft");
+    if (draftParam) {
+      try {
+        const draft = JSON.parse(decodeURIComponent(draftParam));
+        setF((p) => ({
+          ...p,
+          common_name: draft.common_name || p.common_name,
+          category: draft.category || p.category,
+          unit_price: Number(draft.unit_price) || p.unit_price,
+          quantity_available: Number(draft.physical_quantity) || p.quantity_available,
+          container_size: draft.container_size || p.container_size,
+          bulk_price_tiers: draft.bulk_price_tiers?.length ? draft.bulk_price_tiers : p.bulk_price_tiers,
+        }));
+      } catch {}
+    }
+  }, [id, searchParams]);
 
   const uploadImage = async (file) => {
     setUploading(true);

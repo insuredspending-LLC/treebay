@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, SlidersHorizontal, Loader2, X, Package, FileText, Sparkles } from "lucide-react";
+import { Search, SlidersHorizontal, Loader2, X, Package, FileText, Sparkles, ShieldCheck } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import SkeletonCard from "@/components/SkeletonCard";
 import EmptyState from "@/components/EmptyState";
@@ -19,8 +19,10 @@ import { CATEGORIES, approxDistance } from "@/lib/treebay";
 const DEFAULT_FILTERS = {
   category: "all", state: "all", priceMax: 0, minQty: 0,
   container: "", caliper: "", native: false, evergreen: "all",
-  sun: "all", water: "all", pickup: false, delivery: false, wholesale: false, sort: "relevance",
+  sun: "all", water: "all", pickup: false, delivery: false, wholesale: false, verified: false, sort: "relevance",
 };
+
+const PAGE_SIZE = 12;
 
 export default function Marketplace() {
   const [params] = useSearchParams();
@@ -32,6 +34,7 @@ export default function Marketplace() {
   const [loading, setLoading] = useState(true);
   const [favs, setFavs] = useState({});
   const [sheet, setSheet] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const myCity = buyerProfile ? `${buyerProfile.city}, ${buyerProfile.state}` : null;
 
@@ -44,7 +47,7 @@ export default function Marketplace() {
     if (!silent) setLoading(true);
     try {
       const [prods, favList] = await Promise.all([
-        base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 200),
+        base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 100),
         base44.entities.Favorite.list().catch(() => []),
       ]);
       setProducts(prods || []);
@@ -73,6 +76,7 @@ export default function Marketplace() {
     if (filters.container) list = list.filter((p) => (p.container_size || "").toLowerCase().includes(filters.container.toLowerCase()));
     if (filters.caliper) list = list.filter((p) => (p.caliper || "").toLowerCase().includes(filters.caliper.toLowerCase()));
     if (filters.native) list = list.filter((p) => p.native_status);
+    if (filters.verified) list = list.filter((p) => p.verified_vendor);
     if (filters.evergreen !== "all") list = list.filter((p) => p.foliage_type === filters.evergreen);
     if (filters.sun !== "all") list = list.filter((p) => p.sun_requirement === filters.sun);
     if (filters.water !== "all") list = list.filter((p) => p.water_requirement === filters.water);
@@ -80,12 +84,15 @@ export default function Marketplace() {
     if (filters.delivery) list = list.filter((p) => p.delivery_eligible);
     if (filters.wholesale) list = list.filter((p) => p.wholesale_eligible);
 
-    const withDist = list.map((p) => ({ p, d: myCity ? approxDistance(myCity, `${p.vendor_city}, ${p.vendor_state}`) : null }));
-    if (filters.sort === "price_asc") withDist.sort((a, b) => a.p.unit_price - b.p.unit_price);
-    else if (filters.sort === "price_desc") withDist.sort((a, b) => b.p.unit_price - a.p.unit_price);
-    else if (filters.sort === "distance" && myCity) withDist.sort((a, b) => (a.d ?? 9999) - (b.d ?? 9999));
-    else if (filters.sort === "qty") withDist.sort((a, b) => b.p.quantity_available - a.p.quantity_available);
-    return withDist;
+    if (filters.sort === "price_asc") list.sort((a, b) => a.unit_price - b.unit_price);
+    else if (filters.sort === "price_desc") list.sort((a, b) => b.unit_price - a.unit_price);
+    else if (filters.sort === "qty") list.sort((a, b) => b.quantity_available - a.quantity_available);
+    else if (filters.sort === "distance" && myCity) {
+      list = list.map((p) => ({ p, d: approxDistance(myCity, `${p.vendor_city}, ${p.vendor_state}`) }))
+        .sort((a, b) => (a.d ?? 9999) - (b.d ?? 9999))
+        .map((x) => x.p);
+    }
+    return list;
   }, [products, q, category, filters, myCity]);
 
   const toggleFav = async (p) => {
@@ -102,10 +109,10 @@ export default function Marketplace() {
     }
   };
 
-  const setF = (k, v) => setFilters((p) => ({ ...p, [k]: v }));
-  const reset = () => { setFilters(DEFAULT_FILTERS); setCategory("all"); setQ(""); };
+  const setF = (k, v) => { setFilters((p) => ({ ...p, [k]: v })); setVisibleCount(PAGE_SIZE); };
+  const reset = () => { setFilters(DEFAULT_FILTERS); setCategory("all"); setQ(""); setVisibleCount(PAGE_SIZE); };
   const activeFilters = [];
-  if (category !== "all") activeFilters.push({ key: "category", label: category, clear: () => setCategory("all") });
+  if (category !== "all") activeFilters.push({ key: "category", label: category, clear: () => { setCategory("all"); setVisibleCount(PAGE_SIZE); } });
   if (q) activeFilters.push({ key: "q", label: `"${q}"`, clear: () => setQ("") });
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== DEFAULT_FILTERS[k] && v !== "" && v !== "all" && v !== 0 && v !== false) {
@@ -114,148 +121,200 @@ export default function Marketplace() {
     }
   });
 
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
   return (
     <PullToRefresh onRefresh={() => load(true)}>
-    <div className="space-y-4">
-      {/* Search + Filter button */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search trees, plants, nurseries…" className="pl-10 h-11" />
+      <div className="space-y-4">
+        {/* Search + mobile filter button */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input value={q} onChange={(e) => { setQ(e.target.value); setVisibleCount(PAGE_SIZE); }} placeholder="Search trees, plants, nurseries…" className="pl-10 h-11" />
+          </div>
+          {/* Mobile: bottom sheet trigger */}
+          <Sheet open={sheet} onOpenChange={setSheet}>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="h-11 relative md:hidden"><SlidersHorizontal className="w-4 h-4" /> Filters {activeFilters.length > 0 && <span className="ml-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">{activeFilters.length}</span>}</Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
+              <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
+              <FilterControls filters={filters} setF={setF} category={category} setCategory={(v) => { setCategory(v); setVisibleCount(PAGE_SIZE); }} states={states} reset={reset} onDone={() => setSheet(false)} resultCount={filtered.length} />
+            </SheetContent>
+          </Sheet>
         </div>
-        <Sheet open={sheet} onOpenChange={setSheet}>
-          <SheetTrigger asChild>
-            <Button variant="outline" className="h-11 relative"><SlidersHorizontal className="w-4 h-4" /> Filters {activeFilters.length > 0 && <span className="ml-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">{activeFilters.length}</span>}</Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
-            <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
-            <div className="space-y-5 px-1 pb-4 mt-2">
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All categories</SelectItem>
-                    {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+
+        {/* Active filter chips */}
+        {activeFilters.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {activeFilters.map((f) => (
+              <button key={f.key} onClick={f.clear} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80 no-tap-highlight">
+                {f.label} <X className="w-3 h-3" />
+              </button>
+            ))}
+            <button onClick={reset} className="text-xs text-primary font-medium no-tap-highlight">Clear all</button>
+          </div>
+        )}
+
+        {/* Desktop: sidebar + results */}
+        <div className="md:flex gap-6">
+          {/* Desktop sidebar filters */}
+          <aside className="hidden md:block w-56 shrink-0">
+            <div className="sticky top-20 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-heading font-semibold text-sm">Filters</h2>
+                {activeFilters.length > 0 && <button onClick={reset} className="text-xs text-primary font-medium">Clear all</button>}
               </div>
-              <div className="space-y-2">
-                <Label>State</Label>
-                <Select value={filters.state} onValueChange={(v) => setF("state", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All states</SelectItem>
-                    {states.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Max unit price: {filters.priceMax > 0 ? `$${filters.priceMax}` : "Any"}</Label>
-                <Slider value={[filters.priceMax]} max={2000} step={25} onValueChange={(v) => setF("priceMax", v[0])} />
-              </div>
-              <div className="space-y-2">
-                <Label>Minimum quantity available: {filters.minQty}</Label>
-                <Slider value={[filters.minQty]} max={500} step={5} onValueChange={(v) => setF("minQty", v[0])} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2"><Label>Container size</Label><Input value={filters.container} onChange={(e) => setF("container", e.target.value)} placeholder="5 gallon" /></div>
-                <div className="space-y-2"><Label>Caliper</Label><Input value={filters.caliper} onChange={(e) => setF("caliper", e.target.value)} placeholder='4"' /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2"><Label>Foliage</Label>
-                  <Select value={filters.evergreen} onValueChange={(v) => setF("evergreen", v)}><SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="evergreen">Evergreen</SelectItem><SelectItem value="deciduous">Deciduous</SelectItem></SelectContent></Select>
-                </div>
-                <div className="space-y-2"><Label>Sun</Label>
-                  <Select value={filters.sun} onValueChange={(v) => setF("sun", v)}><SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="full sun">Full sun</SelectItem><SelectItem value="part sun">Part sun</SelectItem><SelectItem value="part shade">Part shade</SelectItem><SelectItem value="full shade">Full shade</SelectItem></SelectContent></Select>
-                </div>
-              </div>
-              <div className="space-y-2"><Label>Water</Label>
-                <Select value={filters.water} onValueChange={(v) => setF("water", v)}><SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select>
-              </div>
-              <div className="space-y-3">
-                <ToggleRow label="Native plant" checked={filters.native} onChange={(v) => setF("native", v)} />
-                <ToggleRow label="Pickup available" checked={filters.pickup} onChange={(v) => setF("pickup", v)} />
-                <ToggleRow label="Delivery available" checked={filters.delivery} onChange={(v) => setF("delivery", v)} />
-                <ToggleRow label="Wholesale eligible" checked={filters.wholesale} onChange={(v) => setF("wholesale", v)} />
-              </div>
-              <div className="space-y-2"><Label>Sort by</Label>
-                <Select value={filters.sort} onValueChange={(v) => setF("sort", v)}><SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="relevance">Relevance</SelectItem><SelectItem value="price_asc">Price: low to high</SelectItem><SelectItem value="price_desc">Price: high to low</SelectItem>{myCity && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity available</SelectItem></SelectContent></Select>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" className="flex-1" onClick={reset}>Reset</Button>
-                <Button className="flex-1" onClick={() => setSheet(false)}>Show {filtered.length} results</Button>
-              </div>
+              <FilterControls filters={filters} setF={setF} category={category} setCategory={(v) => { setCategory(v); setVisibleCount(PAGE_SIZE); }} states={states} reset={reset} variant="sidebar" resultCount={filtered.length} />
             </div>
-          </SheetContent>
-        </Sheet>
-      </div>
+          </aside>
 
-      {/* Active filter chips */}
-      {activeFilters.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {activeFilters.map((f) => (
-            <button key={f.key} onClick={f.clear} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80 no-tap-highlight">
-              {f.label} <X className="w-3 h-3" />
-            </button>
-          ))}
-          <button onClick={reset} className="text-xs text-primary font-medium no-tap-highlight">Clear all</button>
-        </div>
-      )}
-
-      {/* Results count + sort */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{loading ? "Searching…" : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}</p>
-        <Select value={filters.sort} onValueChange={(v) => setF("sort", v)}>
-          <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="relevance">Relevance</SelectItem><SelectItem value="price_asc">Price ↑</SelectItem><SelectItem value="price_desc">Price ↓</SelectItem>{myCity && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity</SelectItem></SelectContent>
-        </Select>
-      </div>
-
-      {/* Grid */}
-      {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          <SkeletonCard count={8} />
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={Package}
-          title="No plants match those filters yet."
-          description="Try broadening your search, adjusting filters, or request a bulk quote and let growers come to you."
-          action={
-            <div className="flex flex-wrap gap-2 justify-center">
-              <Button variant="outline" onClick={reset}>Clear Filters</Button>
-              <Button asChild><Link to="/projects"><FileText className="w-4 h-4" /> Create an RFQ</Link></Button>
+          {/* Results */}
+          <div className="flex-1 min-w-0 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">{loading ? "Searching…" : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}</p>
+              <Select value={filters.sort} onValueChange={(v) => setF("sort", v)}>
+                <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="relevance">Relevance</SelectItem><SelectItem value="price_asc">Price ↑</SelectItem><SelectItem value="price_desc">Price ↓</SelectItem>{myCity && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity</SelectItem></SelectContent>
+              </Select>
             </div>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filtered.map(({ p }) => <ProductCard key={p.id} product={p} favorite={!!favs[p.id]} onToggleFavorite={() => toggleFav(p)} />)}
-        </div>
-      )}
 
-      {/* AI Assistant nudge */}
-      {!loading && filtered.length > 0 && (
-        <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5">
-          <Sparkles className="w-5 h-5 text-primary shrink-0" />
-          <p className="text-sm text-foreground flex-1">Can't find what you need? Ask the TreEbay Assistant to search or build an RFQ draft.</p>
-          <Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}>Ask AI</Button>
+            {loading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <SkeletonCard count={6} />
+              </div>
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={Package}
+                title="No plants match those filters yet."
+                description="Try broadening your search, adjusting filters, or request a bulk quote and let growers come to you."
+                action={
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    <Button variant="outline" onClick={reset}>Clear Filters</Button>
+                    <Button asChild><Link to="/projects"><FileText className="w-4 h-4" /> Create an RFQ</Link></Button>
+                  </div>
+                }
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {visible.map((p) => <ProductCard key={p.id} product={p} favorite={!!favs[p.id]} onToggleFavorite={() => toggleFav(p)} />)}
+                </div>
+                {hasMore && (
+                  <div className="flex justify-center pt-2">
+                    <Button variant="outline" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)} className="px-8">Load more</Button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {!loading && filtered.length > 0 && (
+              <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5">
+                <Sparkles className="w-5 h-5 text-primary shrink-0" />
+                <p className="text-sm text-foreground flex-1">Can't find what you need? Ask the TreEbay Assistant to search or build an RFQ draft.</p>
+                <Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}>Ask AI</Button>
+              </div>
+            )}
+          </div>
         </div>
-      )}
-    </div>
+      </div>
     </PullToRefresh>
   );
 }
 
-function ToggleRow({ label, checked, onChange }) {
+function FilterControls({ filters, setF, category, setCategory, states, reset, variant = "sheet", onDone, resultCount }) {
+  return (
+    <div className={variant === "sidebar" ? "space-y-4" : "space-y-5 px-1 pb-4 mt-2"}>
+      <div className="space-y-2">
+        <Label>Category</Label>
+        <Select value={category} onValueChange={setCategory}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>State</Label>
+        <Select value={filters.state} onValueChange={(v) => setF("state", v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All states</SelectItem>
+            {states.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Max unit price: {filters.priceMax > 0 ? `$${filters.priceMax}` : "Any"}</Label>
+        <Slider value={[filters.priceMax]} max={2000} step={25} onValueChange={(v) => setF("priceMax", v[0])} />
+      </div>
+      <div className="space-y-2">
+        <Label>Min quantity available: {filters.minQty}</Label>
+        <Slider value={[filters.minQty]} max={500} step={5} onValueChange={(v) => setF("minQty", v[0])} />
+      </div>
+      {variant === "sheet" && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Container size</Label><Input value={filters.container} onChange={(e) => setF("container", e.target.value)} placeholder="5 gallon" /></div>
+            <div className="space-y-2"><Label>Caliper</Label><Input value={filters.caliper} onChange={(e) => setF("caliper", e.target.value)} placeholder='4"' /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Foliage</Label>
+              <Select value={filters.evergreen} onValueChange={(v) => setF("evergreen", v)}><SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="evergreen">Evergreen</SelectItem><SelectItem value="deciduous">Deciduous</SelectItem></SelectContent></Select>
+            </div>
+            <div className="space-y-2"><Label>Sun</Label>
+              <Select value={filters.sun} onValueChange={(v) => setF("sun", v)}><SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="full sun">Full sun</SelectItem><SelectItem value="part sun">Part sun</SelectItem><SelectItem value="part shade">Part shade</SelectItem><SelectItem value="full shade">Full shade</SelectItem></SelectContent></Select>
+            </div>
+          </div>
+          <div className="space-y-2"><Label>Water</Label>
+            <Select value={filters.water} onValueChange={(v) => setF("water", v)}><SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select>
+          </div>
+        </>
+      )}
+      {variant === "sidebar" && (
+        <>
+          <div className="space-y-2"><Label>Container</Label><Input value={filters.container} onChange={(e) => setF("container", e.target.value)} placeholder="5 gallon" className="h-9" /></div>
+          <div className="space-y-2"><Label>Caliper</Label><Input value={filters.caliper} onChange={(e) => setF("caliper", e.target.value)} placeholder='4"' className="h-9" /></div>
+          <div className="space-y-2"><Label>Foliage</Label>
+            <Select value={filters.evergreen} onValueChange={(v) => setF("evergreen", v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="evergreen">Evergreen</SelectItem><SelectItem value="deciduous">Deciduous</SelectItem></SelectContent></Select>
+          </div>
+          <div className="space-y-2"><Label>Sun</Label>
+            <Select value={filters.sun} onValueChange={(v) => setF("sun", v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="full sun">Full sun</SelectItem><SelectItem value="part sun">Part sun</SelectItem><SelectItem value="part shade">Part shade</SelectItem><SelectItem value="full shade">Full shade</SelectItem></SelectContent></Select>
+          </div>
+          <div className="space-y-2"><Label>Water</Label>
+            <Select value={filters.water} onValueChange={(v) => setF("water", v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Any</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select>
+          </div>
+        </>
+      )}
+      <div className="space-y-3">
+        <ToggleRow label="Verified growers" checked={filters.verified} onChange={(v) => setF("verified", v)} icon={ShieldCheck} />
+        <ToggleRow label="Native plant" checked={filters.native} onChange={(v) => setF("native", v)} />
+        <ToggleRow label="Pickup available" checked={filters.pickup} onChange={(v) => setF("pickup", v)} />
+        <ToggleRow label="Delivery available" checked={filters.delivery} onChange={(v) => setF("delivery", v)} />
+        <ToggleRow label="Wholesale eligible" checked={filters.wholesale} onChange={(v) => setF("wholesale", v)} />
+      </div>
+      {variant === "sheet" && (
+        <div className="flex gap-2 pt-2">
+          <Button variant="outline" className="flex-1" onClick={reset}>Reset</Button>
+          <Button className="flex-1" onClick={onDone}>Show {resultCount} results</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToggleRow({ label, checked, onChange, icon: Icon }) {
   return (
     <div className="flex items-center justify-between">
-      <Label className="font-normal">{label}</Label>
+      <Label className="font-normal flex items-center gap-1.5">{Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}{label}</Label>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
   );

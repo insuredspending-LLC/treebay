@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ArrowLeft, ShieldCheck, AlertTriangle, MapPin, Truck, Package } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Loader2, ArrowLeft, ShieldCheck, AlertTriangle, MapPin, Truck, Package, Store, Clock, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCents, apiError, TEST_MODE } from "@/lib/treebay";
+import VerifiedBadge from "@/components/VerifiedBadge";
 
 export default function Checkout() {
   const [params] = useSearchParams();
@@ -32,8 +34,6 @@ export default function Checkout() {
       try {
         const cq = await base44.entities.CheckoutQuote.get(quoteId);
         setQuote(cq);
-        // Rehydrate the visible address from the authoritative quote so an already-applied
-        // checkout reloads with the full destination on screen.
         const hydratedAddress = {
           name: cq.destination_name || cq.contact_name || "",
           street: cq.destination_street || "",
@@ -50,8 +50,6 @@ export default function Checkout() {
         if (cq.delivery_method) {
           const sel = opts.find((o) => o.provider_type === cq.delivery_method);
           if (sel) setSelectedOption(sel.id);
-          // Snapshot the applied address so visible form == appliedAddress == quote on load.
-          // Pickup needs no delivery address snapshot.
           if (cq.delivery_method !== "buyer_pickup" && cq.destination_street) {
             setAppliedAddress({ ...hydratedAddress });
           }
@@ -110,102 +108,130 @@ export default function Checkout() {
   const confirmDisabled = placing || expired || !deliveryReady || (!isPickup && addressDirty);
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
-      <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back</button>
-      <h1 className="text-2xl font-bold">Checkout</h1>
-      <p className="text-sm text-muted-foreground">Final delivered price — all fees disclosed upfront.</p>
+    <div className="max-w-2xl mx-auto space-y-5">
+      <div>
+        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground flex items-center gap-1 mb-2"><ArrowLeft className="w-4 h-4" /> Back</button>
+        <h1 className="text-2xl font-heading font-bold">Checkout</h1>
+        <p className="text-sm text-muted-foreground mt-1">Review your final delivered price — all fees disclosed upfront.</p>
+      </div>
+
       {TEST_MODE && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" /> Test mode — payments and tax are simulated. No real money is charged.
         </div>
       )}
-      {expired && <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-sm">This quote has expired. Please go back and recalculate.</div>}
+      {expired && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">This quote has expired. Please go back and recalculate.</div>}
 
+      {/* Section: Seller */}
       {vendor && (
-        <Card className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center font-bold text-primary">{(vendor.business_name || "V").slice(0, 1)}</div>
-          <div><p className="text-xs text-muted-foreground">Seller</p><p className="font-semibold text-sm">{vendor.business_name}</p><p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {vendor.city}, {vendor.state}</p></div>
-        </Card>
-      )}
-
-      <Card className="p-4 space-y-3">
-        <h2 className="font-semibold">Products</h2>
-        {(quote.items || []).map((i, idx) => (
-          <div key={idx} className="flex justify-between text-sm">
-            <div><p className="font-medium">{i.line_name}</p><p className="text-muted-foreground">{i.quantity} × {formatCents(i.unit_price_cents)}</p></div>
-            <span className="font-medium">{formatCents(i.subtotal_cents)}</span>
-          </div>
-        ))}
-      </Card>
-
-      <Card className="p-4 space-y-3">
-        <h2 className="font-semibold">Delivery options</h2>
-        <div className="space-y-2">
-          {options.map((opt) => (
-            <label key={opt.id} className={"flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors " + (selectedOption === opt.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50")}>
-              <input type="radio" name="delivery" checked={selectedOption === opt.id} onChange={() => setSelectedOption(opt.id)} className="accent-primary" />
-              {opt.provider_type === "buyer_pickup" ? <Package className="w-4 h-4 text-muted-foreground" /> : <Truck className="w-4 h-4 text-muted-foreground" />}
-              <div className="flex-1">
-                <p className="text-sm font-medium capitalize">{opt.service_type || opt.provider_type.replace(/_/g, " ")}</p>
-                <p className="text-xs text-muted-foreground">{formatCents(opt.delivery_price_cents)}{opt.estimated_delivery_days ? ` · ${opt.estimated_delivery_days} day(s)` : ""}</p>
-              </div>
-            </label>
-          ))}
-        </div>
-        {selectedOption && (() => {
-          const opt = options.find((o) => o.id === selectedOption);
-          if (!opt || opt.provider_type === "buyer_pickup") return null;
-          return (
-            <div className="space-y-2 pt-2 border-t border-border">
-              <p className="text-sm font-medium">Delivery address</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="col-span-2 space-y-1"><Label htmlFor="name">Recipient name</Label><Input id="name" value={address.name} onChange={(e) => setAddress((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" /></div>
-                <div className="space-y-1"><Label htmlFor="phone">Phone</Label><Input id="phone" value={address.contact_phone} onChange={(e) => setAddress((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Phone number" /></div>
-                <div className="col-span-2 space-y-1"><Label htmlFor="street">Street address</Label><Input id="street" value={address.street} onChange={(e) => setAddress((p) => ({ ...p, street: e.target.value }))} placeholder="Street address" /></div>
-                <div className="space-y-1"><Label htmlFor="city">City</Label><Input id="city" value={address.city} onChange={(e) => setAddress((p) => ({ ...p, city: e.target.value }))} /></div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1"><Label htmlFor="state">State</Label><Input id="state" value={address.state} onChange={(e) => setAddress((p) => ({ ...p, state: e.target.value }))} /></div>
-                  <div className="space-y-1"><Label htmlFor="zip">ZIP</Label><Input id="zip" value={address.zip} onChange={(e) => setAddress((p) => ({ ...p, zip: e.target.value }))} /></div>
-                </div>
-                <div className="col-span-2 space-y-1"><Label htmlFor="instructions">Delivery instructions (optional)</Label><Textarea id="instructions" value={address.instructions} onChange={(e) => setAddress((p) => ({ ...p, instructions: e.target.value }))} rows={2} /></div>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => applyDelivery(selectedOption, address)} disabled={applyingDelivery}>
-                {applyingDelivery ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Apply delivery option
-              </Button>
+        <div>
+          <SectionLabel icon={Store}>Seller</SectionLabel>
+          <Card className="p-4 flex items-center gap-3 card-shadow">
+            <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center font-bold text-primary text-lg shrink-0">{(vendor.business_name || "V").slice(0, 1)}</div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-sm flex items-center gap-2">{vendor.business_name}{vendor.verification_status === "verified" && <VerifiedBadge status="verified" />}</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {vendor.city}, {vendor.state}</p>
             </div>
-          );
-        })()}
-        {selectedOption && (() => {
-          const opt = options.find((o) => o.id === selectedOption);
-          if (opt?.provider_type === "buyer_pickup" && quote.delivery_method !== "buyer_pickup") {
-            return <Button variant="outline" size="sm" onClick={() => applyDelivery(selectedOption, null)} disabled={applyingDelivery}>{applyingDelivery ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Confirm pickup</Button>;
-          }
-          return null;
-        })()}
-      </Card>
-
-      <Card className="p-4 space-y-2 text-sm">
-        <Row label="Merchandise" value={formatCents(quote.merchandise_subtotal_cents)} />
-        {quote.bulk_discount_cents > 0 && <Row label="Bulk discount" value={"-" + formatCents(quote.bulk_discount_cents)} />}
-        <Row label={"Delivery" + (quote.delivery_method ? " (" + quote.delivery_method.replace(/_/g, " ") + ")" : " (select option)")} value={formatCents(quote.delivery_amount_cents)} />
-        <Row label="TreEbay marketplace fee" value={formatCents(quote.marketplace_fee_cents)} />
-        <Row label={"Sales tax" + (quote.tax_status === "test_estimated" ? " (TEST/ESTIMATED)" : "")} value={formatCents(quote.tax_amount_cents)} />
-        <div className="border-t border-border pt-2 flex justify-between font-bold text-base">
-          <span>Total</span><span>{formatCents(quote.total_amount_cents)}</span>
+          </Card>
         </div>
-      </Card>
-
-      {quote.delivery_method && quote.destination_city && (
-        <Card className="p-4 text-sm space-y-1">
-          <p className="font-semibold mb-1">Destination</p>
-          <p className="text-muted-foreground">{quote.destination_name || quote.contact_name || "—"}</p>
-          <p className="text-muted-foreground">{quote.destination_street || "—"}</p>
-          <p className="text-muted-foreground">{[quote.destination_city, quote.destination_state, quote.destination_zip].filter(Boolean).join(", ") || "—"}</p>
-          {quote.delivery_instructions && <p className="text-muted-foreground italic">"{quote.delivery_instructions}"</p>}
-        </Card>
       )}
 
-      <div className="text-xs text-muted-foreground">Pricing is valid until {new Date(quote.expiration_at).toLocaleTimeString()}. Inventory will be reserved when you confirm the order.</div>
+      {/* Section: Items */}
+      <div>
+        <SectionLabel icon={Package}>Items</SectionLabel>
+        <Card className="p-4 space-y-3 card-shadow">
+          {(quote.items || []).map((i, idx) => (
+            <div key={idx} className="flex justify-between text-sm">
+              <div><p className="font-medium">{i.line_name}</p><p className="text-xs text-muted-foreground">{i.quantity} × {formatCents(i.unit_price_cents)}</p></div>
+              <span className="font-medium">{formatCents(i.subtotal_cents)}</span>
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      {/* Section: Delivery */}
+      <div>
+        <SectionLabel icon={Truck}>Delivery</SectionLabel>
+        <Card className="p-4 space-y-3 card-shadow">
+          <div className="space-y-2">
+            {options.map((opt) => (
+              <label key={opt.id} className={"flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors no-tap-highlight " + (selectedOption === opt.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50")}>
+                <input type="radio" name="delivery" checked={selectedOption === opt.id} onChange={() => setSelectedOption(opt.id)} className="accent-primary" />
+                {opt.provider_type === "buyer_pickup" ? <Package className="w-4 h-4 text-muted-foreground" /> : <Truck className="w-4 h-4 text-muted-foreground" />}
+                <div className="flex-1">
+                  <p className="text-sm font-medium capitalize">{opt.service_type || opt.provider_type.replace(/_/g, " ")}</p>
+                  <p className="text-xs text-muted-foreground">{formatCents(opt.delivery_price_cents)}{opt.estimated_delivery_days ? ` · ${opt.estimated_delivery_days} day(s)` : ""}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          {selectedOption && (() => {
+            const opt = options.find((o) => o.id === selectedOption);
+            if (!opt || opt.provider_type === "buyer_pickup") return null;
+            return (
+              <div className="space-y-2 pt-3 border-t border-border">
+                <p className="text-sm font-medium">Delivery address</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2 space-y-1"><Label htmlFor="name">Recipient name</Label><Input id="name" value={address.name} onChange={(e) => setAddress((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" /></div>
+                  <div className="space-y-1"><Label htmlFor="phone">Phone</Label><Input id="phone" value={address.contact_phone} onChange={(e) => setAddress((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Phone number" /></div>
+                  <div className="col-span-2 space-y-1"><Label htmlFor="street">Street address</Label><Input id="street" value={address.street} onChange={(e) => setAddress((p) => ({ ...p, street: e.target.value }))} placeholder="Street address" /></div>
+                  <div className="space-y-1"><Label htmlFor="city">City</Label><Input id="city" value={address.city} onChange={(e) => setAddress((p) => ({ ...p, city: e.target.value }))} /></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1"><Label htmlFor="state">State</Label><Input id="state" value={address.state} onChange={(e) => setAddress((p) => ({ ...p, state: e.target.value }))} /></div>
+                    <div className="space-y-1"><Label htmlFor="zip">ZIP</Label><Input id="zip" value={address.zip} onChange={(e) => setAddress((p) => ({ ...p, zip: e.target.value }))} /></div>
+                  </div>
+                  <div className="col-span-2 space-y-1"><Label htmlFor="instructions">Delivery instructions (optional)</Label><Textarea id="instructions" value={address.instructions} onChange={(e) => setAddress((p) => ({ ...p, instructions: e.target.value }))} rows={2} /></div>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => applyDelivery(selectedOption, address)} disabled={applyingDelivery}>
+                  {applyingDelivery ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Apply delivery option
+                </Button>
+              </div>
+            );
+          })()}
+          {selectedOption && (() => {
+            const opt = options.find((o) => o.id === selectedOption);
+            if (opt?.provider_type === "buyer_pickup" && quote.delivery_method !== "buyer_pickup") {
+              return <Button variant="outline" size="sm" onClick={() => applyDelivery(selectedOption, null)} disabled={applyingDelivery}>{applyingDelivery ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Confirm pickup</Button>;
+            }
+            return null;
+          })()}
+        </Card>
+      </div>
+
+      {/* Section: Jobsite */}
+      {quote.delivery_method && quote.destination_city && (
+        <div>
+          <SectionLabel icon={MapPin}>Jobsite</SectionLabel>
+          <Card className="p-4 text-sm space-y-1 card-shadow">
+            <p className="font-semibold">{quote.destination_name || quote.contact_name || "—"}</p>
+            <p className="text-muted-foreground">{quote.destination_street || "—"}</p>
+            <p className="text-muted-foreground">{[quote.destination_city, quote.destination_state, quote.destination_zip].filter(Boolean).join(", ") || "—"}</p>
+            {quote.delivery_instructions && <p className="text-muted-foreground italic mt-1.5">"{quote.delivery_instructions}"</p>}
+          </Card>
+        </div>
+      )}
+
+      {/* Section: Pricing */}
+      <div>
+        <SectionLabel icon={ShieldCheck}>Pricing</SectionLabel>
+        <Card className="p-5 card-shadow">
+          <div className="space-y-2.5 text-sm">
+            <PricingRow label="Merchandise" value={formatCents(quote.merchandise_subtotal_cents)} />
+            {quote.bulk_discount_cents > 0 && <PricingRow label="Bulk discount" value={"-" + formatCents(quote.bulk_discount_cents)} />}
+            <PricingRow label={"Delivery" + (quote.delivery_method ? ` (${quote.delivery_method.replace(/_/g, " ")})` : " (select option)")} value={formatCents(quote.delivery_amount_cents)} />
+            <PricingRow label="TreEbay marketplace fee" value={formatCents(quote.marketplace_fee_cents)} />
+            <PricingRow label={"Sales tax" + (quote.tax_status === "test_estimated" ? " (TEST/ESTIMATED)" : "")} value={formatCents(quote.tax_amount_cents)} />
+          </div>
+          <Separator className="my-4" />
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Final delivered price</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Clock className="w-3 h-3" /> Valid until {new Date(quote.expiration_at).toLocaleTimeString()}</p>
+            </div>
+            <p className="text-2xl font-heading font-bold text-primary">{formatCents(quote.total_amount_cents)}</p>
+          </div>
+        </Card>
+      </div>
 
       <Button onClick={placeOrder} disabled={confirmDisabled} className="w-full h-12 text-base font-medium">
         {placing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />} Confirm & Place Order
@@ -216,6 +242,14 @@ export default function Checkout() {
   );
 }
 
-function Row({ label, value }) {
+function SectionLabel({ icon: Icon, children }) {
+  return (
+    <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+      <Icon className="w-3.5 h-3.5" /> {children}
+    </div>
+  );
+}
+
+function PricingRow({ label, value }) {
   return <div className="flex justify-between"><span className="text-muted-foreground">{label}</span><span className="font-medium">{value}</span></div>;
 }
