@@ -29,7 +29,7 @@ export default function Marketplace() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [products, setProducts] = useState([]);
   const [pendingMatches, setPendingMatches] = useState([]);
-  const [cursor, setCursor] = useState(null);
+  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -67,23 +67,15 @@ export default function Marketplace() {
   }, [q, filters.priceMax, filters.container, filters.caliper]);
 
   const loadPage = useCallback(async ({ reset = false } = {}) => {
-    const activeCursor = reset ? null : cursor;
+    const activeOffset = reset ? 0 : offset;
     if (reset) setLoading(true); else setLoadingMore(true);
-    let nextCursor = activeCursor;
+    let nextOffset = activeOffset;
     let matches = reset ? [] : pendingMatches.slice();
     let exhausted = false;
     for (let scans = 0; scans < 8 && matches.length < PAGE_SIZE; scans += 1) {
-      const query = !nextCursor ? serverFilters : sortConfig.field === "created_date" ? { ...serverFilters, created_date: { $lt: nextCursor.createdDate } } : {
-        ...serverFilters,
-        $or: [
-          { [sortConfig.field]: { [sortConfig.direction === 1 ? "$gt" : "$lt"]: nextCursor.value } },
-          { [sortConfig.field]: nextCursor.value, created_date: { $lt: nextCursor.createdDate } },
-        ],
-      };
-      const batch = await base44.entities.Product.filter(query, sortConfig.sort, BATCH_SIZE);
+      const batch = await base44.entities.Product.filter(serverFilters, sortConfig.sort, BATCH_SIZE, nextOffset);
       if (!batch?.length) { exhausted = true; break; }
-      const boundary = batch[batch.length - 1];
-      nextCursor = { value: boundary[sortConfig.field], createdDate: boundary.created_date };
+      nextOffset += batch.length;
       matches = matches.concat(batch.filter(matchesClientFilters));
       if (batch.length < BATCH_SIZE) { exhausted = true; break; }
     }
@@ -91,11 +83,11 @@ export default function Marketplace() {
     const remaining = matches.slice(PAGE_SIZE);
     setProducts((current) => reset ? page : [...current, ...page]);
     setPendingMatches(remaining);
-    setCursor(nextCursor);
+    setOffset(nextOffset);
     setHasMore(!exhausted || remaining.length > 0);
     setLoading(false);
     setLoadingMore(false);
-  }, [cursor, pendingMatches, serverFilters, matchesClientFilters, sortConfig]);
+  }, [offset, pendingMatches, serverFilters, matchesClientFilters, sortConfig]);
 
   useEffect(() => {
     setQ(params.get("q") || "");
@@ -135,7 +127,7 @@ export default function Marketplace() {
     <div className="flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search trees, plants, nurseries…" className="pl-10 h-11" /></div><Sheet open={sheet} onOpenChange={setSheet}><SheetTrigger asChild><Button variant="outline" className="h-11 relative md:hidden"><SlidersHorizontal className="w-4 h-4" /> Filters</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto"><SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader><FilterControls filters={filters} setF={setF} category={category} setCategory={setCategory} states={states} reset={reset} onDone={() => setSheet(false)} /></SheetContent></Sheet></div>
     {activeFilters.length > 0 && <div className="flex items-center gap-2 flex-wrap">{activeFilters.map((filter) => <button key={filter.key} onClick={filter.clear} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80">{filter.key === "vendor" ? `Grower: ${vendorName || "Selected grower"}` : filter.label} <X className="w-3 h-3" /></button>)}<button onClick={reset} className="text-xs text-primary font-medium">Clear all</button></div>}
     <div className="md:flex gap-6"><aside className="hidden md:block w-56 shrink-0"><div className="sticky top-20 space-y-4"><div className="flex items-center justify-between"><h2 className="font-heading font-semibold text-sm">Filters</h2>{activeFilters.length > 0 && <button onClick={reset} className="text-xs text-primary font-medium">Clear all</button>}</div><FilterControls filters={filters} setF={setF} category={category} setCategory={setCategory} states={states} reset={reset} variant="sidebar" /></div></aside>
-      <div className="flex-1 min-w-0 space-y-4"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{loading ? "Searching…" : `${displayProducts.length} loaded result${displayProducts.length === 1 ? "" : "s"}${hasMore ? "+" : ""}`}</p><Select value={filters.sort} onValueChange={(value) => setF("sort", value)}><SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="relevance">Relevance</SelectItem><SelectItem value="price_asc">Price ↑</SelectItem><SelectItem value="price_desc">Price ↓</SelectItem>{distanceAvailable && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity</SelectItem></SelectContent></Select></div>
+      <div className="flex-1 min-w-0 space-y-4"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{loading ? "Searching…" : `${displayProducts.length} loaded result${displayProducts.length === 1 ? "" : "s"}${hasMore ? "+" : ""}`}</p><Select value={filters.sort} onValueChange={(value) => setF("sort", value)}><SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="relevance">Newest</SelectItem><SelectItem value="price_asc">Price ↑</SelectItem><SelectItem value="price_desc">Price ↓</SelectItem>{distanceAvailable && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity</SelectItem></SelectContent></Select></div>
       {loading ? <div className="grid grid-cols-2 md:grid-cols-3 gap-3"><SkeletonCard count={6} /></div> : displayProducts.length === 0 ? <EmptyState icon={Package} title={hasMore ? "No matches in the inventory searched so far." : "No plants match those filters yet."} description={hasMore ? "Continue searching more inventory, or broaden your filters." : "Try broadening your search, adjusting filters, or request a bulk quote."} action={<div className="flex gap-2 justify-center">{hasMore ? <Button onClick={() => loadPage()} disabled={loadingMore}>{loadingMore && <Loader2 className="w-4 h-4 animate-spin" />} Search More Inventory</Button> : <Button variant="outline" onClick={reset}>Clear Filters</Button>}<Button asChild><Link to="/projects"><FileText className="w-4 h-4" /> Create an RFQ</Link></Button></div>} /> : <><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{displayProducts.map((product) => <ProductCard key={product.id} product={product} favorite={!!favs[product.id]} onToggleFavorite={() => toggleFav(product)} />)}</div>{hasMore && <div className="flex justify-center pt-2"><Button variant="outline" onClick={() => loadPage()} disabled={loadingMore} className="px-8">{loadingMore && <Loader2 className="w-4 h-4 animate-spin" />} Load more</Button></div>}{!hasMore && <p className="text-center text-xs text-muted-foreground">You’ve reached the end of these results.</p>}</>}
       {!loading && <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5"><Sparkles className="w-5 h-5 text-primary shrink-0" /><p className="text-sm text-foreground flex-1">Can’t find what you need? Ask the TreEbay Assistant to search or build an RFQ draft.</p><Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}>Ask AI</Button></div>}</div></div>
   </div></PullToRefresh>;

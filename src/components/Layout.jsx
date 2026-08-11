@@ -13,6 +13,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { relativeTime } from "@/lib/treebay";
 
+function notificationPath(notification) {
+  if (!notification.reference_id) return null;
+  if (notification.reference_type === "order") return `/orders/${notification.reference_id}`;
+  if (notification.reference_type === "rfq") return `/rfqs/${notification.reference_id}`;
+  if (notification.reference_type === "product") return `/product/${notification.reference_id}`;
+  if (notification.reference_type === "conversation") return `/messages/${notification.reference_id}`;
+  return null;
+}
+
 function useNotifications() {
   const { user } = useAppUser();
   const [items, setItems] = useState([]);
@@ -163,10 +172,8 @@ function TopBar() {
                 {items.length === 0 ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">No notifications yet.</div>
                 ) : items.map((n) => (
-                  <div key={n.id} className={cn("px-4 py-3 border-b", !n.read && "bg-secondary/50")}>
-                    <p className="text-sm font-medium">{n.title}</p>
-                    {n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}
-                    <p className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.created_date)}</p>
+                  <div key={n.id} className={cn("border-b", !n.read && "bg-secondary/50")}>
+                    {notificationPath(n) ? <Link to={notificationPath(n)} className="block px-4 py-3 hover:bg-secondary/50"><p className="text-xs font-semibold uppercase tracking-wide text-primary">{n.type.replaceAll("_", " ")}</p><p className="text-sm font-medium">{n.title}</p>{n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}<p className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.created_date)}</p></Link> : <div className="px-4 py-3"><p className="text-xs font-semibold uppercase tracking-wide text-primary">{n.type.replaceAll("_", " ")}</p><p className="text-sm font-medium">{n.title}</p>{n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}<p className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.created_date)}</p></div>}
                   </div>
                 ))}
               </ScrollArea>
