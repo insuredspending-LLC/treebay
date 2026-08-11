@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { useAppUser } from "@/hooks/useAppUser";
-import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3, FlaskConical } from "lucide-react";
+import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3, FlaskConical, Truck } from "lucide-react";
 import TestSimulator from "@/components/admin/TestSimulator";
+import AdminFinancials from "@/components/admin/AdminFinancials";
 import StatusBadge from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
 import { REPORT_REASONS, VERIFICATION_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
@@ -26,6 +27,7 @@ export default function AdminDashboard() {
   const [rfqs, setRfqs] = useState([]);
   const [users, setUsers] = useState([]);
   const [exceptions, setExceptions] = useState([]);
+  const [carriers, setCarriers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
@@ -37,15 +39,16 @@ export default function AdminDashboard() {
   const load = async () => {
     setLoading(true);
     try {
-      const [v, p, r, o, rfq, exc] = await Promise.all([
+      const [v, p, r, o, rfq, exc, carr] = await Promise.all([
         base44.entities.VendorProfile.list("-created_date", 100),
         base44.entities.Product.list("-created_date", 100),
         base44.entities.ContentReport.filter({ status: "open" }, "-created_date", 50),
         base44.entities.Order.list("-created_date", 50),
         base44.entities.RFQ.list("-created_date", 50),
         base44.entities.SystemException.filter({ requires_admin: true }, "-created_date", 50),
+        base44.entities.CarrierProfile.list("-created_date", 100),
       ]);
-      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []); setExceptions((exc || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED"));
+      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []); setExceptions((exc || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED")); setCarriers(carr || []);
       try { setUsers(await base44.entities.User.list() || []); } catch {}
     } catch {}
     finally { setLoading(false); }
@@ -56,6 +59,7 @@ export default function AdminDashboard() {
   if (!user) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
   const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } };
+  const setCarrierVerification = async (id, status) => { try { await base44.entities.CarrierProfile.update(id, { verification_status: status }); load(); toast({ title: `Carrier ${VERIFICATION_LABELS[status]}` }); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } };
   const setListingStatus = async (id, status) => { try { await base44.entities.Product.update(id, { listing_status: status }); load(); toast({ title: `Listing ${status}` }); } catch {} };
   const resolveReport = async (id, resolution) => { try { await base44.entities.ContentReport.update(id, { status: "actioned", resolution }); load(); toast({ title: "Report resolved" }); } catch {} };
   const dismissReport = async (id) => { try { await base44.entities.ContentReport.update(id, { status: "dismissed" }); load(); } catch {} };
@@ -87,6 +91,8 @@ export default function AdminDashboard() {
             <TabsTrigger value="orders"><ShoppingCart className="w-4 h-4 mr-1" /> Orders</TabsTrigger>
             <TabsTrigger value="rfqs"><FileText className="w-4 h-4 mr-1" /> RFQs</TabsTrigger>
             <TabsTrigger value="users"><Users className="w-4 h-4 mr-1" /> Users</TabsTrigger>
+            <TabsTrigger value="financials"><BarChart3 className="w-4 h-4 mr-1" /> Financials</TabsTrigger>
+            <TabsTrigger value="carriers"><Truck className="w-4 h-4 mr-1" /> Carriers</TabsTrigger>
             <TabsTrigger value="simulator"><FlaskConical className="w-4 h-4 mr-1" /> Simulator</TabsTrigger>
           </TabsList>
 
@@ -220,6 +226,27 @@ export default function AdminDashboard() {
             {users.length === 0 ? <EmptyState icon={Users} title="No users" /> : (
               <div className="space-y-2">{users.map((u) => (
                 <Card key={u.id} className="p-3 flex justify-between"><div><p className="font-medium text-sm">{u.full_name || u.email}</p><p className="text-xs text-muted-foreground">{u.email}</p></div><Badge>{u.role}</Badge></Card>
+              ))}</div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="financials">
+            <AdminFinancials />
+          </TabsContent>
+
+          <TabsContent value="carriers">
+            {carriers.length === 0 ? <EmptyState icon={Truck} title="No carriers" /> : (
+              <div className="space-y-2">{carriers.map((c) => (
+                <Card key={c.id} className="p-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0"><p className="font-medium text-sm truncate">{c.business_name}</p><p className="text-xs text-muted-foreground">{c.city}, {c.state} · {c.contact_name}</p></div>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={c.verification_status} label={VERIFICATION_LABELS[c.verification_status]} />
+                    <Select value={c.verification_status} onValueChange={(s) => setCarrierVerification(c.id, s)}>
+                      <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="verified">Verify</SelectItem><SelectItem value="suspended">Suspend</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                </Card>
               ))}</div>
             )}
           </TabsContent>

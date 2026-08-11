@@ -118,6 +118,24 @@ export function generateSettlementStatement(order, cq, vendor) {
     <p class="muted">This is a TEST settlement statement. No real payout has been processed.</p>`);
 }
 
+export function generateCarrierSettlementStatement(order, cq, freightQuote, carrier) {
+  const linehaul = freightQuote?.linehaul_cents || 0;
+  const fuel = freightQuote?.fuel_surcharge_cents || 0;
+  const accessorial = freightQuote?.accessorial_cents || 0;
+  const carrierPay = freightQuote?.carrier_pay_cents || cq?.delivery_amount_cents || 0;
+  return baseHtml("Carrier Settlement Statement", order.order_number, true,
+    `<div class="section"><div class="label">Settlement Date</div><div class="value">${dateStr(new Date())}</div></div>
+    <div class="section"><div class="label">Carrier</div><div class="value">${carrier?.business_name || "—"}</div></div>
+    <table>
+      <tr><td class="muted">Order</td><td style="text-align:right;">${order.order_number}</td></tr>
+      <tr><td class="muted">Linehaul</td><td style="text-align:right;">${money(linehaul)}</td></tr>
+      <tr><td class="muted">Fuel Surcharge</td><td style="text-align:right;">${money(fuel)}</td></tr>
+      <tr><td class="muted">Accessorial</td><td style="text-align:right;">${money(accessorial)}</td></tr>
+      <tr class="total-row"><td>Net Carrier Payout</td><td style="text-align:right;">${money(carrierPay)}</td></tr>
+    </table>
+    <p class="muted">TEST FREIGHT SETTLEMENT — no real payout has been processed. Carrier is not actually booked.</p>`);
+}
+
 export function generateRefundStatement(order, cq, extra) {
   const amount = extra?.refundAmountCents || order.total_cents || 0;
   return baseHtml("Refund Statement", order.order_number, true,
@@ -163,6 +181,8 @@ export async function generateAndStoreDocument(svc, order, documentType, cq, ext
       html = generateSettlementStatement(order, cq, vendor); recipientType = "vendor"; break;
     case "delivery_manifest":
       html = generateDeliveryManifest(order, cq, shipment, vendor); recipientType = "vendor"; break;
+    case "carrier_settlement_statement":
+      html = generateCarrierSettlementStatement(order, cq, extra?.freightQuote, extra?.carrier); recipientType = "carrier"; break;
     case "refund_statement":
       html = generateRefundStatement(order, cq, extra); recipientType = "buyer"; break;
     default: return null;

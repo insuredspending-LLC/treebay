@@ -10,6 +10,8 @@ import {
 } from "./transactions.ts";
 import { releaseForOrder, reverseCommitForOrder, commitForOrder, checkoutHoldsInventory } from "./inventory.ts";
 import { generateAndStoreDocument } from "./documents.ts";
+import { notifySafely } from "./notifications.ts";
+import { autoAssignFreight } from "./freight.ts";
 
 // buyer_pickup: inventory_reserved -> vendor_confirmed -> preparing -> ready_for_pickup -> picked_up -> delivered
 // delivery:     ... ready_for_pickup -> delivery_assigned -> picked_up -> in_transit -> delivered
@@ -66,6 +68,15 @@ export async function advanceFulfillment(svc, orderId, actor) {
   if (next === "delivery_assigned") {
     const shipment = await createShipment(svc, order, cq);
     if (shipment) await updateShipmentStatus(svc, shipment.id, "assigned", { type: actor.type, id: actor.id, description: "Delivery assigned" });
+    // Auto-assign TEST freight for third-party carrier orders
+    if (cq && cq.delivery_method === "third_party_carrier" && shipment) {
+      try {
+        await autoAssignFreight(svc, await svc.entities.Order.get(orderId), cq, shipment);
+      } catch (e) {
+        // Freight assignment failure does NOT roll back the commercial transition.
+        // autoAssignFreight raises a SystemException; maintenance retries.
+      }
+    }
   }
 
   const shipStatus = shipmentStatusForOrder(next);
@@ -84,7 +95,7 @@ export async function advanceFulfillment(svc, orderId, actor) {
   }
 
   const notifType = next === "ready_for_pickup" ? "order_ready" : next === "in_transit" ? "order_shipped" : next === "delivered" ? "order_delivered" : next === "vendor_confirmed" ? "order_accepted" : "general";
-  await svc.entities.Notification.create({ user_id: order.buyer_id, type: notifType, title: "Order update", body: order.order_number + " -> " + next, reference_type: "order", reference_id: orderId, read: false });
+  await notifySafely(svc, { user_id: order.buyer_id, type: notifType, eventType: "fulfillment_" + next, title: "Order update", body: order.order_number + " -> " + next, reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
   return { ok: true, status: 200, body: { order_status: next } };
 }
 

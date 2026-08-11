@@ -6,6 +6,7 @@ import {
   transitionOrder, recordOrderEvent, createAllocationLedger, raiseExceptionOnce,
   resolvePaymentExceptions, assertVendorSellable, VENDOR_CONFIRM_HOURS, RESERVATION_TTL_MINUTES,
 } from "./transactions.ts";
+import { notifySafely } from "./notifications.ts";
 import {
   reserveForOrder, releaseForOrder, getActiveReservation, isReservationExpired,
   checkoutQuantity, checkoutHoldsInventory,
@@ -145,7 +146,7 @@ export async function processTestPayment(svc, orderId, outcome, actor) {
     const paidPayment = await svc.entities.PaymentRecord.get(payment.id);
     await generateAndStoreDocument(svc, order, "buyer_invoice", cq, { payment: paidPayment });
     await generateAndStoreDocument(svc, order, "buyer_receipt", cq, { payment: paidPayment });
-    await svc.entities.Notification.create({ user_id: order.vendor_owner_id, type: "order_accepted", title: "Payment received — please confirm order", body: order.order_number, reference_type: "order", reference_id: orderId, read: false });
+    await notifySafely(svc, { user_id: order.vendor_owner_id, type: "order_accepted", eventType: "payment_confirmed", title: "Payment received — please confirm order", body: order.order_number, reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
     return { ok: true, status: 200, body: { order: await svc.entities.Order.get(orderId), payment: "paid", transactionRef, outcome: "TEST_SUCCESS" } };
   }
 

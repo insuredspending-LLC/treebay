@@ -7,6 +7,8 @@ import { releaseForOrder, checkoutHoldsInventory } from "../../shared/inventory.
 import { recoverStaleInventoryReservation } from "../../shared/inventoryRecovery.ts";
 import { generateAndStoreDocument } from "../../shared/documents.ts";
 import { resumePendingRefund } from "../../shared/refunds.ts";
+import { retryFreightAssignment } from "../../shared/freight.ts";
+import { notifySafely } from "../../shared/notifications.ts";
 
 // Single source of truth for all recurring transaction maintenance.
 //
@@ -39,6 +41,7 @@ export default async function(req) {
     const staleCutoff = new Date(now.getTime() - 5 * 60000);
     let released = 0, escalated = 0, completed = 0, settled = 0, reminders = 0, rolledBack = 0, refundsRecovered = 0;
     let checkoutLocksRecovered = 0, inventoryTransientsRecovered = 0, inventoryExceptions = 0;
+    let freightAssigned = 0, freightFailed = 0;
 
     // ---- 1. Recover stale CheckoutQuote order-creation locks ----
     const consumingQuotes = await svc.entities.CheckoutQuote.filter({ processing_status: "consuming" }, "-processing_locked_at", 200);
@@ -199,6 +202,11 @@ export default async function(req) {
       completed++;
     }
 
+    // ---- 4b. Retry freight assignment for orders stuck without a carrier ----
+    const freightResult = await retryFreightAssignment(svc);
+    freightAssigned = freightResult.assigned;
+    freightFailed = freightResult.failed;
+
     // ---- 5. Settlement (TEST) — process `completed` AND `settlement_pending` so a
     //         partially-failed settlement resumes instead of getting stuck. ----
     const settleable = [
@@ -224,6 +232,18 @@ export default async function(req) {
         // Idempotent: the settlement ledger group is written at most once.
         await createSettlementLedgerEntry(svc, order, cq);
         await generateAndStoreDocument(svc, order, "vendor_settlement_statement", cq);
+        // Carrier settlement statement + notification (only for third_party_carrier)
+        if (cq.delivery_method === "third_party_carrier") {
+          const shipRows = await svc.entities.Shipment.filter({ order_id: order.id });
+          const sh = (shipRows || [])[0];
+          if (sh && sh.carrier_id && sh.freight_quote_id) {
+            const carrier = await svc.entities.CarrierProfile.get(sh.carrier_id);
+            const freightQuote = await svc.entities.FreightQuote.get(sh.freight_quote_id);
+            await generateAndStoreDocument(svc, order, "carrier_settlement_statement", cq, { freightQuote, carrier });
+            await notifySafely(svc, { user_id: carrier?.created_by_id, type: "general", eventType: "carrier_settlement", title: "Freight settlement statement ready", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, carrier_id: sh.carrier_id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
+          }
+        }
+        await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "vendor_settlement", title: "Settlement statement ready", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
         await transitionOrder(svc, order.id, "settled", { type: "system", id: actorId, description: "Settled (TEST)" });
         settled++;
       } catch (err) {
@@ -238,7 +258,7 @@ export default async function(req) {
       }
     }
 
-    return Response.json({ released, escalated, completed, settled, reminders, rolledBack, refundsRecovered, checkoutLocksRecovered, inventoryTransientsRecovered, inventoryExceptions, ranBy: actorId });
+    return Response.json({ released, escalated, completed, settled, reminders, rolledBack, refundsRecovered, checkoutLocksRecovered, inventoryTransientsRecovered, inventoryExceptions, freightAssigned, freightFailed, ranBy: actorId });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

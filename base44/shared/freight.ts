@@ -3,7 +3,7 @@
 // Every UI location must clearly label: TEST FREIGHT until a real freight integration exists.
 
 import { notifySafely } from "./notifications.ts";
-import { raiseExceptionOnce } from "./transactions.ts";
+import { raiseExceptionOnce, updateCarrierPayablePartyId } from "./transactions.ts";
 
 export const TEST_FREIGHT_PROVIDER = "trebay_test_freight";
 export const FREIGHT_QUOTE_TTL_HOURS = 48;
@@ -110,6 +110,9 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
     delivery_price_cents: freight.buyer_freight_charge_cents,
     equipment_requirement: freight.equipment_type,
   });
+  // Update the carrier delivery payable in the allocation ledger with the carrier_id
+  // (at payment time, no carrier was assigned yet, so party_id was null)
+  try { await updateCarrierPayablePartyId(svc, order.id, carrier.id); } catch { /* best-effort */ }
 
   // 4. Notify carrier, vendor, buyer — via notifySafely (never rolls back)
   await notifySafely(svc, {

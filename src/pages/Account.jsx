@@ -4,11 +4,11 @@ import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Heart, Settings, FileText, ShieldCheck, LogOut, ChevronRight, Store, Leaf, User as UserIcon, LifeBuoy, FolderKanban, Lock, ExternalLink } from "lucide-react";
+import { ShoppingCart, Heart, Settings, FileText, ShieldCheck, LogOut, ChevronRight, Store, Leaf, User as UserIcon, LifeBuoy, FolderKanban, Lock, ExternalLink, Truck } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 
 export default function Account() {
-  const { user, accountType, buyerProfile, vendorProfiles, switchAccountType } = useAppUser();
+  const { user, accountType, buyerProfile, vendorProfiles, carrierProfile, switchAccountType } = useAppUser();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const vendor = vendorProfiles[0];
@@ -37,21 +37,25 @@ export default function Account() {
           <Store className="w-4 h-4 text-primary" />
           <h2 className="font-semibold text-sm">Marketplace Mode</h2>
         </div>
-        {vendorProfiles.length > 0 ? (
+        {vendorProfiles.length > 0 || carrierProfile ? (
           <Select value={accountType} onValueChange={(v) => switchAccountType(v)}>
             <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="buyer">Buyer Mode</SelectItem>
-              <SelectItem value="vendor">Seller Mode</SelectItem>
+              {vendorProfiles.length > 0 && <SelectItem value="vendor">Seller Mode</SelectItem>}
+              {carrierProfile && <SelectItem value="carrier">Carrier Mode</SelectItem>}
             </SelectContent>
           </Select>
         ) : (
-          <Button onClick={() => navigate("/become-seller")} className="w-full h-11"><Store className="w-4 h-4 mr-2" /> Become a Seller</Button>
+          <div className="space-y-2">
+            <Button onClick={() => navigate("/become-seller")} className="w-full h-11"><Store className="w-4 h-4 mr-2" /> Become a Seller</Button>
+            <Button onClick={() => navigate("/become-carrier")} variant="outline" className="w-full h-11"><Truck className="w-4 h-4 mr-2" /> Become a Carrier</Button>
+          </div>
         )}
         <p className="text-[11px] text-muted-foreground">
-          {vendorProfiles.length > 0
-            ? "Switch between buying and selling. Your data stays the same across modes."
-            : "Create a seller profile to list inventory and respond to RFQs."}
+          {vendorProfiles.length > 0 || carrierProfile
+            ? "Switch between your marketplace roles. Your data stays the same across modes."
+            : "Create a seller or carrier profile to get started."}
         </p>
       </Card>
 
@@ -99,6 +103,29 @@ export default function Account() {
             <Button variant="outline" size="sm" asChild className="flex-1"><Link to="/vendor/edit-profile"><Settings className="w-4 h-4 mr-1" /> Edit Profile</Link></Button>
             <Button variant="outline" size="sm" asChild className="flex-1"><Link to={`/vendor/${vendor.id}`}><ExternalLink className="w-4 h-4 mr-1" /> View Storefront</Link></Button>
           </div>
+        </Card>
+      )}
+
+      {/* Carrier Profile */}
+      {carrierProfile && (
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Truck className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold text-sm">Carrier Profile</h2>
+          </div>
+          <div className="text-sm space-y-1.5">
+            <p><span className="text-muted-foreground">Business:</span> {carrierProfile.business_name}</p>
+            <p><span className="text-muted-foreground">Location:</span> {carrierProfile.city}, {carrierProfile.state} {carrierProfile.zip_code || ""}</p>
+            {carrierProfile.equipment_type && <p><span className="text-muted-foreground">Equipment:</span> {carrierProfile.equipment_type}</p>}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Verification:</span>
+              <StatusBadge status={carrierProfile.verification_status} />
+            </div>
+            {carrierProfile.verification_status === "pending" && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 rounded-md p-2">Verification is pending. An admin must verify your carrier profile before you can accept freight loads.</p>
+            )}
+          </div>
+          <Button variant="outline" size="sm" asChild className="w-full"><Link to="/carrier"><Truck className="w-4 h-4 mr-1" /> Go to Carrier Dashboard</Link></Button>
         </Card>
       )}
 

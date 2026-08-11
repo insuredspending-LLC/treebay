@@ -4,6 +4,7 @@
 
 import { genOrderNumber } from "./marketplace.ts";
 import { reserveForCheckout, checkoutQuantity, RESERVATION_TTL_MINUTES } from "./inventory.ts";
+import { notifySafely } from "./notifications.ts";
 
 export const TEST_TAX_RATE = 0.0825; // 8.25% placeholder — TEST / ESTIMATED MODE, not production.
 export const VENDOR_CONFIRM_HOURS = 24;
@@ -76,7 +77,7 @@ export function calculateDeliveryOptionsCents(product, vendorDeliveryCents, vend
   if (vendorDeliveryOk) {
     options.push({ provider_type: "vendor_delivery", delivery_price_cents: vendorDeliveryCents ?? 50000, service_type: "Vendor Delivery", estimated_delivery_days: 3 });
   }
-  options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "Third Party Carrier — TEST ESTIMATE", estimated_delivery_days: 2 });
+  options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "TEST FREIGHT — Third Party Carrier", estimated_delivery_days: 2 });
   return options;
 }
 
@@ -288,8 +289,11 @@ export async function createAllocationLedger(svc, order, cq, paymentRef) {
         description: "Vendor delivery payable", credit_cents: cq.delivery_amount_cents, payment_reference: paymentRef || null,
       });
     } else if (cq.delivery_method === "third_party_carrier") {
+      let carrierId = null;
+      const shipRows = await svc.entities.Shipment.filter({ order_id: order.id });
+      if (shipRows && shipRows.length) carrierId = shipRows[0].carrier_id || null;
       await createLedgerEntry(svc, {
-        order_id: order.id, transaction_id: group, entry_key: "delivery", entry_type: "delivery", party_type: "carrier",
+        order_id: order.id, transaction_id: group, entry_key: "delivery", entry_type: "delivery", party_type: "carrier", party_id: carrierId,
         description: "Carrier delivery payable", credit_cents: cq.delivery_amount_cents, payment_reference: paymentRef || null,
       });
     }
@@ -353,11 +357,33 @@ export function vendorPayableCents(cq) {
 
 export async function createSettlementLedgerEntry(svc, order, cq) {
   const group = settlementGroup(order.id);
+  // Vendor payout (existing key "payout" preserves idempotency for already-settled orders)
   await createLedgerEntry(svc, {
     order_id: order.id, transaction_id: group, entry_key: "payout", entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id,
     description: "Vendor settlement payout (TEST)", debit_cents: vendorPayableCents(cq),
   });
+  // Carrier payout — only for third_party_carrier. Idempotent per-entry: retries create only the missing entry.
+  if (cq.delivery_method === "third_party_carrier" && (cq.delivery_amount_cents || 0) > 0) {
+    let carrierId = null;
+    const shipRows = await svc.entities.Shipment.filter({ order_id: order.id });
+    if (shipRows && shipRows.length) carrierId = shipRows[0].carrier_id || null;
+    await createLedgerEntry(svc, {
+      order_id: order.id, transaction_id: group, entry_key: "carrier_payout", entry_type: "carrier_payable", party_type: "carrier", party_id: carrierId,
+      description: "Carrier freight payout (TEST)", debit_cents: cq.delivery_amount_cents,
+    });
+  }
   return { created: true };
+}
+
+// Update the carrier delivery payable party_id after freight assignment.
+// At payment time no carrier is assigned yet, so the allocation entry has party_id=null.
+// Called from autoAssignFreight once a carrier is assigned to the shipment.
+export async function updateCarrierPayablePartyId(svc, orderId, carrierId) {
+  const group = allocationGroup(orderId);
+  const rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: orderId, transaction_id: group, entry_key: "delivery", party_type: "carrier" });
+  for (const row of (rows || [])) {
+    if (!row.party_id) await svc.entities.TransactionLedgerEntry.update(row.id, { party_id: carrierId });
+  }
 }
 
 // Refunds NEVER edit or delete history — they add explicit reversal entries.
@@ -669,7 +695,7 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
   // NOTE: no payable ledger here. The financial allocation is written only once
   // payment is confirmed — an unpaid order must never look like money was received.
   if (cq.source_type === "accepted_quote") await finalizeAcceptedRFQ(svc, cq);
-  await svc.entities.Notification.create({ user_id: cq.vendor_owner_id, type: "new_order", title: "New order received", body: orderNumber, reference_type: "order", reference_id: order.id, read: false });
+  await notifySafely(svc, { user_id: cq.vendor_owner_id, type: "new_order", eventType: "order_created", title: "New order received", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
   return { order: await svc.entities.Order.get(order.id), checkoutQuote: await svc.entities.CheckoutQuote.get(cq.id) };
 }
 

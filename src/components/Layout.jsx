@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
-import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2, BarChart3 } from "lucide-react";
 import AIAssistant from "@/components/AIAssistant";
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -112,6 +112,13 @@ const VENDOR_NAV = [
   { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
 ];
 
+const CARRIER_NAV = [
+  { to: "/carrier", label: "Dashboard", icon: LayoutDashboard, match: ["/carrier"], exact: true },
+  { to: "/carrier/loads", label: "Loads", icon: Truck, match: ["/carrier/loads"] },
+  { to: "/carrier/financials", label: "Earnings", icon: BarChart3, match: ["/carrier/financials"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/privacy", "/terms", "/community-rules"] },
+];
+
 const BUYER_DESKTOP_NAV = [
   { to: "/marketplace", label: "Marketplace", match: ["/marketplace", "/product", "/vendor"] },
   { to: "/projects", label: "Projects", match: ["/projects", "/rfqs"] },
@@ -125,6 +132,12 @@ const VENDOR_DESKTOP_NAV = [
   { to: "/orders", label: "Orders", match: ["/orders", "/vendor/orders"] },
 ];
 
+const CARRIER_DESKTOP_NAV = [
+  { to: "/carrier", label: "Dashboard", match: ["/carrier"], exact: true },
+  { to: "/carrier/loads", label: "Loads", match: ["/carrier/loads"] },
+  { to: "/carrier/financials", label: "Financials", match: ["/carrier/financials"] },
+];
+
 function isItemActive(pathname, item) {
   const prefixes = item.match || [item.to];
   return prefixes.some((p) => {
@@ -135,12 +148,12 @@ function isItemActive(pathname, item) {
 }
 
 function TopBar() {
-  const { accountType, vendorProfiles, switchAccountType } = useAppUser();
+  const { accountType, vendorProfiles, carrierProfile, switchAccountType } = useAppUser();
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const { isChild, title } = getHeaderState(location.pathname);
-  const desktopNav = accountType === "vendor" ? VENDOR_DESKTOP_NAV : BUYER_DESKTOP_NAV;
+  const desktopNav = accountType === "vendor" ? VENDOR_DESKTOP_NAV : accountType === "carrier" ? CARRIER_DESKTOP_NAV : BUYER_DESKTOP_NAV;
 
   return (
     <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border pt-[env(safe-area-inset-top)]">
@@ -176,10 +189,11 @@ function TopBar() {
 
         {/* Right: role switch + actions */}
         <div className="flex items-center gap-1 shrink-0">
-          {vendorProfiles?.length > 0 && !isChild && (
+          {(vendorProfiles?.length > 0 || carrierProfile) && !isChild && (
             <div className="flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium" aria-label="Marketplace mode">
               <button onClick={() => switchAccountType("buyer")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
-              <button onClick={() => switchAccountType("vendor")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>
+              {vendorProfiles?.length > 0 && <button onClick={() => switchAccountType("vendor")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>}
+              {carrierProfile && <button onClick={() => switchAccountType("carrier")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "carrier" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Carrier</button>}
             </div>
           )}
           {vendorProfiles?.length > 0 && isChild && (
@@ -256,7 +270,7 @@ function TopBar() {
 
 export default function Layout() {
   const { accountType } = useAppUser();
-  const nav = accountType === "vendor" ? VENDOR_NAV : BUYER_NAV;
+  const nav = accountType === "vendor" ? VENDOR_NAV : accountType === "carrier" ? CARRIER_NAV : BUYER_NAV;
   const location = useLocation();
 
   return (
@@ -266,7 +280,7 @@ export default function Layout() {
         <KeepAliveOutlet key={accountType} keepPaths={nav.map((n) => n.to)} />
       </main>
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
-        <div className="max-w-md mx-auto grid grid-cols-5">
+        <div className={nav.length === 4 ? "max-w-md mx-auto grid grid-cols-4" : "max-w-md mx-auto grid grid-cols-5"}>
           {nav.map((item) => {
             const active = isItemActive(location.pathname, item);
             return (

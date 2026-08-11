@@ -32,6 +32,16 @@ const GROUPS = [
     ["CANCEL", "Cancel order"],
     ["MAINTENANCE", "Run transaction maintenance"],
   ]},
+  { label: "Autonomous scenarios", items: [
+    ["SCENARIO_A", "A: Direct + pickup → settle"],
+    ["SCENARIO_B", "B: Direct + vendor delivery → settle"],
+    ["SCENARIO_C", "C: Direct + third-party carrier → settle"],
+    ["SCENARIO_D", "D: RFQ + third-party freight → settle"],
+    ["SCENARIO_E", "E: Notification fails (state preserved)"],
+    ["SCENARIO_F", "F: Carrier assignment fails → retry"],
+    ["SCENARIO_G", "G: Partial carrier payout → resume"],
+    ["SCENARIO_H", "H: Financial mismatch → block"],
+  ]},
 ];
 
 export default function TestSimulator({ orders, onChanged }) {

@@ -41,6 +41,12 @@ import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import BecomeSeller from '@/pages/BecomeSeller';
+import BecomeCarrier from '@/pages/BecomeCarrier';
+import CarrierDashboard from '@/pages/CarrierDashboard';
+import CarrierLoads from '@/pages/CarrierLoads';
+import CarrierFinancials from '@/pages/CarrierFinancials';
+import VendorFinancials from '@/pages/VendorFinancials';
+import CarrierGuard from '@/components/CarrierGuard';
 import DeleteAccount from '@/pages/DeleteAccount';
 import VendorGuard from '@/components/VendorGuard';
 import { ThemeProvider } from "next-themes";
@@ -89,6 +95,7 @@ const AuthenticatedApp = () => {
         <Route element={<OnboardingGate />}>
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/become-seller" element={<BecomeSeller />} />
+          <Route path="/become-carrier" element={<BecomeCarrier />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
             <Route path="/marketplace" element={<Marketplace />} />
@@ -117,6 +124,12 @@ const AuthenticatedApp = () => {
               <Route path="/vendor/edit-profile" element={<EditVendorProfile />} />
               <Route path="/vendor/rfqs/:rfqId/quote" element={<QuoteForm />} />
               <Route path="/vendor/orders" element={<Orders />} />
+              <Route path="/vendor/financials" element={<VendorFinancials />} />
+            </Route>
+            <Route element={<CarrierGuard />}>
+              <Route path="/carrier" element={<CarrierDashboard />} />
+              <Route path="/carrier/loads" element={<CarrierLoads />} />
+              <Route path="/carrier/financials" element={<CarrierFinancials />} />
             </Route>
           </Route>
         </Route>

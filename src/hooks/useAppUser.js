@@ -19,7 +19,7 @@ export function useAppUser() {
       const [buyers, vendors, carriers] = await Promise.all([
         base44.entities.BuyerProfile.list().catch(() => []),
         base44.entities.VendorProfile.filter({ created_by_id: me.id }).catch(() => []),
-        base44.entities.CarrierProfile.list().catch(() => []),
+        base44.entities.CarrierProfile.filter({ created_by_id: me.id }).catch(() => []),
       ]);
       setBuyerProfile(buyers?.[0] || null);
       setVendorProfiles(vendors || []);
