@@ -1,8 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
-import { useAuth } from "@/lib/AuthContext";
-import { createNotification } from "@/lib/treebay";
-import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2 } from "lucide-react";
 import AIAssistant from "@/components/AIAssistant";
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -30,21 +28,32 @@ const NOTIFICATION_META = {
   general: { icon: Bell, label: "System" },
 };
 
-function notificationPath(notification, accountType) {
+function notificationPath(notification) {
   const t = notification.type;
-  if (t === "new_message") return notification.reference_id ? `/messages/${notification.reference_id}` : "/messages";
+  const refId = notification.reference_id;
+  // Message → exact conversation
+  if (t === "new_message") return refId ? `/messages/${refId}` : "/messages";
+  // Inventory → seller inventory
   if (t === "inventory_low") return "/vendor/inventory";
-  if (["order_accepted", "order_ready", "order_shipped", "order_delivered", "order_completed", "new_order"].includes(t)) {
-    return notification.reference_id ? `/orders/${notification.reference_id}` : "/orders";
+  // RFQ notifications — routing by meaning, not presentation mode
+  // Buyer received a quote on their RFQ
+  if (t === "new_quote" || t === "quote_updated") {
+    return refId ? `/rfqs/${refId}` : "/rfqs";
   }
-  if (["new_quote", "quote_updated", "quote_accepted", "new_rfq", "rfq_awarded"].includes(t)) {
-    if (accountType === "vendor") return "/vendor/rfqs";
-    return notification.reference_id ? `/rfqs/${notification.reference_id}` : "/rfqs";
+  // Seller's quote was accepted / seller received new RFQ / RFQ awarded → seller RFQ experience
+  if (t === "quote_accepted" || t === "new_rfq" || t === "rfq_awarded") {
+    if (notification.reference_type === "order" && refId) return `/orders/${refId}`;
+    return "/vendor/rfqs";
   }
-  if (notification.reference_type === "order") return `/orders/${notification.reference_id}`;
-  if (notification.reference_type === "rfq") return accountType === "vendor" ? "/vendor/rfqs" : `/rfqs/${notification.reference_id}`;
-  if (notification.reference_type === "product") return `/product/${notification.reference_id}`;
-  if (notification.reference_type === "conversation") return `/messages/${notification.reference_id}`;
+  // Order notifications → Order Detail (both buyer and seller can view)
+  if (["new_order", "order_accepted", "order_ready", "order_shipped", "order_delivered", "order_completed"].includes(t)) {
+    return refId ? `/orders/${refId}` : "/orders";
+  }
+  // Fallback to reference_type
+  if (notification.reference_type === "order") return `/orders/${refId}`;
+  if (notification.reference_type === "rfq") return `/rfqs/${refId}`;
+  if (notification.reference_type === "product") return `/product/${refId}`;
+  if (notification.reference_type === "conversation") return `/messages/${refId}`;
   return null;
 }
 
@@ -126,7 +135,7 @@ function isItemActive(pathname, item) {
 }
 
 function TopBar() {
-  const { user, accountType, vendorProfiles, switchAccountType } = useAppUser();
+  const { accountType, vendorProfiles, switchAccountType } = useAppUser();
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
@@ -199,7 +208,7 @@ function TopBar() {
                   <div className="p-6 text-center text-sm text-muted-foreground">No notifications yet.</div>
                 ) : items.map((n) => {
                   const meta = NOTIFICATION_META[n.type] || { icon: Bell, label: "System" };
-                  const path = notificationPath(n, accountType);
+                  const path = notificationPath(n);
                   const Icon = meta.icon;
                   return (
                     <div key={n.id} className={cn("border-b", !n.read && "bg-secondary/50")}>

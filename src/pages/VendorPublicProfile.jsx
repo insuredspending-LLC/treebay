@@ -30,8 +30,8 @@ export default function VendorPublicProfile() {
   useEffect(() => {
     (async () => {
       try {
-        const v = await base44.entities.VendorProfile.get(id);
-        setVendor(v);
+        const { data } = await base44.functions.invoke("getPublicVendorProfiles", { vendorIds: [id] });
+        setVendor(data?.vendors?.[id] || null);
         setProducts(await base44.entities.Product.filter({ vendor_id: id, listing_status: "active" }, "-created_date", 100) || []);
         setReviews(await base44.entities.Review.filter({ vendor_id: id }, "-created_date", 20) || []);
         try { const f = await base44.entities.Favorite.filter({ target_type: "vendor", target_id: id }); setFav(f?.[0] || null); } catch {}

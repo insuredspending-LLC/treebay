@@ -54,7 +54,7 @@ export default function Checkout() {
             setAppliedAddress({ ...hydratedAddress });
           }
         }
-        if (cq.vendor_id) { try { setVendor(await base44.entities.VendorProfile.get(cq.vendor_id)); } catch {} }
+        if (cq.vendor_id) { try { const { data } = await base44.functions.invoke("getPublicVendorProfiles", { vendorIds: [cq.vendor_id] }); setVendor(data?.vendors?.[cq.vendor_id] || null); } catch {} }
       } catch (e) { toast({ title: "Could not load quote", description: apiError(e), variant: "destructive" }); }
       finally { setLoading(false); }
     })();

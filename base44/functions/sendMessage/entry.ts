@@ -29,6 +29,20 @@ export default async function(req) {
     });
     await svc.entities.Conversation.update(conversationId, { last_message: text, last_message_at: new Date().toISOString() });
 
+    // Automatically notify the recipient — no admin/operator action required
+    try {
+      const safePreview = text.length > 80 ? text.slice(0, 77) + "..." : text;
+      await svc.entities.Notification.create({
+        user_id: recipientId,
+        type: "new_message",
+        title: "New message",
+        body: safePreview,
+        reference_type: "conversation",
+        reference_id: conversationId,
+        read: false,
+      });
+    } catch { /* notification is best-effort */ }
+
     return Response.json({ message });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

@@ -30,10 +30,11 @@ export default function Home() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [prods, vendors] = await Promise.all([
+      const [prods, vendorRes] = await Promise.all([
         base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 60),
-        base44.entities.VendorProfile.filter({ verification_status: "verified" }, "-rating", 12),
+        base44.functions.invoke("getPublicVendorProfiles", { verified: true, limit: 12 }),
       ]);
+      const vendors = vendorRes?.data?.vendors || [];
       const list = prods || [];
       setFeatured(list.filter((p) => p.featured).slice(0, 8));
       setRecent(list.slice(0, 8));

@@ -27,10 +27,10 @@ export default function Messages() {
         setConvs(list);
         if (list.length) {
           try {
-            const { contexts: ctx } = await base44.functions.invoke("getConversationContexts", {
+            const { data } = await base44.functions.invoke("getConversationContexts", {
               conversationIds: list.map((c) => c.id),
             });
-            setContexts(ctx || {});
+            setContexts(data?.contexts || {});
           } catch {}
         }
       } catch {}

@@ -31,12 +31,15 @@ export default function RFQDetail() {
       setRfq(r);
       const qs = await base44.entities.VendorQuote.filter({ rfq_id: id }, "-created_date", 50) || [];
       setQuotes(qs);
-      // Fetch vendor profiles for verification status
+      // Fetch sanitized public vendor profiles for verification status
       const vendorIds = [...new Set(qs.map((q) => q.vendor_id).filter(Boolean))];
-      const vMap = {};
-      await Promise.all(vendorIds.map(async (vid) => {
-        try { vMap[vid] = await base44.entities.VendorProfile.get(vid); } catch {}
-      }));
+      let vMap = {};
+      if (vendorIds.length) {
+        try {
+          const { data } = await base44.functions.invoke("getPublicVendorProfiles", { vendorIds });
+          vMap = data?.vendors || {};
+        } catch {}
+      }
       setVendors(vMap);
     } catch {}
     finally { setLoading(false); }

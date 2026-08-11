@@ -96,7 +96,7 @@ export default function Account() {
             )}
           </div>
           <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" asChild className="flex-1"><Link to="/settings"><Settings className="w-4 h-4 mr-1" /> Edit Profile</Link></Button>
+            <Button variant="outline" size="sm" asChild className="flex-1"><Link to="/vendor/edit-profile"><Settings className="w-4 h-4 mr-1" /> Edit Profile</Link></Button>
             <Button variant="outline" size="sm" asChild className="flex-1"><Link to={`/vendor/${vendor.id}`}><ExternalLink className="w-4 h-4 mr-1" /> View Storefront</Link></Button>
           </div>
         </Card>
@@ -114,7 +114,7 @@ export default function Account() {
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">Settings</p>
         <Link to="/settings"><MenuRow icon={Settings} label="Settings" /></Link>
-        <Link to="/settings"><MenuRow icon={Lock} label="Security" /></Link>
+        <Link to="/settings"><MenuRow icon={Lock} label="Data & Privacy" /></Link>
       </div>
 
       {/* Legal & Help */}

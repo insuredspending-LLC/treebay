@@ -33,6 +33,7 @@ import VendorDashboard from '@/pages/VendorDashboard';
 import VendorInventory from '@/pages/VendorInventory';
 import ProductForm from '@/pages/ProductForm';
 import VendorRFQs from '@/pages/VendorRFQs';
+import EditVendorProfile from '@/pages/EditVendorProfile';
 import QuoteForm from '@/pages/QuoteForm';
 import AdminDashboard from '@/pages/AdminDashboard';
 import Login from '@/pages/Login';
@@ -113,6 +114,7 @@ const AuthenticatedApp = () => {
               <Route path="/vendor/inventory/new" element={<ProductForm />} />
               <Route path="/vendor/inventory/:id" element={<ProductForm />} />
               <Route path="/vendor/rfqs" element={<VendorRFQs />} />
+              <Route path="/vendor/edit-profile" element={<EditVendorProfile />} />
               <Route path="/vendor/rfqs/:rfqId/quote" element={<QuoteForm />} />
               <Route path="/vendor/orders" element={<Orders />} />
             </Route>

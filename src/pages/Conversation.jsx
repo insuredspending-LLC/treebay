@@ -37,8 +37,8 @@ export default function Conversation() {
       setMessages(msgs);
       // Get counterpart context via secure backend helper
       try {
-        const { contexts } = await base44.functions.invoke("getConversationContexts", { conversationIds: [id] });
-        setCtx(contexts?.[id] || null);
+        const { data } = await base44.functions.invoke("getConversationContexts", { conversationIds: [id] });
+        setCtx(data?.contexts?.[id] || null);
       } catch {}
       // Mark received messages read via secure backend
       try { await base44.functions.invoke("markMessagesRead", { conversationId: id }); } catch {}

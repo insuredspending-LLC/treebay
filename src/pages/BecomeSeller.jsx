@@ -138,7 +138,7 @@ export default function BecomeSeller() {
                 <p className="text-sm font-medium">Why TreEbay verifies growers</p>
               </div>
               <p className="text-xs text-muted-foreground">TreEbay verifies growers to ensure buyers receive healthy, accurately represented plants. Verification confirms your nursery is a legitimate business.</p>
-              <p className="text-xs text-muted-foreground"><span className="font-medium text-amber-700">Pending sellers</span> can create listings and respond to RFQs, but buyers can't purchase until verified.</p>
+              <p className="text-xs text-muted-foreground"><span className="font-medium text-amber-700">Pending sellers</span> can create their selling profile, prepare listings, and browse sourcing opportunities. Listings and commercial quotes become transactable after verification.</p>
               <p className="text-xs text-muted-foreground"><span className="font-medium text-emerald-700">Verified sellers</span> can sell directly — buyers can purchase listings and accept quotes.</p>
             </Card>
           </div>
