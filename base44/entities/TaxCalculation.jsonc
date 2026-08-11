@@ -17,6 +17,13 @@
     "taxable_amount_cents": {
       "type": "number"
     },
+    "taxable_delivery_amount_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "total_taxable_amount_cents": {
+      "type": "number"
+    },
     "tax_amount_cents": {
       "type": "number"
     },
@@ -25,6 +32,14 @@
     },
     "calculation_reference": {
       "type": "string"
+    },
+    "collection_party": {
+      "type": "string",
+      "default": "trebay_test"
+    },
+    "remittance_responsibility": {
+      "type": "string",
+      "default": "trebay_test"
     },
     "status": {
       "type": "string",
@@ -43,13 +58,9 @@
   ],
   "rls": {
     "read": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "create": {
       "user_condition": {
