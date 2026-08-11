@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { MessageSquare, Star, Truck, Package, Loader2, ShieldCheck, FileText, MapPin, AlertCircle, CheckCircle2, Clock, Store } from "lucide-react";
+import { MessageSquare, Star, ShieldCheck, FileText, MapPin, AlertCircle, CheckCircle2, Clock, Truck } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { useAppUser } from "@/hooks/useAppUser";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate, formatCurrency, apiError } from "@/lib/treebay";
@@ -31,6 +31,16 @@ function getNextStatus(order) {
   if (s === "in_transit") return "delivered";
   return null;
 }
+
+const SELLER_ACTION_LABELS = {
+  vendor_confirmed: "Confirm order",
+  preparing: "Begin preparing",
+  ready_for_pickup: "Mark ready for pickup",
+  picked_up: "Confirm pickup",
+  delivery_assigned: "Assign delivery",
+  in_transit: "Mark in transit",
+  delivered: "Confirm delivery",
+};
 
 const DOCUMENT_LABELS = {
   buyer_order_confirmation: "Order Confirmation",
@@ -87,10 +97,12 @@ export default function OrderDetail() {
   const isBuyer = accountType === "buyer" || accountType === "admin";
   const sequence = getFulfillmentSequence(order);
   const currentIndex = sequence.indexOf(order.order_status);
-  const canAdvance = isVendor && !!getNextStatus(order);
   const nextStatus = getNextStatus(order);
+  const canAdvance = isVendor && !!nextStatus;
   const hasException = EXCEPTION_STATUSES.includes(order.order_status) || exceptions.length > 0;
   const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
+  const sellerActionLabel = nextStatus ? (SELLER_ACTION_LABELS[nextStatus] || `Advance to ${ORDER_STATUS_LABELS[nextStatus]}`) : null;
+  const jobsite = [order.contact_name || order.destination_name, [order.destination_city, order.destination_state].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "—";
 
   const advance = async () => {
     try {
@@ -138,7 +150,7 @@ export default function OrderDetail() {
         <div>
           <h1 className="text-2xl font-heading font-bold">{order.order_number}</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
-            <Store className="w-3.5 h-3.5" /> {isBuyer ? order.vendor_name : "Buyer order"} · {shortDate(order.created_date)}
+            {isBuyer ? (<><Truck className="w-3.5 h-3.5" /> {order.vendor_name}</>) : (<><MapPin className="w-3.5 h-3.5" /> {jobsite}</>)} · {shortDate(order.created_date)}
           </p>
         </div>
         <div className="flex flex-col gap-1.5 items-end">
@@ -160,6 +172,25 @@ export default function OrderDetail() {
               {exceptions[0]?.recommended_action && <p className="text-xs text-amber-700 mt-1">Recommended: {exceptions[0].recommended_action}</p>}
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Seller next-action card */}
+      {isVendor && canAdvance && (
+        <Card className="p-4 border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Next seller action</p>
+              <p className="text-sm font-medium mt-0.5">{sellerActionLabel}</p>
+            </div>
+            <Button onClick={advance}>{sellerActionLabel}</Button>
+          </div>
+        </Card>
+      )}
+      {isVendor && order.order_status === "delivered" && (
+        <Card className="p-4 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">TreEbay will complete this order automatically.</p>
         </Card>
       )}
 
@@ -257,8 +288,6 @@ export default function OrderDetail() {
       <div className="flex flex-wrap gap-2 pt-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
         {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> Pay (Test)</Button>}
-        {isVendor && canAdvance && nextStatus && <Button onClick={advance}>Advance to {ORDER_STATUS_LABELS[nextStatus]}</Button>}
-        {order.order_status === "delivered" && <p className="text-sm text-muted-foreground self-center flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> TreEbay will complete this order automatically.</p>}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>
 
