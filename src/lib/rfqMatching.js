@@ -1,5 +1,6 @@
 // Deterministic RFQ-to-inventory matching — mirrors the rules in trebayAssistant.
 // Never claim a match without actual Product records.
+// Only matches against active, available inventory — never paused/archived/sold_out/zero-available.
 
 const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
@@ -31,9 +32,13 @@ export function matchRfqItemToProduct(item, product) {
 
 // Returns { results: [{ item, match }], hasAnyMatch }
 export function matchRfqToInventory(rfq, products) {
+  // Only match against active, available inventory
+  const sellable = (products || []).filter((p) =>
+    p.listing_status === "active" && (Number(p.quantity_available) || 0) > 0
+  );
   const results = (rfq.items || []).map((item) => {
     let bestMatch = null;
-    for (const product of products) {
+    for (const product of sellable) {
       const m = matchRfqItemToProduct(item, product);
       if (m && (!bestMatch || m.matchType === "full")) {
         bestMatch = m;

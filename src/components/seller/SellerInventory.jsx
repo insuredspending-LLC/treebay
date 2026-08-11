@@ -9,77 +9,105 @@ import { Image } from "@/components/ui/image";
 import { AlertCircle, Archive, Loader2, Package, Pause, Play, Plus, Search } from "lucide-react";
 import { CATEGORIES, formatCurrency, formatNumber, apiError } from "@/lib/treebay";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
+const BATCH_SIZE = 50;
+const MAX_SCANS = 10;
+
+const SORTS = {
+  newest: "-created_date",
+  price: "unit_price",
+  stock: "-quantity_available",
+};
 
 export default function SellerInventory({ vendorIds }) {
   const [products, setProducts] = useState([]);
+  const [pendingMatches, setPendingMatches] = useState([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState("newest");
   const [low, setLow] = useState(false);
-  const [cursor, setCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(null);
 
-  const buildQuery = useCallback((resetCursor) => {
+  const serverFilters = useMemo(() => {
     const q = { vendor_id: { $in: vendorIds } };
     if (status !== "all") q.listing_status = status;
     if (category !== "all") q.category = category;
-    if (!resetCursor && cursor) q.created_date = { $lt: cursor };
+    if (low) q.quantity_available = { $gte: 1, $lte: 5 };
     return q;
-  }, [vendorIds, status, category, cursor]);
+  }, [vendorIds, status, category, low]);
 
-  const fetchPage = useCallback(async (reset) => {
-    const q = buildQuery(reset);
-    return base44.entities.Product.filter(q, "-created_date", PAGE_SIZE);
-  }, [buildQuery]);
+  const sortField = SORTS[sort];
 
-  const load = useCallback(async (reset = false) => {
-    if (reset) { setLoading(true); setCursor(null); }
-    else setLoadingMore(true);
+  const matchesSearch = useCallback((p) => {
+    if (!search.trim()) return true;
+    const s = search.trim().toLowerCase();
+    return `${p.common_name} ${p.category} ${p.botanical_name || ""} ${p.sku || ""}`.toLowerCase().includes(s);
+  }, [search]);
+
+  const loadPage = useCallback(async ({ reset = false } = {}) => {
+    const activeOffset = reset ? 0 : offset;
+    if (reset) setLoading(true); else setLoadingMore(true);
     setError(null);
+    let nextOffset = activeOffset;
+    let matches = reset ? [] : pendingMatches.slice();
+    let exhausted = false;
     try {
-      const batch = await fetchPage(reset);
-      setProducts(reset ? batch : (prev) => [...prev, ...batch]);
-      setCursor(batch.length > 0 ? batch[batch.length - 1].created_date : null);
-      setHasMore(batch.length === PAGE_SIZE);
+      for (let scans = 0; scans < MAX_SCANS && matches.length < PAGE_SIZE; scans += 1) {
+        const batch = await base44.entities.Product.filter(serverFilters, sortField, BATCH_SIZE, nextOffset);
+        if (!batch?.length) { exhausted = true; break; }
+        nextOffset += batch.length;
+        matches = matches.concat(batch.filter(matchesSearch));
+        if (batch.length < BATCH_SIZE) { exhausted = true; break; }
+      }
+      const page = matches.slice(0, PAGE_SIZE);
+      const remaining = matches.slice(PAGE_SIZE);
+      setProducts((current) => reset ? page : [...current, ...page]);
+      setPendingMatches(remaining);
+      setOffset(nextOffset);
+      setHasMore(!exhausted || remaining.length > 0);
     } catch (e) {
       setError(apiError(e));
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [fetchPage]);
+  }, [offset, pendingMatches, serverFilters, sortField, matchesSearch]);
 
-  // Reload from scratch when server-side filters or vendor changes
+  // Reset and reload when server-side filters or sort change
   useEffect(() => {
-    if (!vendorIds.length) { setLoading(false); return; }
-    load(true);
-  }, [vendorIds.join(","), status, category]);
+    if (!vendorIds.length) { setLoading(false); setProducts([]); setHasMore(false); return; }
+    loadPage({ reset: true });
+  }, [vendorIds.join(","), status, category, sort, low]);
 
-  const visible = useMemo(() => {
-    let list = products;
-    if (search) {
-      const s = search.toLowerCase();
-      list = list.filter((p) => `${p.common_name} ${p.category} ${p.botanical_name || ""}`.toLowerCase().includes(s));
-    }
-    if (low) list = list.filter((p) => p.quantity_available > 0 && p.quantity_available <= 5);
-    if (sort === "price") list = [...list].sort((a, b) => a.unit_price - b.unit_price);
-    else if (sort === "stock") list = [...list].sort((a, b) => b.quantity_available - a.quantity_available);
-    return list;
-  }, [products, search, low, sort]);
+  // Debounced search reset
+  useEffect(() => {
+    if (!vendorIds.length) return;
+    const t = setTimeout(() => loadPage({ reset: true }), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const update = async (product, listing_status) => {
-    try { await base44.functions.invoke("updateProduct", { productId: product.id, listing_status }); load(true); }
-    catch (e) { setError(apiError(e)); }
+    try {
+      await base44.functions.invoke("updateProduct", { productId: product.id, listing_status });
+      setProducts((prev) => prev.map((p) => p.id === product.id ? { ...p, listing_status } : p));
+    } catch (e) {
+      setError(apiError(e));
+    }
   };
 
-  const resetFilters = () => { setSearch(""); setStatus("all"); setCategory("all"); setLow(false); setSort("newest"); };
+  const resetFilters = () => {
+    setSearch(""); setStatus("all"); setCategory("all"); setLow(false); setSort("newest");
+  };
 
-  if (loading) return (
+  const hasFilters = search || status !== "all" || category !== "all" || low || sort !== "newest";
+
+  if (loading && products.length === 0) return (
     <div className="space-y-5">
       <InventoryHeader />
       <div className="grid gap-2 md:grid-cols-4">
@@ -97,14 +125,14 @@ export default function SellerInventory({ vendorIds }) {
     </div>
   );
 
-  if (error && !products.length) return (
+  if (error && products.length === 0) return (
     <div className="space-y-5">
       <InventoryHeader />
       <Card className="p-8 text-center">
         <AlertCircle className="w-10 h-10 mx-auto text-destructive" />
         <h2 className="mt-3 font-semibold">Could not load inventory</h2>
         <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-        <Button className="mt-4" onClick={() => load(true)}>Retry</Button>
+        <Button className="mt-4" onClick={() => loadPage({ reset: true })}>Retry</Button>
       </Card>
     </div>
   );
@@ -116,8 +144,8 @@ export default function SellerInventory({ vendorIds }) {
       {/* Filters */}
       <div className="grid gap-2 md:grid-cols-4">
         <div className="relative md:col-span-2">
-          <Search className="absolute left-3 top-3.5 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} className="h-11 pl-9" placeholder="Search loaded inventory" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} className="h-11 pl-9" placeholder="Search inventory" />
         </div>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
@@ -143,14 +171,14 @@ export default function SellerInventory({ vendorIds }) {
           <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="price">Price</SelectItem>
+            <SelectItem value="price">Price ↑</SelectItem>
             <SelectItem value="stock">Available stock</SelectItem>
           </SelectContent>
         </Select>
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} className="rounded" /> Low stock only
         </label>
-        {(search || status !== "all" || category !== "all" || low || sort !== "newest") && (
+        {hasFilters && (
           <Button variant="ghost" size="sm" onClick={resetFilters}>Clear filters</Button>
         )}
       </div>
@@ -159,11 +187,36 @@ export default function SellerInventory({ vendorIds }) {
         <Card className="p-3 border-amber-300 bg-amber-50 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-600" />
           <span className="text-sm text-amber-800">{error}</span>
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => load(true)}>Retry</Button>
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => loadPage({ reset: true })}>Retry</Button>
         </Card>
       )}
 
-      {visible.length ? (
+      {products.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Package className="w-10 h-10 mx-auto text-muted-foreground" />
+          {hasMore ? (
+            <>
+              <h2 className="mt-3 font-semibold">No matches in the inventory searched so far</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Try broadening your search, or continue searching more inventory.</p>
+              <Button variant="outline" className="mt-4" onClick={() => loadPage()} disabled={loadingMore}>
+                {loadingMore ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Searching…</> : "Search More Inventory"}
+              </Button>
+            </>
+          ) : hasFilters ? (
+            <>
+              <h2 className="mt-3 font-semibold">No products match your filters</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Try adjusting your filters or clearing them.</p>
+              <Button variant="outline" className="mt-4" onClick={resetFilters}>Clear filters</Button>
+            </>
+          ) : (
+            <>
+              <h2 className="mt-3 font-semibold">Your inventory is empty</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Add your first product to start showing buyers what you grow.</p>
+              <Button asChild className="mt-4"><Link to="/vendor/inventory/new"><Plus className="w-4 h-4 mr-2" /> Add Product</Link></Button>
+            </>
+          )}
+        </Card>
+      ) : (
         <>
           <div className="hidden md:block overflow-hidden rounded-xl border">
             <table className="w-full text-sm">
@@ -181,34 +234,21 @@ export default function SellerInventory({ vendorIds }) {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((p) => <InventoryRow key={p.id} p={p} update={update} />)}
+                {products.map((p) => <InventoryRow key={p.id} p={p} update={update} />)}
               </tbody>
             </table>
           </div>
           <div className="md:hidden space-y-3">
-            {visible.map((p) => <InventoryCard key={p.id} p={p} update={update} />)}
+            {products.map((p) => <InventoryCard key={p.id} p={p} update={update} />)}
           </div>
           {hasMore && (
             <div className="flex justify-center pt-2">
-              <Button variant="outline" onClick={() => load(false)} disabled={loadingMore}>
+              <Button variant="outline" onClick={() => loadPage()} disabled={loadingMore}>
                 {loadingMore ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading…</> : "Load More"}
               </Button>
             </div>
           )}
         </>
-      ) : (
-        <Card className="p-8 text-center">
-          <Package className="w-10 h-10 mx-auto text-muted-foreground" />
-          <h2 className="mt-3 font-semibold">No inventory found</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {products.length ? "No products match your current filters." : "Your inventory is empty. Add your first product to start showing buyers what you grow."}
-          </p>
-          {products.length ? (
-            <Button variant="outline" className="mt-4" onClick={resetFilters}>Clear filters</Button>
-          ) : (
-            <Button asChild className="mt-4"><Link to="/vendor/inventory/new"><Plus className="w-4 h-4 mr-2" /> Add Product</Link></Button>
-          )}
-        </Card>
       )}
     </div>
   );

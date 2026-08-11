@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { useAppUser } from "@/hooks/useAppUser";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowLeft, Flag, Ban, Loader2 } from "lucide-react";
+import { Send, Flag, Ban, Loader2, Store, MessageSquare, FileText, ShoppingCart, Package } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ReportDialog from "@/components/ReportDialog";
 import { relativeTime, apiError } from "@/lib/treebay";
 
+const REF_LINKS = {
+  product: { label: "View Product", path: (id) => `/product/${id}`, icon: Package },
+  rfq: { label: "View RFQ", path: (id) => `/rfqs/${id}`, icon: FileText },
+  order: { label: "View Order", path: (id) => `/orders/${id}`, icon: ShoppingCart },
+};
+
 export default function Conversation() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const { user } = useAppUser();
   const { toast } = useToast();
   const [conv, setConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -19,11 +26,8 @@ export default function Conversation() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [report, setReport] = useState(false);
-  const [otherName, setOtherName] = useState("User");
-  const [meId, setMeId] = useState(null);
+  const [ctx, setCtx] = useState(null);
   const endRef = useRef(null);
-
-  useEffect(() => { base44.auth.me().then((u) => setMeId(u.id)).catch(() => {}); }, []);
 
   const load = async () => {
     try {
@@ -31,19 +35,24 @@ export default function Conversation() {
       setConv(c);
       const msgs = await base44.entities.Message.filter({ conversation_id: id }, "created_date", 200) || [];
       setMessages(msgs);
-      // determine other party name
-      const me = await base44.auth.me();
-      setMeId(me.id);
-      const otherIsVendor = c.vendor_owner_id !== me.id;
-      if (otherIsVendor && c.vendor_id) { try { const v = await base44.entities.VendorProfile.get(c.vendor_id); setOtherName(v?.business_name || "Vendor"); } catch {} }
-      else if (!otherIsVendor) { try { const buyers = await base44.entities.BuyerProfile.list(); setOtherName(buyers?.[0]?.business_name || buyers?.[0]?.full_name || "Buyer"); } catch {} }
-      // mark received messages read via secure backend
+      // Get counterpart context via secure backend helper
+      try {
+        const { contexts } = await base44.functions.invoke("getConversationContexts", { conversationIds: [id] });
+        setCtx(contexts?.[id] || null);
+      } catch {}
+      // Mark received messages read via secure backend
       try { await base44.functions.invoke("markMessagesRead", { conversationId: id }); } catch {}
     } catch {}
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [id]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const meId = user?.id;
+  const otherName = ctx?.counterpartName || "User";
+  const otherRole = ctx?.counterpartRole || (conv?.buyer_id === meId ? "vendor" : "buyer");
+  const ref = ctx?.referenceInfo;
+  const RefLink = ref ? REF_LINKS[ref.type] : null;
 
   const send = async (e) => {
     e?.preventDefault();
@@ -65,31 +74,50 @@ export default function Conversation() {
   };
 
   const block = async () => {
+    if (!meId || !conv) return;
     try {
-      const me = await base44.auth.me();
-      const otherId = me.id === conv.buyer_id ? conv.vendor_owner_id : conv.buyer_id;
-      await base44.entities.UserBlock.create({ blocker_id: me.id, blocked_id: otherId });
+      const otherId = meId === conv.buyer_id ? conv.vendor_owner_id : conv.buyer_id;
+      await base44.entities.UserBlock.create({ blocker_id: meId, blocked_id: otherId });
       toast({ title: "User blocked", description: "They can no longer message you." });
     } catch (e) { toast({ title: "Could not block", variant: "destructive" }); }
   };
 
-  if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
+  if (loading) return (
+    <div className="space-y-4">
+      <div className="h-16 rounded-xl border skeleton-shimmer" />
+      <div className="space-y-2">
+        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 rounded-2xl skeleton-shimmer" style={{ width: `${60 + Math.random() * 30}%`, marginLeft: i % 2 ? "auto" : "0" }} />)}
+      </div>
+    </div>
+  );
   if (!conv) return <p className="text-center text-muted-foreground py-16">Conversation not found.</p>;
 
   return (
     <div className="flex flex-col h-[calc(100vh-9rem)]">
-      <div className="flex items-center justify-between gap-2 pb-3 border-b border-border">
-        <div className="text-center flex-1">
-          <p className="font-semibold text-sm">{otherName}</p>
-          <p className="text-xs text-muted-foreground">{conv.reference_label}</p>
+      <div className="pb-3 border-b border-border">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
+              {otherRole === "vendor" ? <Store className="w-5 h-5 text-primary" /> : <MessageSquare className="w-5 h-5 text-primary" />}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm truncate">{otherName}</p>
+              <p className="text-xs text-muted-foreground">{otherRole === "vendor" ? "Grower" : "Buyer"}{ref ? ` · ${ref.label}` : ""}</p>
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="More"><Ban className="w-4 h-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setReport(true)}><Flag className="w-4 h-4 mr-2" /> Report conversation</DropdownMenuItem>
+              <DropdownMenuItem onClick={block}><Ban className="w-4 h-4 mr-2" /> Block user</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="More"><Ban className="w-4 h-4" /></Button></DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setReport(true)}><Flag className="w-4 h-4 mr-2" /> Report conversation</DropdownMenuItem>
-            <DropdownMenuItem onClick={block}><Ban className="w-4 h-4 mr-2" /> Block user</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {RefLink && ref && (
+          <Button variant="outline" size="sm" asChild className="mt-2 w-full">
+            <Link to={RefLink.path(ref.id)}><RefLink.icon className="w-4 h-4 mr-1" /> {RefLink.label}</Link>
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto py-4 space-y-2">

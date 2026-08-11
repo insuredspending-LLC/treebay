@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Store } from "lucide-react";
+import { Store } from "lucide-react";
 import SellerDashboard from "@/components/seller/SellerDashboard";
 
 export default function VendorDashboard() {

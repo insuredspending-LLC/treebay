@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
@@ -12,6 +12,7 @@ import { RFQ_STATUS_LABELS, shortDate, formatNumber, apiError } from "@/lib/tree
 import { matchRfqToInventory } from "@/lib/rfqMatching";
 
 const PAGE_SIZE = 25;
+const INV_PAGE = 50;
 
 export default function VendorRFQs() {
   const { user } = useAppUser();
@@ -23,19 +24,21 @@ export default function VendorRFQs() {
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState(null);
+  const rfqsRef = useRef([]);
 
   const loadInventory = useCallback(async () => {
     if (!user?.id) return;
     let all = [];
     let cur = null;
     for (let page = 0; page < 6; page++) {
-      const q = { vendor_owner_id: user.id };
+      // Only match against active, available inventory
+      const q = { vendor_owner_id: user.id, listing_status: "active", quantity_available: { $gte: 1 } };
       if (cur) q.created_date = { $lt: cur };
-      const batch = await base44.entities.Product.filter(q, "-created_date", 50);
+      const batch = await base44.entities.Product.filter(q, "-created_date", INV_PAGE);
       if (!batch?.length) break;
       all = all.concat(batch);
       cur = batch[batch.length - 1].created_date;
-      if (batch.length < 50) break;
+      if (batch.length < INV_PAGE) break;
     }
     setInventory(all);
   }, [user?.id]);
@@ -51,20 +54,32 @@ export default function VendorRFQs() {
     else setLoadingMore(true);
     setError(null);
     try {
-      const [batch, quotes] = await Promise.all([
-        loadRfqs(reset),
-        reset ? base44.entities.VendorQuote.filter({ vendor_owner_id: user.id }, "-created_date", 100) : Promise.resolve([]),
-      ]);
-      setRfqs(reset ? batch : (prev) => [...prev, ...batch]);
+      const batch = await loadRfqs(reset);
+      const allRfqs = reset ? batch : [...rfqsRef.current, ...batch];
+      rfqsRef.current = allRfqs;
+      setRfqs(allRfqs);
       setCursor(batch.length > 0 ? batch[batch.length - 1].created_date : null);
       setHasMore(batch.length === PAGE_SIZE);
-      if (reset) setMyQuoteIds(new Set(quotes.map((q) => q.rfq_id)));
-    } catch (e) { setError(apiError(e)); }
-    finally { setLoading(false); setLoadingMore(false); }
+
+      // Query quotes for ALL displayed RFQs using $in — no arbitrary history cutoff
+      if (allRfqs.length) {
+        const quotes = await base44.entities.VendorQuote.filter({
+          rfq_id: { $in: allRfqs.map((r) => r.id) },
+          vendor_owner_id: user.id,
+        }, "-created_date", 500);
+        setMyQuoteIds(new Set((quotes || []).map((q) => q.rfq_id)));
+      }
+    } catch (e) {
+      setError(apiError(e));
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, [loadRfqs, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
+    rfqsRef.current = [];
     Promise.all([loadInventory(), load(true)]);
   }, [user?.id]);
 
@@ -93,7 +108,7 @@ export default function VendorRFQs() {
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold">Sourcing Opportunities</h1>
-        <p className="text-sm text-muted-foreground">Buyer requests you can quote on. Inventory matches are based on your live listings.</p>
+        <p className="text-sm text-muted-foreground">Buyer requests you can quote on. Inventory matches are based on your active, available listings.</p>
       </div>
 
       {rfqs.length === 0 ? (
@@ -102,7 +117,7 @@ export default function VendorRFQs() {
         <>
           <div className="space-y-3">
             {rfqs.map((r) => {
-              const { results, hasAnyMatch } = matchRfqToInventory(r, inventory);
+              const { results } = matchRfqToInventory(r, inventory);
               const alreadyQuoted = myQuoteIds.has(r.id);
               const totalQty = (r.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
               return (

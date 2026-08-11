@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
 import { useAuth } from "@/lib/AuthContext";
 import { createNotification } from "@/lib/treebay";
-import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck, ChevronLeft, Sparkles, ChevronsUpDown } from "lucide-react";
+import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2 } from "lucide-react";
 import AIAssistant from "@/components/AIAssistant";
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -13,10 +13,36 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { relativeTime } from "@/lib/treebay";
 
-function notificationPath(notification) {
-  if (!notification.reference_id) return null;
+const NOTIFICATION_META = {
+  order_accepted: { icon: ShoppingCart, label: "Order" },
+  order_ready: { icon: Package, label: "Order" },
+  order_shipped: { icon: Truck, label: "Order" },
+  order_delivered: { icon: CheckCircle2, label: "Order" },
+  order_completed: { icon: CheckCircle2, label: "Order" },
+  new_order: { icon: ShoppingCart, label: "Order" },
+  new_quote: { icon: FileText, label: "RFQ" },
+  quote_updated: { icon: FileText, label: "RFQ" },
+  quote_accepted: { icon: CheckCircle2, label: "RFQ" },
+  new_rfq: { icon: FileText, label: "RFQ" },
+  rfq_awarded: { icon: FileText, label: "RFQ" },
+  new_message: { icon: MessageSquare, label: "Message" },
+  inventory_low: { icon: AlertCircle, label: "Inventory" },
+  general: { icon: Bell, label: "System" },
+};
+
+function notificationPath(notification, accountType) {
+  const t = notification.type;
+  if (t === "new_message") return notification.reference_id ? `/messages/${notification.reference_id}` : "/messages";
+  if (t === "inventory_low") return "/vendor/inventory";
+  if (["order_accepted", "order_ready", "order_shipped", "order_delivered", "order_completed", "new_order"].includes(t)) {
+    return notification.reference_id ? `/orders/${notification.reference_id}` : "/orders";
+  }
+  if (["new_quote", "quote_updated", "quote_accepted", "new_rfq", "rfq_awarded"].includes(t)) {
+    if (accountType === "vendor") return "/vendor/rfqs";
+    return notification.reference_id ? `/rfqs/${notification.reference_id}` : "/rfqs";
+  }
   if (notification.reference_type === "order") return `/orders/${notification.reference_id}`;
-  if (notification.reference_type === "rfq") return `/rfqs/${notification.reference_id}`;
+  if (notification.reference_type === "rfq") return accountType === "vendor" ? "/vendor/rfqs" : `/rfqs/${notification.reference_id}`;
   if (notification.reference_type === "product") return `/product/${notification.reference_id}`;
   if (notification.reference_type === "conversation") return `/messages/${notification.reference_id}`;
   return null;
@@ -171,11 +197,42 @@ function TopBar() {
               <ScrollArea className="h-80">
                 {items.length === 0 ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">No notifications yet.</div>
-                ) : items.map((n) => (
-                  <div key={n.id} className={cn("border-b", !n.read && "bg-secondary/50")}>
-                    {notificationPath(n) ? <Link to={notificationPath(n)} className="block px-4 py-3 hover:bg-secondary/50"><p className="text-xs font-semibold uppercase tracking-wide text-primary">{n.type.replaceAll("_", " ")}</p><p className="text-sm font-medium">{n.title}</p>{n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}<p className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.created_date)}</p></Link> : <div className="px-4 py-3"><p className="text-xs font-semibold uppercase tracking-wide text-primary">{n.type.replaceAll("_", " ")}</p><p className="text-sm font-medium">{n.title}</p>{n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}<p className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.created_date)}</p></div>}
-                  </div>
-                ))}
+                ) : items.map((n) => {
+                  const meta = NOTIFICATION_META[n.type] || { icon: Bell, label: "System" };
+                  const path = notificationPath(n, accountType);
+                  const Icon = meta.icon;
+                  return (
+                    <div key={n.id} className={cn("border-b", !n.read && "bg-secondary/50")}>
+                      {path ? (
+                        <Link to={path} className="block px-4 py-3 hover:bg-secondary/50">
+                          <div className="flex items-start gap-2.5">
+                            <Icon className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{meta.label}</p>
+                              <p className="text-sm font-medium">{n.title}</p>
+                              {n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}
+                              <p className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.created_date)}</p>
+                            </div>
+                            {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />}
+                          </div>
+                        </Link>
+                      ) : (
+                        <div className="px-4 py-3">
+                          <div className="flex items-start gap-2.5">
+                            <Icon className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{meta.label}</p>
+                              <p className="text-sm font-medium">{n.title}</p>
+                              {n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}
+                              <p className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.created_date)}</p>
+                            </div>
+                            {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </ScrollArea>
             </PopoverContent>
           </Popover>

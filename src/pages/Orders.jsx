@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { ShoppingCart, Loader2, Truck, Clock, ChevronRight } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";

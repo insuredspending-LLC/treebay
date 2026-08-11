@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Leaf, ShoppingCart, Store, Truck, Loader2, ArrowLeft, ShieldCheck } from "lucide-react";
+import { Leaf, ShoppingCart, Store, Truck, Loader2, ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { BUYER_TYPES } from "@/lib/treebay";
 
@@ -83,6 +83,16 @@ export default function Onboarding() {
               </div>
             </button>
           ))}
+        </div>
+        <div className="mt-8 p-4 rounded-2xl bg-secondary/50 space-y-2">
+          <p className="text-sm font-medium">What you can do on TreEbay</p>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>• Find inventory from local growers</li>
+            <li>• Request bulk quotes for projects</li>
+            <li>• Track orders and deliveries</li>
+            <li>• Switch to Seller mode anytime</li>
+          </ul>
+          <p className="text-xs text-muted-foreground flex items-center gap-1"><Sparkles className="w-3 h-3" /> TreEbay Assistant can help you search and draft RFQs — but the app is fully usable without it.</p>
         </div>
       </div>
     );
