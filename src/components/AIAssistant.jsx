@@ -50,8 +50,8 @@ export default function AIAssistant() {
     setInput("");
     setLoading(true);
     try {
-      // Send last 8 turns of history for multi-turn context
-      const history = [...messages, userMsg].slice(-8).map((m) => ({ role: m.role, text: m.text }));
+      // Send prior completed turns only; the current message is sent separately.
+      const history = messages.slice(-8).map((m) => ({ role: m.role, text: m.text }));
       const res = await base44.functions.invoke("trebayAssistant", {
         message: text,
         context: { role: accountType, page: location.pathname },
@@ -224,6 +224,17 @@ function ResultCard({ card }) {
         <p className="font-semibold text-sm text-foreground">RFQ · {RFQ_STATUS_LABELS[r.status] || r.status}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{r.items?.length || 0} item(s) · {[r.delivery_city, r.delivery_state].filter(Boolean).join(", ")}</p>
       </Link>
+    );
+  }
+  if (card.type === "rfq_match") {
+    const match = card.data;
+    return (
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+        <p className="font-semibold text-sm text-foreground">{match.requested_quantity}× {match.requested_item}</p>
+        <p className="text-xs text-muted-foreground">Matches {match.product_name} · {formatNumber(match.quantity_available)} available</p>
+        <p className="text-xs text-muted-foreground">{[match.delivery_city, match.delivery_state].filter(Boolean).join(", ")}{match.quote_deadline ? ` · Quote by ${match.quote_deadline}` : ""}</p>
+        <div className="flex gap-2"><Button asChild variant="outline" size="sm"><Link to={`/rfqs/${match.rfq_id}`}>View RFQ</Link></Button><Button asChild size="sm"><Link to={`/vendor/rfqs/${match.rfq_id}/quote`}>Prepare Quote</Link></Button></div>
+      </div>
     );
   }
   if (card.type === "rfq_draft") {

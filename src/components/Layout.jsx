@@ -133,9 +133,9 @@ function TopBar() {
         {/* Right: role switch + actions */}
         <div className="flex items-center gap-1 shrink-0">
           {vendorProfiles?.length > 0 && !isChild && (
-            <div className="hidden sm:flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium">
-              <button onClick={() => switchAccountType("buyer")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
-              <button onClick={() => switchAccountType("vendor")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>
+            <div className="flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium" aria-label="Marketplace mode">
+              <button onClick={() => switchAccountType("buyer")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
+              <button onClick={() => switchAccountType("vendor")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>
             </div>
           )}
           <Button variant="ghost" size="icon" asChild aria-label="Messages">

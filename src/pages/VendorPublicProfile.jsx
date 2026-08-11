@@ -47,7 +47,7 @@ export default function VendorPublicProfile() {
 
   const messageGrower = async () => {
     try {
-      const { data } = await base44.functions.invoke("startConversation", { type: "product", referenceId: products[0]?.id || "" });
+      const { data } = await base44.functions.invoke("startConversation", { type: "general", referenceId: vendor.id });
       navigate(`/messages/${data.conversationId}`);
     } catch (e) { toast({ title: "Could not start conversation", description: apiError(e), variant: "destructive" }); }
   };
@@ -99,7 +99,7 @@ export default function VendorPublicProfile() {
       {/* Actions */}
       <div className="flex gap-2">
         <Button variant="outline" className="flex-1" onClick={messageGrower}><MessageSquare className="w-4 h-4 mr-2" /> Message Grower</Button>
-        <Button asChild className="flex-1"><Link to="/marketplace"><Store className="w-4 h-4 mr-2" /> Browse Inventory</Link></Button>
+        <Button asChild className="flex-1"><Link to={`/marketplace?vendor=${vendor.id}`}><Store className="w-4 h-4 mr-2" /> Browse Inventory</Link></Button>
       </div>
 
       {/* About */}

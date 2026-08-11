@@ -3,111 +3,69 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 const INTENT_SCHEMA = {
   type: "object",
   properties: {
-    intent: { type: "string", enum: ["search_inventory", "find_growers", "explain_order", "explain_rfq", "build_rfq_draft", "seller_attention", "low_stock", "list_draft", "guided_help", "navigate", "general"] },
+    intent: { type: "string", enum: ["search_inventory", "find_growers", "explain_order", "explain_rfq", "build_rfq_draft", "seller_attention", "low_stock", "match_rfqs", "list_draft", "guided_help", "navigate", "general"] },
     params: { type: "object" },
     reply: { type: "string" },
   },
 };
 
-const SYSTEM_PROMPT = `You are the TreEbay Assistant for a B2B marketplace for live nursery stock and landscape materials.
+const SYSTEM_PROMPT = `You are the TreEbay Assistant for a B2B nursery-stock marketplace. Never invent inventory, pricing, availability, vendors, RFQs, order states, or transaction data. Extract intent and search parameters only; a secure system query follows. Client mode is presentation only, not authorization. Seller-only intents are seller_attention, low_stock, match_rfqs, and list_draft. Use prior conversation only to resolve references. Keep replies concise.`;
 
-CRITICAL SECURITY RULES — never violate these:
-1. NEVER invent or fabricate inventory, prices, quantities, availability, vendor verification, order status, shipment status, payment status, or refund status. Those values come from real TreEbay data which the system will look up after you respond.
-2. You may interpret user intent and extract parameters (species, quantity, size, location, timing).
-3. You may explain how TreEbay works and guide users to the right page.
-4. For transaction-related questions (orders, refunds, payments), say you will look up the real status — do not guess.
-5. Keep replies concise (2-4 sentences), professional, and helpful.
-6. If information is missing to fulfill an intent, ask only for what is genuinely needed.
-7. Use conversation history to resolve references (e.g., "25" after "I need Live Oaks" means 25 Live Oaks).
+const sellerIntents = new Set(["seller_attention", "low_stock", "match_rfqs", "list_draft"]);
+const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const productText = (p) => normalize([p.common_name, p.botanical_name, p.cultivar, p.category, p.container_size, p.caliper].join(" "));
 
-User role and current page are provided. Adapt your guidance to the role (buyer vs seller).
-
-Intent definitions:
-- search_inventory: user wants to find plants/trees/supplies to buy
-- find_growers: user wants to find nurseries/growers/suppliers
-- explain_order: user asks about an existing order's status
-- explain_rfq: user asks about an RFQ or quotes received
-- build_rfq_draft: user wants to create a bulk quote request
-- seller_attention: seller asks what needs attention (orders, RFQs, inventory)
-- low_stock: seller asks about low inventory
-- list_draft: seller wants to create/edit a product listing
-- guided_help: user asks how to do something in TreEbay
-- navigate: user wants to go to a specific page
-- general: anything else`;
-
-// ── Sanitizers: return only fields needed for each card type ──────────────
-function sanitizeProduct(p: any) {
-  return {
-    id: p.id,
-    common_name: p.common_name,
-    botanical_name: p.botanical_name,
-    unit_price: p.unit_price,
-    quantity_available: p.quantity_available,
-    container_size: p.container_size,
-    caliper: p.caliper,
-    vendor_name: p.vendor_name,
-    vendor_city: p.vendor_city,
-    vendor_state: p.vendor_state,
-    verified_vendor: p.verified_vendor,
-    pickup_eligible: p.pickup_eligible,
-    delivery_eligible: p.delivery_eligible,
-    images: p.images?.length ? [p.images[0]] : [],
-  };
+function sanitizeProduct(p) {
+  return { id: p.id, common_name: p.common_name, botanical_name: p.botanical_name, unit_price: p.unit_price, quantity_available: p.quantity_available, container_size: p.container_size, caliper: p.caliper, vendor_name: p.vendor_name, vendor_city: p.vendor_city, vendor_state: p.vendor_state, verified_vendor: p.verified_vendor, pickup_eligible: p.pickup_eligible, delivery_eligible: p.delivery_eligible, images: p.images?.length ? [p.images[0]] : [] };
 }
-
-function sanitizeVendor(v: any) {
-  return {
-    id: v.id,
-    business_name: v.business_name,
-    logo_url: v.logo_url || null,
-    city: v.city,
-    state: v.state,
-    verification_status: v.verification_status,
-    rating: v.rating,
-    review_count: v.review_count,
-    pickup_available: v.pickup_available,
-    delivery_available: v.delivery_available,
-    wholesale_available: v.wholesale_available,
-  };
+function sanitizeVendor(v) {
+  return { id: v.id, business_name: v.business_name, logo_url: v.logo_url || null, city: v.city, state: v.state, verification_status: v.verification_status, rating: v.rating, review_count: v.review_count, pickup_available: v.pickup_available, delivery_available: v.delivery_available, wholesale_available: v.wholesale_available };
 }
-
-function sanitizeOrder(o: any) {
-  return {
-    id: o.id,
-    order_number: o.order_number,
-    order_status: o.order_status,
-    payment_status: o.payment_status,
-    total: o.total,
-    vendor_name: o.vendor_name,
-    fulfillment_method: o.fulfillment_method,
-    items: (o.items || []).map((i: any) => ({ line_name: i.line_name, quantity: i.quantity, unit_price: i.unit_price })),
-  };
+function sanitizeOrder(o) {
+  return { id: o.id, order_number: o.order_number, order_status: o.order_status, payment_status: o.payment_status, total: o.total, vendor_name: o.vendor_name, fulfillment_method: o.fulfillment_method, items: (o.items || []).map((i) => ({ line_name: i.line_name, quantity: i.quantity, unit_price: i.unit_price })) };
 }
-
-function sanitizeRFQ(r: any) {
-  return {
-    id: r.id,
-    status: r.status,
-    delivery_city: r.delivery_city,
-    delivery_state: r.delivery_state,
-    quote_deadline: r.quote_deadline,
-    items: (r.items || []).map((i: any) => ({ common_name: i.common_name, quantity: i.quantity, size_spec: i.size_spec })),
-  };
+function sanitizeRFQ(r) {
+  return { id: r.id, status: r.status, delivery_city: r.delivery_city, delivery_state: r.delivery_state, quote_deadline: r.quote_deadline, items: (r.items || []).map((i) => ({ common_name: i.common_name, botanical_name: i.botanical_name, quantity: i.quantity, size_spec: i.size_spec })) };
 }
-
-// ── Parse current-page route to resolve the record the user is viewing ────
-function parsePageContext(page: string) {
-  if (!page) return {};
-  const orderMatch = page.match(/^\/orders\/([^/]+)/);
-  const productMatch = page.match(/^\/product\/([^/]+)/);
-  const rfqMatch = page.match(/^\/rfqs\/([^/]+)/);
-  const vendorMatch = page.match(/^\/vendor\/([^/]+)/);
-  return {
-    orderId: orderMatch?.[1],
-    productId: productMatch?.[1],
-    rfqId: rfqMatch?.[1],
-    vendorId: vendorMatch?.[1] && !page.startsWith("/vendor/inventory") && !page.startsWith("/vendor/rfqs") ? vendorMatch[1] : undefined,
-  };
+function parsePageContext(page) {
+  const orderId = page?.match(/^\/orders\/([^/]+)/)?.[1];
+  const productId = page?.match(/^\/product\/([^/]+)/)?.[1];
+  const rfqId = page?.match(/^\/rfqs\/([^/]+)/)?.[1] || page?.match(/^\/vendor\/rfqs\/([^/]+)\/quote/)?.[1];
+  const vendorId = page?.match(/^\/vendor\/([^/]+)/)?.[1];
+  return { orderId, productId, rfqId, vendorId: vendorId && !page.startsWith("/vendor/inventory") && !page.startsWith("/vendor/rfqs") ? vendorId : undefined };
+}
+async function searchProducts(svc, params) {
+  const filters = { listing_status: "active" };
+  if (params.category) filters.category = params.category;
+  if (params.verified) filters.verified_vendor = true;
+  if (Number(params.quantity) > 0) filters.quantity_available = { $gte: Number(params.quantity) };
+  const term = normalize(params.species || params.name || params.keyword);
+  let cursor;
+  let matches = [];
+  let exhausted = false;
+  for (let page = 0; page < 8 && matches.length < 6; page += 1) {
+    const query = cursor ? { ...filters, created_date: { $lt: cursor } } : filters;
+    const batch = await svc.entities.Product.filter(query, "-created_date", 50);
+    if (!batch?.length) { exhausted = true; break; }
+    cursor = batch[batch.length - 1].created_date;
+    const found = term ? batch.filter((p) => productText(p).includes(term)) : batch;
+    matches = matches.concat(found);
+    if (batch.length < 50) exhausted = true;
+    if (exhausted) break;
+  }
+  return { items: matches.slice(0, 6), exhausted };
+}
+function rfqMatchesProduct(rfq, product) {
+  return (rfq.items || []).some((item) => {
+    const request = normalize([item.common_name, item.botanical_name, item.size_spec].join(" "));
+    const inventory = productText(product);
+    const nameMatch = [item.common_name, item.botanical_name].filter(Boolean).some((name) => {
+      const normalized = normalize(name);
+      return normalized && (inventory.includes(normalized) || normalized.includes(normalize(product.common_name)));
+    });
+    const specMatch = !item.size_spec || inventory.includes(normalize(item.size_spec));
+    return nameMatch && specMatch && request;
+  });
 }
 
 export default async function(req: Request): Promise<Response> {
@@ -115,212 +73,126 @@ export default async function(req: Request): Promise<Response> {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
     const body = await req.json();
-    const { message, context, history } = body;
+    const { message, context = {}, history = [] } = body;
     if (!message) return Response.json({ error: "Message is required" }, { status: 400 });
-
-    const role = context?.role || "buyer";
-    const page = context?.page || "unknown";
-    const pageCtx = parsePageContext(page);
-
-    // Build conversation history for LLM context (last 6 turns)
-    const historyStr = (history || []).slice(-6).map((h: any) =>
-      `${h.role === "user" ? "User" : "Assistant"}: ${h.text || h.reply || ""}`
-    ).join("\n");
-
-    // Step 1: Classify intent via LLM
+    const svc = base44.asServiceRole;
+    const vendorProfiles = await svc.entities.VendorProfile.filter({ created_by_id: user.id }, "-created_date", 20);
+    const isSeller = vendorProfiles.length > 0;
+    const isVerifiedSeller = vendorProfiles.some((profile) => profile.verification_status === "verified");
+    const presentationRole = context.role === "vendor" && isSeller ? "seller" : "buyer";
+    const pageCtx = parsePageContext(context.page || "");
+    const historyStr = history.slice(-8).map((turn) => `${turn.role === "user" ? "User" : "Assistant"}: ${turn.text || ""}`).join("\n");
     const classification = await base44.integrations.Core.InvokeLLM({
-      prompt: `${SYSTEM_PROMPT}\n\nUser role: ${role}\nCurrent page: ${page}${historyStr ? `\n\nRecent conversation:\n${historyStr}` : ""}\n\nUser message: "${message}"\n\nClassify the intent, extract relevant params (quantity, species, size, location, category, etc.), and write a brief acknowledgment reply. If you will look up real data, mention that. Do NOT fabricate any data — the system will query real TreEbay data after this step.`,
+      prompt: `${SYSTEM_PROMPT}\n\nPresentation mode: ${presentationRole}\nCurrent page: ${context.page || "unknown"}${historyStr ? `\nPrior completed turns:\n${historyStr}` : ""}\n\nCurrent user message: "${message}"\n\nClassify intent, extract parameters, and write a short acknowledgement.`,
       response_json_schema: INTENT_SCHEMA,
     });
-
     const intent = classification.intent || "general";
     const params = classification.params || {};
-    let reply = classification.reply || "I'm here to help you find plants, compare suppliers, and manage your TreEbay activity.";
-
-    // Step 2: Perform authorized read-only queries based on intent
+    let reply = classification.reply || "I can help you search inventory, review RFQs, and navigate TreEbay.";
     const results = { cards: [], actions: [] };
-    let queryData: any = null;
+    let queryData = null;
 
-    try {
-      if (intent === "search_inventory") {
-        // If on a product page, prefer that exact product
-        if (pageCtx.productId) {
-          try {
-            const p = await base44.entities.Product.get(pageCtx.productId);
-            if (p && p.listing_status === "active") {
-              queryData = { type: "products", count: 1, items: [sanitizeProduct(p)] };
-              results.cards = [{ type: "product", data: sanitizeProduct(p) }];
-            }
-          } catch {}
-        }
-        if (!queryData) {
-          const products = await base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 50);
-          let list = products || [];
-          const term = (params.species || params.name || params.keyword || "").toString().toLowerCase().trim();
-          const cat = params.category || "";
-          const minQty = Number(params.quantity) || 0;
-          if (term) list = list.filter((p: any) => [p.common_name, p.botanical_name, p.cultivar, p.category].filter(Boolean).join(" ").toLowerCase().includes(term));
-          if (cat) list = list.filter((p: any) => p.category === cat);
-          if (minQty > 0) list = list.filter((p: any) => p.quantity_available >= minQty);
-          list = list.slice(0, 6);
-          queryData = { type: "products", count: list.length, items: list.map(sanitizeProduct) };
-          results.cards = list.map((p: any) => ({ type: "product", data: sanitizeProduct(p) }));
-        }
-        results.actions.push({ label: "View in Marketplace", path: "/marketplace" });
-      } else if (intent === "find_growers") {
-        // If on a vendor page, prefer that exact vendor
-        if (pageCtx.vendorId) {
-          try {
-            const v = await base44.entities.VendorProfile.get(pageCtx.vendorId);
-            if (v) {
-              queryData = { type: "vendors", count: 1, items: [sanitizeVendor(v)] };
-              results.cards = [{ type: "vendor", data: sanitizeVendor(v) }];
-            }
-          } catch {}
-        }
-        if (!queryData) {
-          const vendors = await base44.entities.VendorProfile.filter({ verification_status: "verified" }, "-rating", 20);
-          const list = (vendors || []).slice(0, 6);
-          queryData = { type: "vendors", count: list.length, items: list.map(sanitizeVendor) };
-          results.cards = list.map((v: any) => ({ type: "vendor", data: sanitizeVendor(v) }));
-        }
-        results.actions.push({ label: "Browse Marketplace", path: "/marketplace" });
-      } else if (intent === "explain_order") {
-        let orders: any[] = [];
-        // If on an order detail page, prefer that exact order (after auth check)
-        if (pageCtx.orderId) {
-          try {
-            const o = await base44.entities.Order.get(pageCtx.orderId);
-            if (o && (o.buyer_id === user.id || o.vendor_owner_id === user.id || user.role === "admin")) {
-              orders = [o];
-            }
-          } catch {}
-        }
-        if (orders.length === 0) {
-          const all = await base44.entities.Order.list("-created_date", 20);
-          orders = (all || []).filter((o: any) => o.buyer_id === user.id || o.vendor_owner_id === user.id || user.role === "admin");
-        }
-        const list = orders.slice(0, 5);
-        queryData = { type: "orders", count: list.length, items: list.map(sanitizeOrder) };
-        results.cards = list.map((o: any) => ({ type: "order", data: sanitizeOrder(o) }));
-        results.actions.push({ label: "View All Orders", path: "/orders" });
-      } else if (intent === "explain_rfq") {
-        let rfqs: any[] = [];
-        // If on an RFQ detail page, prefer that exact RFQ (after auth check)
-        if (pageCtx.rfqId) {
-          try {
-            const r = await base44.entities.RFQ.get(pageCtx.rfqId);
-            if (r && (r.buyer_id === user.id || user.role === "admin")) {
-              rfqs = [r];
-            }
-          } catch {}
-        }
-        if (rfqs.length === 0) {
-          if (role === "vendor") {
-            // Seller discovery: only open / quotes_received per TreEbay policy
-            const [open, qr] = await Promise.all([
-              base44.entities.RFQ.filter({ status: "open" }, "-created_date", 20),
-              base44.entities.RFQ.filter({ status: "quotes_received" }, "-created_date", 20),
-            ]);
-            rfqs = [...(open || []), ...(qr || [])];
-          } else {
-            // Buyer: only own RFQs
-            const all = await base44.entities.RFQ.list("-created_date", 20);
-            rfqs = (all || []).filter((r: any) => r.buyer_id === user.id);
+    if (sellerIntents.has(intent) && !isSeller) {
+      queryData = { type: "seller_access", seller_profile: false };
+      reply = "Seller tools are available once you create a grower profile. You can still browse inventory, request quotes, and manage projects in buyer mode.";
+    } else if (intent === "match_rfqs" && !isVerifiedSeller) {
+      queryData = { type: "seller_access", verified_seller: false };
+      reply = "RFQ matching is available after your grower profile is verified. You can continue preparing your inventory in the meantime.";
+    } else if (intent === "search_inventory") {
+      if (pageCtx.productId) {
+        const product = await svc.entities.Product.get(pageCtx.productId);
+        if (product?.listing_status === "active") queryData = { type: "products", count: 1, items: [sanitizeProduct(product)], searchedExhaustively: true };
+      }
+      if (!queryData) {
+        const search = await searchProducts(svc, params);
+        queryData = { type: "products", count: search.items.length, items: search.items.map(sanitizeProduct), searchedExhaustively: search.exhausted };
+      }
+      results.cards = queryData.items.map((product) => ({ type: "product", data: product }));
+      results.actions.push({ label: "View in Marketplace", path: "/marketplace" });
+    } else if (intent === "find_growers") {
+      const vendors = pageCtx.vendorId ? [await svc.entities.VendorProfile.get(pageCtx.vendorId)].filter(Boolean) : await svc.entities.VendorProfile.filter({ verification_status: "verified" }, "-rating", 6);
+      queryData = { type: "vendors", count: vendors.length, items: vendors.map(sanitizeVendor) };
+      results.cards = vendors.map((vendor) => ({ type: "vendor", data: sanitizeVendor(vendor) }));
+      results.actions.push({ label: "Browse Marketplace", path: "/marketplace" });
+    } else if (intent === "explain_order") {
+      let orders = [];
+      if (pageCtx.orderId) {
+        const order = await svc.entities.Order.get(pageCtx.orderId);
+        if (order && (order.buyer_id === user.id || order.vendor_owner_id === user.id || user.role === "admin")) orders = [order];
+      }
+      if (!orders.length) orders = await svc.entities.Order.filter({ buyer_id: user.id }, "-created_date", 5);
+      if (!orders.length && isSeller) orders = await svc.entities.Order.filter({ vendor_owner_id: user.id }, "-created_date", 5);
+      queryData = { type: "orders", count: orders.length, items: orders.slice(0, 5).map(sanitizeOrder) };
+      results.cards = queryData.items.map((order) => ({ type: "order", data: order }));
+      results.actions.push({ label: "View All Orders", path: "/orders" });
+    } else if (intent === "explain_rfq") {
+      let rfqs = [];
+      if (pageCtx.rfqId) {
+        try {
+          const rfq = await svc.entities.RFQ.get(pageCtx.rfqId);
+          if (rfq?.buyer_id === user.id || user.role === "admin") rfqs = [rfq];
+          if (!rfqs.length && isSeller && rfq) {
+            const quotes = await svc.entities.VendorQuote.filter({ rfq_id: rfq.id, vendor_owner_id: user.id }, "-created_date", 1);
+            if (["open", "quotes_received"].includes(rfq.status) || quotes.length) rfqs = [rfq];
           }
-        }
-        const list = rfqs.slice(0, 5);
-        queryData = { type: "rfqs", count: list.length, items: list.map(sanitizeRFQ) };
-        results.cards = list.map((r: any) => ({ type: "rfq", data: sanitizeRFQ(r) }));
-        results.actions.push({ label: "View Projects & RFQs", path: "/projects" });
-      } else if (intent === "build_rfq_draft") {
-        const draft = {
-          items: params.items || (params.species ? [{ common_name: params.species, quantity: params.quantity || 1, size_spec: params.size || "" }] : []),
-          delivery_city: params.location || params.city || "",
-          delivery_state: params.state || "",
-          notes: params.notes || "",
-        };
-        results.cards.push({ type: "rfq_draft", data: draft });
-        const draftParam = encodeURIComponent(JSON.stringify(draft));
-        results.actions.push({ label: "Review in Projects", path: `/projects?ai_draft=${draftParam}` });
-        queryData = { type: "rfq_draft", draft };
-      } else if (intent === "seller_attention") {
-        // ONLY this seller's products and orders — filter by vendor_owner_id === user.id
-        const [orders, products] = await Promise.all([
-          base44.entities.Order.filter({ vendor_owner_id: user.id }, "-created_date", 20),
-          base44.entities.Product.filter({ vendor_owner_id: user.id }, "-created_date", 50),
-        ]);
-        const needConfirm = (orders || []).filter((o: any) => ["payment_confirmed", "inventory_reserved"].includes(o.order_status));
-        const lowStock = (products || []).filter((p: any) => p.quantity_available <= 5 && p.listing_status === "active");
-        if (needConfirm.length) results.cards.push({ type: "seller_alert", data: { title: "Orders needing confirmation", count: needConfirm.length, items: needConfirm.slice(0, 3).map(sanitizeOrder) } });
-        if (lowStock.length) results.cards.push({ type: "seller_alert", data: { title: "Low inventory alerts", count: lowStock.length, items: lowStock.slice(0, 3).map(sanitizeProduct) } });
-        queryData = { orders_needing_confirmation: needConfirm.length, low_stock_count: lowStock.length, total_products: (products || []).length };
-        results.actions.push({ label: "Go to Dashboard", path: "/vendor" });
-      } else if (intent === "low_stock") {
-        // ONLY this seller's products — filter by vendor_owner_id === user.id
-        const products = await base44.entities.Product.filter({ vendor_owner_id: user.id }, "-created_date", 50);
-        const low = (products || []).filter((p: any) => p.quantity_available <= 10 && p.listing_status === "active");
-        queryData = { type: "products", count: low.length, items: low.map(sanitizeProduct) };
-        results.cards = low.slice(0, 6).map((p: any) => ({ type: "product", data: sanitizeProduct(p) }));
-        results.actions.push({ label: "Manage Inventory", path: "/vendor/inventory" });
-      } else if (intent === "list_draft") {
-        const draft = {
-          common_name: params.species || params.name || "",
-          category: params.category || "",
-          unit_price: params.price || 0,
-          physical_quantity: params.quantity || 0,
-          container_size: params.container || params.size || "",
-          bulk_price_tiers: params.tiers || [],
-        };
-        results.cards.push({ type: "listing_draft", data: draft });
-        const draftParam = encodeURIComponent(JSON.stringify(draft));
-        results.actions.push({ label: "Review in Inventory", path: `/vendor/inventory/new?ai_draft=${draftParam}` });
-        queryData = { type: "listing_draft", draft };
-      } else if (intent === "navigate") {
-        const navMap: Record<string, string> = {
-          marketplace: "/marketplace", home: "/", orders: "/orders", projects: "/projects",
-          rfqs: "/projects", messages: "/messages", account: "/account", inventory: "/vendor/inventory",
-          dashboard: "/vendor", settings: "/settings",
-        };
-        const target = Object.keys(navMap).find((k) => (params.destination || "").toLowerCase().includes(k));
-        if (target) results.actions.push({ label: "Go to " + target, path: navMap[target] });
+        } catch { /* Fall back to the user's visible RFQ list. */ }
       }
-    } catch (queryError: any) {
-      results.queryError = queryError.message;
+      if (!rfqs.length) {
+        if (isSeller && presentationRole === "seller") {
+          const [open, received] = await Promise.all([svc.entities.RFQ.filter({ status: "open" }, "-created_date", 5), svc.entities.RFQ.filter({ status: "quotes_received" }, "-created_date", 5)]);
+          rfqs = [...open, ...received];
+        } else rfqs = await svc.entities.RFQ.filter({ buyer_id: user.id }, "-created_date", 5);
+      }
+      queryData = { type: "rfqs", count: rfqs.length, items: rfqs.slice(0, 5).map(sanitizeRFQ) };
+      results.cards = queryData.items.map((rfq) => ({ type: "rfq", data: rfq }));
+      results.actions.push({ label: "View Projects & RFQs", path: isSeller ? "/vendor/rfqs" : "/projects" });
+    } else if (intent === "match_rfqs") {
+      const products = await svc.entities.Product.filter({ vendor_owner_id: user.id, listing_status: "active" }, "-created_date", 100);
+      const [open, received] = await Promise.all([svc.entities.RFQ.filter({ status: "open" }, "-created_date", 100), svc.entities.RFQ.filter({ status: "quotes_received" }, "-created_date", 100)]);
+      const matches = [];
+      for (const rfq of [...open, ...received]) {
+        const product = products.find((candidate) => rfqMatchesProduct(rfq, candidate));
+        const requested = (rfq.items || []).find((item) => product && rfqMatchesProduct({ ...rfq, items: [item] }, product));
+        if (product && requested) matches.push({ rfq_id: rfq.id, requested_item: requested.common_name || requested.botanical_name, requested_quantity: requested.quantity, product_id: product.id, product_name: product.common_name, quantity_available: product.quantity_available, delivery_city: rfq.delivery_city, delivery_state: rfq.delivery_state, quote_deadline: rfq.quote_deadline });
+        if (matches.length === 6) break;
+      }
+      queryData = { type: "rfq_matches", count: matches.length, items: matches };
+      results.cards = matches.map((match) => ({ type: "rfq_match", data: match }));
+    } else if (intent === "seller_attention" || intent === "low_stock") {
+      const products = await svc.entities.Product.filter({ vendor_owner_id: user.id, listing_status: "active" }, "-created_date", 100);
+      const low = products.filter((product) => product.quantity_available <= (intent === "low_stock" ? 10 : 5));
+      if (intent === "seller_attention") {
+        const orders = await svc.entities.Order.filter({ vendor_owner_id: user.id }, "-created_date", 20);
+        const needsConfirmation = orders.filter((order) => ["payment_confirmed", "inventory_reserved"].includes(order.order_status));
+        if (needsConfirmation.length) results.cards.push({ type: "seller_alert", data: { title: "Orders needing confirmation", count: needsConfirmation.length } });
+        if (low.length) results.cards.push({ type: "seller_alert", data: { title: "Low inventory alerts", count: low.length } });
+        queryData = { orders_needing_confirmation: needsConfirmation.length, low_stock_count: low.length };
+      } else {
+        queryData = { type: "products", count: low.length, items: low.slice(0, 6).map(sanitizeProduct) };
+        results.cards = queryData.items.map((product) => ({ type: "product", data: product }));
+      }
+      results.actions.push({ label: "Manage Inventory", path: "/vendor/inventory" });
+    } else if (intent === "list_draft") {
+      const draft = { common_name: params.species || params.name || "", category: params.category || "", unit_price: params.price || 0, physical_quantity: params.quantity || 0, container_size: params.container || params.size || "", bulk_price_tiers: params.tiers || [] };
+      queryData = { type: "listing_draft", draft };
+      results.cards.push({ type: "listing_draft", data: draft });
+      results.actions.push({ label: "Review in Inventory", path: `/vendor/inventory/new?ai_draft=${encodeURIComponent(JSON.stringify(draft))}` });
+    } else if (intent === "build_rfq_draft") {
+      const draft = { items: params.items || (params.species ? [{ common_name: params.species, quantity: params.quantity || 1, size_spec: params.size || "" }] : []), delivery_city: params.location || params.city || "", delivery_state: params.state || "", notes: params.notes || "" };
+      queryData = { type: "rfq_draft", draft };
+      results.cards.push({ type: "rfq_draft", data: draft });
+      results.actions.push({ label: "Review in Projects", path: `/projects?ai_draft=${encodeURIComponent(JSON.stringify(draft))}` });
     }
 
-    // Step 3: Post-query LLM explanation — summarize ONLY actual query results
-    if (queryData && !["general", "navigate", "guided_help"].includes(intent)) {
-      try {
-        const explanation = await base44.integrations.Core.InvokeLLM({
-          prompt: `You are explaining real TreEbay marketplace query results to a ${role} user.
-
-STRICT RULES:
-- You may ONLY describe what is explicitly in the JSON data below.
-- Do NOT invent prices, quantities, vendor names, city names, or availability that are not in the data.
-- Do NOT use knowledge from training data about plants or nurseries.
-- If the data shows zero results, say "I couldn't find any matching results" and suggest creating an RFQ or adjusting the search.
-- Keep it to 2-4 sentences.
-- Reference actual product names, prices, and vendors from the data when helpful.
-
-User asked: "${message}"
-Intent: ${intent}
-
-Actual query results (JSON — this is the ONLY source of truth):
-${JSON.stringify(queryData).slice(0, 2500)}
-
-Write your explanation:`,
-        });
-        if (explanation) reply = explanation;
-      } catch {
-        // Keep the classification reply if explanation fails
-      }
+    if (queryData && !["seller_access", "listing_draft", "rfq_draft"].includes(queryData.type)) {
+      const explanation = await base44.integrations.Core.InvokeLLM({
+        prompt: `Repeat only explicit fields in the verified TreEbay JSON data below. Do not infer plant compatibility, summarize statuses with new labels, calculate totals, or invent data. Describe an RFQ as open only if its explicit status is open. If count is zero and searchedExhaustively is true, say no matching results were found. If count is zero and searchedExhaustively is false, say the search is still limited and suggest Marketplace or an RFQ. Keep to 2-4 sentences.\n\nUser message: ${message}\nIntent: ${intent}\nData: ${JSON.stringify(queryData).slice(0, 3000)}`,
+      });
+      if (explanation) reply = explanation;
     }
-
-    return Response.json({ reply, intent, results, user: { id: user.id, role } });
-  } catch (error: any) {
-    return Response.json({ error: error.message, reply: "I'm having trouble connecting right now. You can still browse the marketplace, create RFQs, and manage orders normally." }, { status: 500 });
+    return Response.json({ reply, intent, results, user: { id: user.id, isSeller, isVerifiedSeller, presentationRole } });
+  } catch (error) {
+    return Response.json({ error: error.message, reply: "I’m having trouble connecting right now. You can still browse the marketplace and manage TreEbay normally." }, { status: 500 });
   }
 }
