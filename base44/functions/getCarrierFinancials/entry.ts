@@ -13,17 +13,19 @@ export default async function(req) {
     const carrier = (carriers || [])[0];
     if (!carrier) return Response.json({ error: "No carrier profile found" }, { status: 404 });
 
-    const freightQuotes = await svc.entities.FreightQuote.filter({ carrier_id: carrier.id }, "-created_date", 200);
+    const allFreightQuotes = await svc.entities.FreightQuote.filter({ carrier_id: carrier.id }, "-created_date", 200);
     const ledgerEntries = await svc.entities.TransactionLedgerEntry.filter({ party_type: "carrier", party_id: carrier.id }, "-created_date", 500);
     const shipments = await svc.entities.Shipment.filter({ carrier_id: carrier.id }, "-created_date", 100);
 
-    const grossFreightEarnings = (freightQuotes || []).reduce((s, fq) => s + (fq.carrier_pay_cents || 0), 0);
+    // Only count assigned/completed freight quotes — NOT declined, expired, cancelled, or superseded.
+    const activeFreightQuotes = (allFreightQuotes || []).filter((fq) => fq.status === "assigned");
+    const grossFreightEarnings = activeFreightQuotes.reduce((s, fq) => s + (fq.carrier_pay_cents || 0), 0);
     const settlementEntries = (ledgerEntries || []).filter((e) => e.entry_type === "carrier_payable" && (e.transaction_id || "").startsWith("settle:"));
     const settledEarnings = settlementEntries.reduce((s, e) => s + (e.debit_cents || 0), 0);
     const pendingEarnings = grossFreightEarnings - settledEarnings;
 
-    // Per-load breakdown
-    const loads = (freightQuotes || []).map((fq) => {
+    // Per-load breakdown — only active (assigned) loads
+    const loads = activeFreightQuotes.map((fq) => {
       const shipment = (shipments || []).find((s) => s.freight_quote_id === fq.id);
       const settled = settlementEntries.some((e) => e.order_id === fq.order_id);
       return {
@@ -47,10 +49,12 @@ export default async function(req) {
         gross_freight_earnings_cents: grossFreightEarnings,
         settled_earnings_cents: settledEarnings,
         pending_earnings_cents: pendingEarnings,
-        total_loads: (freightQuotes || []).length,
+        total_loads: activeFreightQuotes.length,
         settled_loads: settlementEntries.length,
       },
       loads,
+      partial: (allFreightQuotes || []).length >= 200,
+      records_scanned: (allFreightQuotes || []).length,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { processTestPayment } from "../../shared/payments.ts";
 import { advanceFulfillment, cancelOrder, recordDeliveryEvent } from "../../shared/fulfillment.ts";
 import { getActiveReservation, getReservation } from "../../shared/inventory.ts";
-import { allocationGroup, settlementGroup, refundGroup, createLedgerEntry } from "../../shared/transactions.ts";
+import { allocationGroup, settlementGroup, refundGroup, createLedgerEntry, updateShipmentStatus, transitionOrder, vendorPayableCents } from "../../shared/transactions.ts";
 import { retryFreightAssignment } from "../../shared/freight.ts";
 
 // ADMIN TEST SIMULATOR.
@@ -147,56 +147,118 @@ export default async function(req) {
         break;
       }
       case "SCENARIO_C": {
-        // Direct listing, third-party carrier: pay -> confirm -> prepare -> ready -> assign (auto freight) -> pickup -> transit -> deliver -> settle
-        const steps = ["TEST_SUCCESS", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "MAINTENANCE"];
+        // Direct listing, third-party carrier: use ACTUAL roles
+        // buyer pays -> vendor confirms/prepares/marks ready -> SYSTEM auto-assigns freight ->
+        // carrier accepts/picks up/in transit/delivers with POD -> SYSTEM completes + settles
         const results = [];
-        for (const step of steps) {
-          if (step === "MAINTENANCE") { const res = await base44.functions.invoke("runTransactionMaintenance", {}); results.push({ step, result: res.data }); }
-          else if (step === "TEST_SUCCESS") { results.push({ step, result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body }); }
-          else { results.push({ step, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
+        results.push({ step: "buyer_pay", result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body });
+        for (let i = 0; i < 3; i++) { results.push({ step: "vendor_advance_" + i, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
+        let orderC = await svc.entities.Order.get(orderId);
+        if (orderC.order_status === "ready_for_pickup") {
+          const res = await base44.functions.invoke("runTransactionMaintenance", {});
+          results.push({ step: "maintenance_freight", result: res.data });
+          orderC = await svc.entities.Order.get(orderId);
         }
+        const shipments = await svc.entities.Shipment.filter({ order_id: orderId });
+        const shipment = (shipments || [])[0];
+        if (shipment && shipment.carrier_id && orderC.order_status === "delivery_assigned") {
+          await updateShipmentStatus(svc, shipment.id, "pickup_scheduled", { type: "carrier", id: "simulator", description: "Carrier accepted (simulator)" });
+          await updateShipmentStatus(svc, shipment.id, "picked_up", { type: "carrier", id: "simulator", description: "Carrier picked up (simulator)" });
+          await transitionOrder(svc, orderId, "picked_up", { type: "carrier", id: "simulator", description: "Carrier picked up (simulator)" });
+          await updateShipmentStatus(svc, shipment.id, "in_transit", { type: "carrier", id: "simulator", description: "Carrier in transit (simulator)" });
+          await transitionOrder(svc, orderId, "in_transit", { type: "carrier", id: "simulator", description: "Carrier in transit (simulator)" });
+          await svc.entities.Shipment.update(shipment.id, { delivery_timestamp: new Date().toISOString(), receiver_name: "TEST Receiver", confirmation_code: "TEST-POD-001", carrier_confirmed: true });
+          await updateShipmentStatus(svc, shipment.id, "delivered", { type: "carrier", id: "simulator", description: "Carrier delivered (simulator)" });
+          await transitionOrder(svc, orderId, "delivered", { type: "carrier", id: "simulator", description: "Carrier delivered (simulator)" });
+          results.push({ step: "carrier_fulfillment", result: { shipment_status: "delivered", order_status: "delivered" } });
+        }
+        const res2 = await base44.functions.invoke("runTransactionMaintenance", {});
+        results.push({ step: "system_complete_settle", result: res2.data });
         result = { composite: true, steps: results };
         break;
       }
       case "SCENARIO_D": {
-        // RFQ path: same as C but for an accepted-quote order
-        const steps = ["TEST_SUCCESS", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "MAINTENANCE"];
+        // RFQ path: same carrier-authoritative flow as C after RFQ acceptance
         const results = [];
-        for (const step of steps) {
-          if (step === "MAINTENANCE") { const res = await base44.functions.invoke("runTransactionMaintenance", {}); results.push({ step, result: res.data }); }
-          else if (step === "TEST_SUCCESS") { results.push({ step, result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body }); }
-          else { results.push({ step, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
+        results.push({ step: "buyer_pay", result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body });
+        for (let i = 0; i < 3; i++) { results.push({ step: "vendor_advance_" + i, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
+        let orderD = await svc.entities.Order.get(orderId);
+        if (orderD.order_status === "ready_for_pickup") {
+          const res = await base44.functions.invoke("runTransactionMaintenance", {});
+          results.push({ step: "maintenance_freight", result: res.data });
+          orderD = await svc.entities.Order.get(orderId);
         }
+        const shipments = await svc.entities.Shipment.filter({ order_id: orderId });
+        const shipment = (shipments || [])[0];
+        if (shipment && shipment.carrier_id && orderD.order_status === "delivery_assigned") {
+          await updateShipmentStatus(svc, shipment.id, "pickup_scheduled", { type: "carrier", id: "simulator", description: "Carrier accepted (simulator)" });
+          await updateShipmentStatus(svc, shipment.id, "picked_up", { type: "carrier", id: "simulator", description: "Carrier picked up (simulator)" });
+          await transitionOrder(svc, orderId, "picked_up", { type: "carrier", id: "simulator", description: "Carrier picked up (simulator)" });
+          await updateShipmentStatus(svc, shipment.id, "in_transit", { type: "carrier", id: "simulator", description: "Carrier in transit (simulator)" });
+          await transitionOrder(svc, orderId, "in_transit", { type: "carrier", id: "simulator", description: "Carrier in transit (simulator)" });
+          await svc.entities.Shipment.update(shipment.id, { delivery_timestamp: new Date().toISOString(), receiver_name: "TEST Receiver", confirmation_code: "TEST-POD-002", carrier_confirmed: true });
+          await updateShipmentStatus(svc, shipment.id, "delivered", { type: "carrier", id: "simulator", description: "Carrier delivered (simulator)" });
+          await transitionOrder(svc, orderId, "delivered", { type: "carrier", id: "simulator", description: "Carrier delivered (simulator)" });
+          results.push({ step: "carrier_fulfillment", result: { shipment_status: "delivered", order_status: "delivered" } });
+        }
+        const res2 = await base44.functions.invoke("runTransactionMaintenance", {});
+        results.push({ step: "system_complete_settle", result: res2.data });
         result = { composite: true, steps: results };
         break;
       }
       case "SCENARIO_E": {
-        // Notification fails after commercial state commits — verify state is preserved
+        // Notification fails after commercial state commits — verify state is preserved.
+        // notifySafely has bounded retry (3 attempts) and creates notification_delivery_failed
+        // SystemException on ultimate failure. Commercial state is NEVER rolled back.
         const payResult = (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body;
-        result = { composite: true, note: "Payment processed; notifications use notifySafely with retry+exception. Order state is preserved regardless of notification outcome.", payment: payResult };
+        const orderAfter = await svc.entities.Order.get(orderId);
+        result = {
+          composite: true,
+          payment: payResult,
+          commercialStatePreserved: orderAfter.payment_status === "paid" && orderAfter.order_status === "inventory_reserved",
+          note: "Payment processed. Notifications use notifySafely with 3-attempt retry + exception. Order state preserved regardless of notification outcome.",
+        };
         break;
       }
       case "SCENARIO_F": {
-        // Carrier assignment fails — temporarily suspend all verified carriers
+        // Freight retry lifecycle: no carrier -> retries -> no immediate escalation ->
+        // retry exhaustion -> Admin escalation -> carrier available -> recovery -> exception resolved
+        const results = [];
+        results.push({ step: "buyer_pay", result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body });
+        for (let i = 0; i < 3; i++) { results.push({ step: "vendor_advance_" + i, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
         const verifiedCarriers = await svc.entities.CarrierProfile.filter({ verification_status: "verified" });
         for (const c of (verifiedCarriers || [])) { await svc.entities.CarrierProfile.update(c.id, { verification_status: "suspended" }); }
-        const freightRes = await retryFreightAssignment(svc);
-        for (const c of (verifiedCarriers || [])) { await svc.entities.CarrierProfile.update(c.id, { verification_status: "verified" }); }
-        result = { freightAssignment: freightRes, note: "All carriers temporarily suspended to simulate failure. Carriers restored." };
+        const res1 = await base44.functions.invoke("runTransactionMaintenance", {});
+        results.push({ step: "maintenance_no_carrier", result: res1.data });
+        const excs1 = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" });
+        const exc1 = (excs1 || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
+        results.push({ step: "exception_after_first_failure", exception: exc1 ? { severity: exc1.severity, status: exc1.status, requires_admin: exc1.requires_admin, retry_count: exc1.retry_count } : null });
+        for (let i = 0; i < 3; i++) { await base44.functions.invoke("runTransactionMaintenance", {}); }
+        const excs2 = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" });
+        const exc2 = (excs2 || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
+        results.push({ step: "exception_after_exhaustion", exception: exc2 ? { severity: exc2.severity, status: exc2.status, requires_admin: exc2.requires_admin, retry_count: exc2.retry_count } : null });
+        if (verifiedCarriers && verifiedCarriers.length) { await svc.entities.CarrierProfile.update(verifiedCarriers[0].id, { verification_status: "verified" }); }
+        const resFinal = await base44.functions.invoke("runTransactionMaintenance", {});
+        results.push({ step: "maintenance_after_restore", result: resFinal.data });
+        const excs3 = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" });
+        const exc3 = (excs3 || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
+        results.push({ step: "exception_after_recovery", exceptionResolved: !exc3 });
+        result = { composite: true, steps: results };
         break;
       }
       case "SCENARIO_G": {
-        // Carrier payout settlement writes partially — create vendor payout only, then maintenance completes carrier payout
+        // Partial settlement recovery: create ONLY the correct vendor payout entry,
+        // leave carrier settlement absent, then maintenance creates the missing carrier entry.
         const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
         if (!cq) { result = { error: "No checkout quote" }; break; }
         const group = settlementGroup(orderId);
-        await createLedgerEntry(svc, { order_id: orderId, transaction_id: group, entry_key: "payout", entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id, description: "Vendor payout (partial write test)", debit_cents: Math.round((cq.merchandise_subtotal_cents || 0) * 0.96) });
+        await createLedgerEntry(svc, { order_id: orderId, transaction_id: group, entry_key: "payout", entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id, description: "Vendor payout (partial write test)", debit_cents: vendorPayableCents(cq) });
         const res = await base44.functions.invoke("runTransactionMaintenance", {});
         result = { partialWrite: true, maintenance: res.data };
         break;
       }
       case "SCENARIO_H": {
-        // Financial allocation mismatch — inject an extra ledger entry to unbalance the allocation
+        // Financial mismatch blocks settlement with CRITICAL exception
         const group = allocationGroup(orderId);
         await createLedgerEntry(svc, { order_id: orderId, transaction_id: group, entry_key: "test_mismatch", entry_type: "adjustment", party_type: "marketplace", description: "TEST mismatch entry", debit_cents: 100 });
         const res = await base44.functions.invoke("runTransactionMaintenance", {});

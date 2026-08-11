@@ -29,13 +29,14 @@ export default function VendorFinancials() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <StatCard icon={TrendingUp} label="Gross Merch Sales" value={formatCents(v.totals.gross_merchandise_sales_cents)} />
+        <StatCard icon={TrendingUp} label="Gross Marketplace Sales" value={formatCents(v.totals.gross_merchandise_sales_cents)} />
+        <StatCard icon={Receipt} label="Taxable Marketplace Sales" value={formatCents(v.totals.taxable_marketplace_sales_cents)} />
         <StatCard icon={Receipt} label="Tax Collected by TreEbay" value={formatCents(v.totals.tax_collected_cents)} />
         <StatCard icon={Truck} label="Delivery Revenue" value={formatCents(v.totals.vendor_delivery_revenue_cents)} />
         <StatCard icon={CheckCircle2} label="Net Settled Proceeds" value={formatCents(v.totals.net_settled_proceeds_cents)} />
         <StatCard icon={Receipt} label="Refunds" value={formatCents(v.totals.refunds_cents)} />
-        <StatCard icon={BarChart3} label="Total Orders" value={v.totals.total_orders} />
       </div>
+      {data.partial && <p className="text-xs text-amber-600">Partial TEST totals — more records exist beyond the scanned window.</p>}
 
       <Card className="p-4">
         <h2 className="font-semibold text-sm mb-2">Fee Policy</h2>

@@ -64,6 +64,24 @@ export function calculateTestTaxCents(taxableCents) {
   return { taxCents: Math.round(taxableCents * rate), rate, provider: "trebay_test", status: "test_estimated" };
 }
 
+// Deterministic TEST freight quote breakdown. buyer_freight_charge_cents is LOCKED to
+// what the buyer paid at checkout. carrier_pay_cents is a SEPARATE authoritative value
+// (equals buyer charge in TEST mode — no marketplace freight markup yet).
+export function genFreightQuoteReference() {
+  return "FQ-TEST-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+export function calculateTestFreightQuote(buyerFreightChargeCents, equipmentType) {
+  const carrierPay = buyerFreightChargeCents || 0;
+  const linehaul = Math.round(carrierPay * 0.80);
+  const fuel = Math.round(carrierPay * 0.12);
+  const accessorial = carrierPay - linehaul - fuel;
+  return {
+    linehaul_cents: linehaul, fuel_surcharge_cents: fuel, accessorial_cents: accessorial,
+    carrier_pay_cents: carrierPay, buyer_freight_charge_cents: carrierPay,
+    equipment_type: equipmentType || "flatbed",
+  };
+}
+
 // ---- Delivery options ----
 export function calculateDeliveryOptionsCents(product, vendorDeliveryCents, vendorDeliveryAvailable) {
   const options = [];
@@ -128,17 +146,39 @@ export async function assembleCheckout(svc, p) {
     delivery_instructions: dest.instructions || null, contact_name: dest.contact_name || null, contact_phone: dest.contact_phone || null,
     expiration_at: expiresAt,
   });
+  // Complete TEST tax snapshot — all authoritative fields populated.
+  const taxableDeliveryCents = 0; // TEST policy: delivery is not taxable
+  const totalTaxableCents = taxableCents + taxableDeliveryCents;
   await svc.entities.TaxCalculation.create({
     checkout_quote_id: quote.id, provider: tax.provider, jurisdiction: dest.state || null,
-    taxable_amount_cents: taxableCents, tax_amount_cents: tax.taxCents, rate: tax.rate, status: tax.status,
+    taxable_amount_cents: taxableCents, taxable_delivery_amount_cents: taxableDeliveryCents,
+    total_taxable_amount_cents: totalTaxableCents, tax_amount_cents: tax.taxCents, rate: tax.rate,
+    status: tax.status, collection_party: "trebay_test", remittance_responsibility: "trebay_test",
   });
   const destLabel = [dest.city, dest.state].filter(Boolean).join(", ");
   // Return the PERSISTED options (with ids) — the buyer selects one by id.
   const createdOptions = [];
   for (const opt of deliveryOptions) {
+    let freightQuoteId = null;
+    // Create a TEST FreightQuote at checkout time for third-party carrier (no carrier assigned yet).
+    // The buyer's freight price is locked here and never changes after payment.
+    if (opt.provider_type === "third_party_carrier") {
+      const freight = calculateTestFreightQuote(opt.delivery_price_cents, "flatbed");
+      const fq = await svc.entities.FreightQuote.create({
+        order_id: null, checkout_quote_id: quote.id, carrier_id: null, carrier_owner_id: null,
+        buyer_id: p.buyer_id, vendor_owner_id: p.vendor_owner_id,
+        provider: "trebay_test_freight", quote_reference: genFreightQuoteReference(),
+        linehaul_cents: freight.linehaul_cents, fuel_surcharge_cents: freight.fuel_surcharge_cents,
+        accessorial_cents: freight.accessorial_cents, carrier_pay_cents: freight.carrier_pay_cents,
+        buyer_freight_charge_cents: freight.buyer_freight_charge_cents, equipment_type: freight.equipment_type,
+        estimated_transit_days: opt.estimated_delivery_days || 2,
+        expires_at: new Date(Date.now() + 48 * 3600000).toISOString(), status: "quoted",
+      });
+      freightQuoteId = fq.id;
+    }
     const created = await svc.entities.DeliveryOption.create({
       checkout_quote_id: quote.id, buyer_id: p.buyer_id, provider_type: opt.provider_type, service_type: opt.service_type,
-      delivery_price_cents: opt.delivery_price_cents, status: "available",
+      delivery_price_cents: opt.delivery_price_cents, freight_quote_id: freightQuoteId, status: "available",
       expires_at: expiresAt, delivery_location: destLabel,
     });
     createdOptions.push({ ...created, estimated_delivery_days: opt.estimated_delivery_days });
@@ -192,6 +232,21 @@ export async function applyDeliveryOption(svc, quoteId, optionId, address) {
 
   const updated = await svc.entities.CheckoutQuote.update(quoteId, patch);
 
+  // Update the authoritative TaxCalculation snapshot when delivery address/state changes.
+  const taxRows = await svc.entities.TaxCalculation.filter({ checkout_quote_id: quoteId });
+  const taxCalc = (taxRows || [])[0];
+  if (taxCalc) {
+    const newTaxableDeliveryCents = 0; // TEST policy: delivery is not taxable
+    const newTotalTaxableCents = quote.merchandise_subtotal_cents + newTaxableDeliveryCents;
+    const newTax = calculateTestTaxCents(quote.merchandise_subtotal_cents);
+    await svc.entities.TaxCalculation.update(taxCalc.id, {
+      taxable_delivery_amount_cents: newTaxableDeliveryCents,
+      total_taxable_amount_cents: newTotalTaxableCents,
+      tax_amount_cents: newTax.taxCents,
+      jurisdiction: a.state || taxCalc.jurisdiction || null,
+    });
+  }
+
   // Selection is switchable: release any previously selected option, select this one.
   const siblings = await svc.entities.DeliveryOption.filter({ checkout_quote_id: quoteId });
   for (const o of (siblings || [])) {
@@ -199,6 +254,10 @@ export async function applyDeliveryOption(svc, quoteId, optionId, address) {
     if (o.status === "selected") await svc.entities.DeliveryOption.update(o.id, { status: "available" });
   }
   await svc.entities.DeliveryOption.update(optionId, { status: "selected" });
+  // Mark the checkout FreightQuote as "selected" when the buyer selects the third-party option.
+  if (option.freight_quote_id) {
+    await svc.entities.FreightQuote.update(option.freight_quote_id, { status: "selected" });
+  }
   return updated;
 }
 
@@ -362,17 +421,75 @@ export async function createSettlementLedgerEntry(svc, order, cq) {
     order_id: order.id, transaction_id: group, entry_key: "payout", entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id,
     description: "Vendor settlement payout (TEST)", debit_cents: vendorPayableCents(cq),
   });
-  // Carrier payout — only for third_party_carrier. Idempotent per-entry: retries create only the missing entry.
+  // Carrier payout — only for third_party_carrier. Uses FreightQuote.carrier_pay_cents
+  // (NOT cq.delivery_amount_cents) so buyer freight charge and carrier pay stay distinct.
+  // Idempotent per-entry: retries create only the missing entry.
   if (cq.delivery_method === "third_party_carrier" && (cq.delivery_amount_cents || 0) > 0) {
     let carrierId = null;
+    let carrierPayCents = cq.delivery_amount_cents || 0; // fallback
     const shipRows = await svc.entities.Shipment.filter({ order_id: order.id });
-    if (shipRows && shipRows.length) carrierId = shipRows[0].carrier_id || null;
+    const shipment = (shipRows || [])[0];
+    if (shipment) {
+      carrierId = shipment.carrier_id || null;
+      if (shipment.freight_quote_id) {
+        const fq = await svc.entities.FreightQuote.get(shipment.freight_quote_id);
+        if (fq) carrierPayCents = fq.carrier_pay_cents || carrierPayCents;
+      }
+    }
     await createLedgerEntry(svc, {
       order_id: order.id, transaction_id: group, entry_key: "carrier_payout", entry_type: "carrier_payable", party_type: "carrier", party_id: carrierId,
-      description: "Carrier freight payout (TEST)", debit_cents: cq.delivery_amount_cents,
+      description: "Carrier freight payout (TEST)", debit_cents: carrierPayCents,
     });
   }
   return { created: true };
+}
+
+// Verify settlement reconciliation before marking an order as settled.
+// For vendor payout: expected = vendorPayableCents(cq)
+// For third-party freight: expected carrier payout = FreightQuote.carrier_pay_cents
+// If a required entry is missing: idempotently create ONLY the missing correct entry.
+// If an existing entry has wrong amount/party/carrier: raise CRITICAL, do NOT overwrite.
+export async function verifySettlementReconciliation(svc, order, cq) {
+  const group = settlementGroup(order.id);
+  const rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: order.id, transaction_id: group });
+
+  // --- Vendor payout reconciliation ---
+  const expectedVendorPayout = vendorPayableCents(cq);
+  const vendorEntry = (rows || []).find((e) => e.entry_key === "payout" && e.party_type === "vendor");
+  if (!vendorEntry) {
+    await createLedgerEntry(svc, {
+      order_id: order.id, transaction_id: group, entry_key: "payout", entry_type: "payout", party_type: "vendor", party_id: cq.vendor_id,
+      description: "Vendor settlement payout (reconciliation)", debit_cents: expectedVendorPayout,
+    });
+  } else if (vendorEntry.debit_cents !== expectedVendorPayout || vendorEntry.party_id !== cq.vendor_id) {
+    throw new Error("Financial reconciliation: vendor payout entry has wrong amount (" + vendorEntry.debit_cents + " vs " + expectedVendorPayout + ") or party (" + vendorEntry.party_id + " vs " + cq.vendor_id + ").");
+  }
+
+  // --- Carrier payout reconciliation (only for third_party_carrier) ---
+  if (cq.delivery_method === "third_party_carrier" && (cq.delivery_amount_cents || 0) > 0) {
+    const shipRows = await svc.entities.Shipment.filter({ order_id: order.id });
+    const shipment = (shipRows || [])[0];
+    if (!shipment) throw new Error("Financial reconciliation: no shipment for third-party carrier order.");
+    if (!shipment.carrier_id) throw new Error("Financial reconciliation: shipment has no carrier assigned.");
+    if (!shipment.freight_quote_id) throw new Error("Financial reconciliation: shipment has no freight quote.");
+
+    const freightQuote = await svc.entities.FreightQuote.get(shipment.freight_quote_id);
+    if (!freightQuote) throw new Error("Financial reconciliation: freight quote not found.");
+    if (freightQuote.carrier_id !== shipment.carrier_id) throw new Error("Financial reconciliation: freight quote carrier mismatch.");
+
+    const expectedCarrierPayout = freightQuote.carrier_pay_cents || 0;
+    const carrierEntry = (rows || []).find((e) => e.entry_key === "carrier_payout" && e.party_type === "carrier");
+    if (!carrierEntry) {
+      await createLedgerEntry(svc, {
+        order_id: order.id, transaction_id: group, entry_key: "carrier_payout", entry_type: "carrier_payable", party_type: "carrier", party_id: shipment.carrier_id,
+        description: "Carrier freight payout (reconciliation)", debit_cents: expectedCarrierPayout,
+      });
+    } else if (carrierEntry.debit_cents !== expectedCarrierPayout || carrierEntry.party_id !== shipment.carrier_id) {
+      throw new Error("Financial reconciliation: carrier payout entry has wrong amount (" + carrierEntry.debit_cents + " vs " + expectedCarrierPayout + ") or party (" + carrierEntry.party_id + " vs " + shipment.carrier_id + ").");
+    }
+  }
+
+  return { reconciled: true };
 }
 
 // Update the carrier delivery payable party_id after freight assignment.

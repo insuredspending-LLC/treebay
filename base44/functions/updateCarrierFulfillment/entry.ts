@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { updateShipmentStatus, transitionOrder, raiseExceptionOnce } from "../../shared/transactions.ts";
 import { notifySafely } from "../../shared/notifications.ts";
+import { reassignFreight } from "../../shared/freight.ts";
 
 // Carrier-authorized shipment actions. The carrier mutates shipment status ONLY
 // through this secure backend function — Shipment is never directly writable from React.
@@ -45,6 +46,13 @@ export default async function(req) {
       newStatus = "in_transit";
       description = "Carrier marked in transit";
     } else if (action === "deliver") {
+      // POD validation: require at least one piece of delivery evidence
+      const hasReceiver = body?.receiver_name && String(body.receiver_name).trim();
+      const hasCode = body?.confirmation_code && String(body.confirmation_code).trim();
+      const hasPodUrl = body?.proof_of_delivery_url && String(body.proof_of_delivery_url).trim();
+      if (!hasReceiver && !hasCode && !hasPodUrl) {
+        return Response.json({ error: "Proof of delivery required: provide receiver name, confirmation code, or proof of delivery photo." }, { status: 400 });
+      }
       newStatus = "delivered";
       description = "Carrier confirmed delivery";
       // Record POD fields — do not invent values
@@ -57,17 +65,26 @@ export default async function(req) {
         carrier_confirmed: true,
       });
     } else if (action === "decline") {
-      // Carrier declines the assigned load — raises exception for re-assignment
-      await svc.entities.FreightQuote.update(shipment.freight_quote_id, { status: "declined" });
-      await raiseExceptionOnce(svc, {
-        severity: "ACTION_REQUIRED", exception_type: "freight_assignment_failed",
-        order_id: order.id, shipment_id: shipment.id,
-        buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id,
-        reason: "Carrier declined load for " + order.order_number,
-        recommended_action: "Re-assign to another verified carrier via maintenance.",
-        requires_admin: true, status: "ADMIN_REVIEW",
-      });
-      await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "carrier_declined", title: "Carrier declined load", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id });
+      // Carrier declines — release carrier assignment, try immediate reassignment to a different carrier.
+      // Decline history is preserved via the declined FreightQuote. The same carrier is NOT re-assigned.
+      const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
+      try {
+        await reassignFreight(svc, order, cq, shipment, carrier.id);
+        await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "carrier_declined", title: "Carrier declined — new carrier assigned", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id });
+      } catch (e) {
+        // Reassignment failed — raise WARNING for automatic retry via maintenance
+        await raiseExceptionOnce(svc, {
+          severity: "WARNING", exception_type: "freight_assignment_failed",
+          order_id: order.id, shipment_id: shipment.id,
+          buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id,
+          reason: "Carrier declined load for " + order.order_number + " and no alternative carrier available",
+          recommended_action: "System will retry. Verify a carrier in admin if retries exhaust.",
+          requires_admin: false, status: "AUTO_RETRYING",
+          retry_count: 0, max_retries: 3,
+          next_retry_at: new Date(Date.now() + 3600000).toISOString(),
+        });
+        await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "carrier_declined", title: "Carrier declined — awaiting reassignment", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id });
+      }
       return Response.json({ ok: true, declined: true });
     } else {
       return Response.json({ error: "Unknown action" }, { status: 400 });

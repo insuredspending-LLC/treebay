@@ -136,6 +136,22 @@ export default function OrderDetail() {
     } catch (e) { toast({ title: "Payment failed", description: apiError(e), variant: "destructive" }); }
   };
 
+  const confirmPickup = async () => {
+    try {
+      await base44.functions.invoke("updateBuyerPickup", { orderId: id, action: "confirm_pickup" });
+      toast({ title: "Pickup confirmed" });
+      load();
+    } catch (e) { toast({ title: "Could not confirm pickup", description: apiError(e), variant: "destructive" }); }
+  };
+
+  const confirmReceived = async () => {
+    try {
+      await base44.functions.invoke("updateBuyerPickup", { orderId: id, action: "confirm_received" });
+      toast({ title: "Receipt confirmed" });
+      load();
+    } catch (e) { toast({ title: "Could not confirm receipt", description: apiError(e), variant: "destructive" }); }
+  };
+
   const openDocument = (doc) => {
     const blob = new Blob([doc.html_content || "<p>No content</p>"], { type: "text/html" });
     const url = URL.createObjectURL(blob);
@@ -191,6 +207,38 @@ export default function OrderDetail() {
         <Card className="p-4 flex items-center gap-2">
           <Clock className="w-5 h-5 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">TreEbay will complete this order automatically.</p>
+        </Card>
+      )}
+
+      {/* Buyer pickup actions — buyer confirms pickup and receipt */}
+      {isBuyer && isPickup && order.order_status === "ready_for_pickup" && (
+        <Card className="p-4 border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your pickup action</p>
+              <p className="text-sm font-medium mt-0.5">Confirm pickup</p>
+            </div>
+            <Button onClick={confirmPickup}>Confirm Pickup</Button>
+          </div>
+        </Card>
+      )}
+      {isBuyer && isPickup && order.order_status === "picked_up" && (
+        <Card className="p-4 border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your receipt action</p>
+              <p className="text-sm font-medium mt-0.5">Confirm receipt</p>
+            </div>
+            <Button onClick={confirmReceived}>Confirm Receipt</Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Third-party carrier: waiting for automatic freight assignment */}
+      {order.fulfillment_method === "third_party_carrier" && order.order_status === "ready_for_pickup" && (
+        <Card className="p-4 flex items-center gap-2">
+          <Truck className="w-5 h-5 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">TreEbay is automatically assigning a freight carrier. No action needed.</p>
         </Card>
       )}
 

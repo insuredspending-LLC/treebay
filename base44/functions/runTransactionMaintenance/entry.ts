@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
-  transitionOrder, createSettlementLedgerEntry, verifyAllocationForSettlement, rollbackExpiredRFQCheckout,
+  transitionOrder, createSettlementLedgerEntry, verifyAllocationForSettlement, verifySettlementReconciliation, rollbackExpiredRFQCheckout,
   hasBlockingException, closeDeliveryOptions, raiseExceptionOnce, updateShipmentStatus,
 } from "../../shared/transactions.ts";
 import { releaseForOrder, checkoutHoldsInventory } from "../../shared/inventory.ts";
@@ -143,11 +143,12 @@ export default async function(req) {
           escalated++;
         }
       } else if (exc.next_retry_at && now >= new Date(exc.next_retry_at) && exc.retry_count < exc.max_retries) {
-        await svc.entities.Notification.create({
-          user_id: order.vendor_owner_id, type: "general",
+        await notifySafely(svc, {
+          user_id: order.vendor_owner_id, type: "general", eventType: "vendor_confirmation_reminder",
           title: "Reminder: Please confirm order " + order.order_number,
           body: "Confirmation deadline: " + deadline.toLocaleString(),
-          reference_type: "order", reference_id: order.id, read: false,
+          reference_type: "order", reference_id: order.id,
+          order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id,
         });
         const nextRetry = new Date(deadline.getTime() - (exc.max_retries - exc.retry_count - 1) * 4 * 3600000);
         await svc.entities.SystemException.update(exc.id, {
@@ -231,6 +232,9 @@ export default async function(req) {
         }
         // Idempotent: the settlement ledger group is written at most once.
         await createSettlementLedgerEntry(svc, order, cq);
+        // Verify settlement reconciliation before marking as settled.
+        // Missing entries are created idempotently; wrong entries block with CRITICAL.
+        await verifySettlementReconciliation(svc, order, cq);
         await generateAndStoreDocument(svc, order, "vendor_settlement_statement", cq);
         // Carrier settlement statement + notification (only for third_party_carrier)
         if (cq.delivery_method === "third_party_carrier") {

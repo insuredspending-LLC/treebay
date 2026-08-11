@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { toCents, assembleCheckout } from "../../shared/transactions.ts";
+import { notifySafely } from "../../shared/notifications.ts";
 
 export default async function(req) {
   try {
@@ -43,7 +44,7 @@ export default async function(req) {
       vendor_delivery_available: vendorDeliveryAvailable,
       deliveryMethod: body.deliveryMethod || null,
     });
-    await svc.entities.Notification.create({ user_id: quote.vendor_owner_id, type: "quote_accepted", title: "Quote accepted!", body: "Checkout started for " + rfq.delivery_city, reference_type: "rfq", reference_id: rfq.id, read: false });
+    await notifySafely(svc, { user_id: quote.vendor_owner_id, type: "quote_accepted", eventType: "accept_quote", title: "Quote accepted!", body: "Checkout started for " + rfq.delivery_city, reference_type: "rfq", reference_id: rfq.id, buyer_id: rfq.buyer_id, vendor_id: quote.vendor_id });
     return Response.json({ checkoutQuote: result.checkoutQuote, deliveryOptions: result.deliveryOptions });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

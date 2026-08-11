@@ -28,6 +28,10 @@
     "service_type": {
       "type": "string"
     },
+    "freight_quote_id": {
+      "type": "string",
+      "description": "FreightQuote id for third-party carrier options"
+    },
     "pickup_location": {
       "type": "string"
     },

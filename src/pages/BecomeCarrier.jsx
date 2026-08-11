@@ -30,8 +30,7 @@ export default function BecomeCarrier() {
     }
     setSaving(true);
     try {
-      await base44.entities.CarrierProfile.create(form);
-      await base44.auth.updateMe({ account_type: "carrier" });
+      await base44.functions.invoke("createCarrierProfile", form);
       await refresh();
       toast({ title: "Carrier profile created", description: "Verification is pending. An admin must verify your profile before you can accept loads." });
       navigate("/carrier");

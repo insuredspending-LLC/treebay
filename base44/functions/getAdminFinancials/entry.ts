@@ -66,6 +66,8 @@ export default async function(req) {
         id: e.id, type: e.exception_type, severity: e.severity, status: e.status,
         order_id: e.order_id, reason: e.reason, created_date: e.created_date,
       })),
+      partial: (orders || []).length >= 500 || (ledgerEntries || []).length >= 1000,
+      records_scanned: { orders: (orders || []).length, ledger_entries: (ledgerEntries || []).length },
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

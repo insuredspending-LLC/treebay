@@ -18,10 +18,15 @@ import { autoAssignFreight } from "./freight.ts";
 export function getNextStatus(order) {
   const s = order.order_status;
   const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
+  const isVendorDelivery = order.fulfillment_method === "vendor_delivery";
   if (s === "inventory_reserved") return "vendor_confirmed";
   if (s === "vendor_confirmed") return "preparing";
   if (s === "preparing") return "ready_for_pickup";
-  if (s === "ready_for_pickup") return isPickup ? "picked_up" : "delivery_assigned";
+  // Vendor responsibility ENDS at ready_for_pickup for buyer_pickup and third_party_carrier.
+  // buyer_pickup: buyer confirms pickup via updateBuyerPickup.
+  // third_party_carrier: system auto-assigns freight, then transitions to delivery_assigned.
+  // vendor_delivery: vendor continues to delivery_assigned.
+  if (s === "ready_for_pickup") return isVendorDelivery ? "delivery_assigned" : null;
   if (s === "delivery_assigned") return "picked_up";
   if (s === "picked_up") return isPickup ? "delivered" : "in_transit";
   if (s === "in_transit") return "delivered";
@@ -65,18 +70,26 @@ export async function advanceFulfillment(svc, orderId, actor) {
     await resolveVendorConfirmationExceptions(svc, orderId);
   }
 
-  if (next === "delivery_assigned") {
+  // For third_party_carrier: after seller marks ready_for_pickup, system auto-assigns freight.
+  // If freight succeeds, system transitions to delivery_assigned. If fails, stays at ready_for_pickup.
+  if (next === "ready_for_pickup" && cq && cq.delivery_method === "third_party_carrier") {
+    const shipment = await createShipment(svc, order, cq);
+    if (shipment) await updateShipmentStatus(svc, shipment.id, "pending", { type: "system", description: "Shipment created for freight assignment" });
+    try {
+      await autoAssignFreight(svc, await svc.entities.Order.get(orderId), cq, shipment);
+      // Freight assigned — system transitions to delivery_assigned
+      await transitionOrder(svc, orderId, "delivery_assigned", { type: "system", description: "Freight assigned — delivery assigned" });
+      await updateShipmentStatus(svc, shipment.id, "assigned", { type: "system", description: "Carrier assigned" });
+    } catch (e) {
+      // Freight assignment failed — order stays at ready_for_pickup.
+      // autoAssignFreight raised a WARNING/AUTO_RETRYING exception; maintenance retries.
+    }
+  }
+
+  // For vendor_delivery: shipment is created when vendor advances to delivery_assigned.
+  if (next === "delivery_assigned" && cq && cq.delivery_method === "vendor_delivery") {
     const shipment = await createShipment(svc, order, cq);
     if (shipment) await updateShipmentStatus(svc, shipment.id, "assigned", { type: actor.type, id: actor.id, description: "Delivery assigned" });
-    // Auto-assign TEST freight for third-party carrier orders
-    if (cq && cq.delivery_method === "third_party_carrier" && shipment) {
-      try {
-        await autoAssignFreight(svc, await svc.entities.Order.get(orderId), cq, shipment);
-      } catch (e) {
-        // Freight assignment failure does NOT roll back the commercial transition.
-        // autoAssignFreight raises a SystemException; maintenance retries.
-      }
-    }
   }
 
   const shipStatus = shipmentStatusForOrder(next);

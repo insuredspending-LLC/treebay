@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { computeQuoteTotal, isPositiveNumber, isNonNegativeNumber } from "../../shared/marketplace.ts";
+import { notifySafely } from "../../shared/notifications.ts";
 
 export default async function(req) {
   try {
@@ -56,7 +57,7 @@ export default async function(req) {
     });
 
     if (rfq.status === "open") { try { await svc.entities.RFQ.update(rfqId, { status: "quotes_received" }); } catch {} }
-    await svc.entities.Notification.create({ user_id: rfq.buyer_id, type: "new_quote", title: "New quote received", body: `From ${vendor.business_name}`, reference_type: "rfq", reference_id: rfqId, read: false });
+    await notifySafely(svc, { user_id: rfq.buyer_id, type: "new_quote", eventType: "submit_quote", title: "New quote received", body: `From ${vendor.business_name}`, reference_type: "rfq", reference_id: rfqId, buyer_id: rfq.buyer_id, vendor_id: vendor.id });
 
     return Response.json({ quote });
   } catch (error) {

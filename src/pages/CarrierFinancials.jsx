@@ -33,6 +33,7 @@ export default function CarrierFinancials() {
         <StatCard icon={CheckCircle2} label="Settled" value={formatCents(data.totals.settled_earnings_cents)} />
       </div>
 
+      {data.partial && <p className="text-xs text-amber-600">Partial TEST totals — more records exist beyond the scanned window.</p>}
       <Card className="p-4">
         <h2 className="font-semibold text-sm mb-3">Load Statements</h2>
         {data.loads.length === 0 ? <EmptyState icon={Truck} title="No freight loads yet" /> : (

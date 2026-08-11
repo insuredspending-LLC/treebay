@@ -68,6 +68,7 @@ export default function AdminFinancials() {
         </Card>
       )}
 
+      {data.partial && <p className="text-xs text-amber-600">Partial TEST totals — more records exist beyond the scanned window.</p>}
       <p className="text-xs text-muted-foreground">Note: "TreEbay Fee Revenue" is NOT profit — processor costs, operating expenses, taxes, refunds, and chargebacks may exist later.</p>
     </div>
   );

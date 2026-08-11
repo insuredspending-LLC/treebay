@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { transitionOrder, raiseExceptionOnce } from "../../shared/transactions.ts";
 import { resumePendingRefund } from "../../shared/refunds.ts";
+import { notifySafely } from "../../shared/notifications.ts";
 
 // Authoritative TEST refund. No real money moves, but every state change is
 // validated and audited. History is never rewritten — refunds add reversal entries.
@@ -32,10 +33,7 @@ export default async function(req) {
     if (payment.status === "refunded" && order.order_status === "refund_pending") {
       try {
         const result = await resumePendingRefund(svc, orderId, { type: isAdmin ? "admin" : "buyer", id: user.id });
-        await svc.entities.Notification.create({
-          user_id: order.vendor_owner_id, type: "general", title: "Order refunded",
-          body: order.order_number + " was refunded", reference_type: "order", reference_id: orderId, read: false,
-        });
+        await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "refund_completed", title: "Order refunded", body: order.order_number + " was refunded", reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
         return Response.json(result);
       } catch (error) {
         return Response.json({ error: "Refund is pending reconciliation: " + error.message, refundPending: true }, { status: 500 });
@@ -75,10 +73,7 @@ export default async function(req) {
 
     try {
       const result = await resumePendingRefund(svc, orderId, { type: isAdmin ? "admin" : "buyer", id: user.id });
-      await svc.entities.Notification.create({
-        user_id: order.vendor_owner_id, type: "general", title: "Order refunded",
-        body: order.order_number + " was refunded", reference_type: "order", reference_id: orderId, read: false,
-      });
+      await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "refund_completed", title: "Order refunded", body: order.order_number + " was refunded", reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
       return Response.json(result);
     } catch (error) {
       return Response.json({ error: "Refund is pending reconciliation: " + error.message, refundPending: true }, { status: 500 });
