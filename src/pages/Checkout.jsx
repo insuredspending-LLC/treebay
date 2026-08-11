@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, ArrowLeft, ShieldCheck, AlertTriangle, MapPin, Truck, Package, Store, Clock, CheckCircle2 } from "lucide-react";
+import { Loader2, ArrowLeft, ShieldCheck, AlertTriangle, MapPin, Truck, Package, Store, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCents, apiError, TEST_MODE } from "@/lib/treebay";
 import VerifiedBadge from "@/components/VerifiedBadge";

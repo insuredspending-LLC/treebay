@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Image } from "@/components/ui/image";
-import { MapPin, Truck, Package, Store, Heart, Flag, Loader2, MessageSquare, Globe, ShieldCheck } from "lucide-react";
+import { MapPin, Truck, Package, Store, Heart, Flag, MessageSquare, Globe } from "lucide-react";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import StarRating from "@/components/StarRating";
 import StatusBadge from "@/components/StatusBadge";

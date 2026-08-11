@@ -95,7 +95,7 @@ export default function Marketplace() {
   }, [params]);
   useEffect(() => {
     if (!vendorId) { setVendorName(""); return; }
-    base44.entities.VendorProfile.get(vendorId).then((vendor) => setVendorName(vendor?.business_name || "Selected grower")).catch(() => setVendorName("Selected grower"));
+    base44.functions.invoke("getPublicVendorProfiles", { vendorIds: [vendorId] }).then(({ data }) => setVendorName(data?.vendors?.[vendorId]?.business_name || "Selected grower")).catch(() => setVendorName("Selected grower"));
   }, [vendorId]);
 
   useEffect(() => { loadPage({ reset: true }); }, [serverFilters, q, filters.priceMax, filters.container, filters.caliper]);

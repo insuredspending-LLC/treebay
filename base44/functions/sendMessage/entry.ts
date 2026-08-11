@@ -29,19 +29,42 @@ export default async function(req) {
     });
     await svc.entities.Conversation.update(conversationId, { last_message: text, last_message_at: new Date().toISOString() });
 
-    // Automatically notify the recipient — no admin/operator action required
-    try {
-      const safePreview = text.length > 80 ? text.slice(0, 77) + "..." : text;
-      await svc.entities.Notification.create({
-        user_id: recipientId,
-        type: "new_message",
-        title: "New message",
-        body: safePreview,
-        reference_type: "conversation",
-        reference_id: conversationId,
-        read: false,
-      });
-    } catch { /* notification is best-effort */ }
+    // Automatically notify the recipient — retry bounded, escalate exception on failure
+    // A notification failure must NOT roll back the already-sent Message.
+    const safePreview = text.length > 80 ? text.slice(0, 77) + "..." : text;
+    let notifOk = false;
+    let notifErr = null;
+    for (let attempt = 0; attempt < 3 && !notifOk; attempt++) {
+      try {
+        await svc.entities.Notification.create({
+          user_id: recipientId,
+          type: "new_message",
+          title: "New message",
+          body: safePreview,
+          reference_type: "conversation",
+          reference_id: conversationId,
+          read: false,
+        });
+        notifOk = true;
+      } catch (e) {
+        notifErr = e;
+      }
+    }
+    if (!notifOk) {
+      // Escalate — message was delivered, notification was not
+      try {
+        await svc.entities.SystemException.create({
+          exception_type: "message_notification_failed",
+          severity: "ACTION_REQUIRED",
+          status: "ADMIN_REVIEW",
+          requires_admin: true,
+          buyer_id: conv.buyer_id || null,
+          vendor_id: conv.vendor_id || null,
+          technical_details_private: `Notification delivery failed after 3 attempts. Conversation: ${conversationId}. Error: ${notifErr?.message || "unknown"}`,
+          recommended_action: "Review notification delivery. Message itself was delivered.",
+        });
+      } catch { /* best-effort escalation */ }
+    }
 
     return Response.json({ message });
   } catch (error) {

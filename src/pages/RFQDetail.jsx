@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Calendar, Check, MessageSquare, Package, Trophy, Loader2, ShieldCheck, Truck, Store, Clock, FileText } from "lucide-react";
+import { MapPin, Calendar, Check, MessageSquare, Package, Trophy, Loader2, Truck, Store, Clock } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import StarRating from "@/components/StarRating";
