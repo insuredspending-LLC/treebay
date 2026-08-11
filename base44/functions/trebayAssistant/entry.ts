@@ -35,7 +35,7 @@ function parsePageContext(page) {
   return { orderId, productId, rfqId, vendorId: vendorId && !page.startsWith("/vendor/inventory") && !page.startsWith("/vendor/rfqs") ? vendorId : undefined };
 }
 async function searchProducts(svc, params) {
-  const filters = { listing_status: "active" };
+  const filters: Record<string, any> = { listing_status: "active" };
   if (params.category) filters.category = params.category;
   if (params.verified) filters.verified_vendor = true;
   if (Number(params.quantity) > 0) filters.quantity_available = { $gte: Number(params.quantity) };
@@ -55,17 +55,35 @@ async function searchProducts(svc, params) {
   }
   return { items: matches.slice(0, 6), exhausted };
 }
-function rfqMatchesProduct(rfq, product) {
-  return (rfq.items || []).some((item) => {
+async function loadBounded(svc, entity, filters, maxPages = 6) {
+  let cursor;
+  let exhausted = false;
+  const items = [];
+  for (let page = 0; page < maxPages; page += 1) {
+    const query = cursor ? { ...filters, created_date: { $lt: cursor } } : filters;
+    const entities: any = svc.entities;
+    const batch = await entities[entity].filter(query, "-created_date", 50);
+    if (!batch?.length) { exhausted = true; break; }
+    items.push(...batch);
+    cursor = batch[batch.length - 1].created_date;
+    if (batch.length < 50) { exhausted = true; break; }
+  }
+  return { items, exhausted };
+}
+function findRfqProductMatch(rfq, products) {
+  for (const item of rfq.items || []) {
     const request = normalize([item.common_name, item.botanical_name, item.size_spec].join(" "));
-    const inventory = productText(product);
-    const nameMatch = [item.common_name, item.botanical_name].filter(Boolean).some((name) => {
-      const normalized = normalize(name);
-      return normalized && (inventory.includes(normalized) || normalized.includes(normalize(product.common_name)));
-    });
-    const specMatch = !item.size_spec || inventory.includes(normalize(item.size_spec));
-    return nameMatch && specMatch && request;
-  });
+    for (const product of products) {
+      const inventory = productText(product);
+      const nameMatch = [item.common_name, item.botanical_name].filter(Boolean).some((name) => {
+        const normalized = normalize(name);
+        return normalized && (inventory.includes(normalized) || normalized.includes(normalize(product.common_name)));
+      });
+      const specMatch = !item.size_spec || inventory.includes(normalize(item.size_spec));
+      if (nameMatch && specMatch && request) return { item, product };
+    }
+  }
+  return null;
 }
 
 export default async function(req: Request): Promise<Response> {
@@ -121,8 +139,8 @@ export default async function(req: Request): Promise<Response> {
         const order = await svc.entities.Order.get(pageCtx.orderId);
         if (order && (order.buyer_id === user.id || order.vendor_owner_id === user.id || user.role === "admin")) orders = [order];
       }
-      if (!orders.length) orders = await svc.entities.Order.filter({ buyer_id: user.id }, "-created_date", 5);
-      if (!orders.length && isSeller) orders = await svc.entities.Order.filter({ vendor_owner_id: user.id }, "-created_date", 5);
+      if (!orders.length && presentationRole === "buyer") orders = await svc.entities.Order.filter({ buyer_id: user.id }, "-created_date", 5);
+      if (!orders.length && presentationRole === "seller" && isSeller) orders = await svc.entities.Order.filter({ vendor_owner_id: user.id }, "-created_date", 5);
       queryData = { type: "orders", count: orders.length, items: orders.slice(0, 5).map(sanitizeOrder) };
       results.cards = queryData.items.map((order) => ({ type: "order", data: order }));
       results.actions.push({ label: "View All Orders", path: "/orders" });
@@ -146,18 +164,25 @@ export default async function(req: Request): Promise<Response> {
       }
       queryData = { type: "rfqs", count: rfqs.length, items: rfqs.slice(0, 5).map(sanitizeRFQ) };
       results.cards = queryData.items.map((rfq) => ({ type: "rfq", data: rfq }));
-      results.actions.push({ label: "View Projects & RFQs", path: isSeller ? "/vendor/rfqs" : "/projects" });
+      results.actions.push({ label: "View Projects & RFQs", path: presentationRole === "seller" ? "/vendor/rfqs" : "/projects" });
     } else if (intent === "match_rfqs") {
-      const products = await svc.entities.Product.filter({ vendor_owner_id: user.id, listing_status: "active" }, "-created_date", 100);
-      const [open, received] = await Promise.all([svc.entities.RFQ.filter({ status: "open" }, "-created_date", 100), svc.entities.RFQ.filter({ status: "quotes_received" }, "-created_date", 100)]);
+      const [inventory, open, received] = await Promise.all([
+        loadBounded(svc, "Product", { vendor_owner_id: user.id, listing_status: "active" }),
+        loadBounded(svc, "RFQ", { status: "open" }),
+        loadBounded(svc, "RFQ", { status: "quotes_received" }),
+      ]);
       const matches = [];
-      for (const rfq of [...open, ...received]) {
-        const product = products.find((candidate) => rfqMatchesProduct(rfq, candidate));
-        const requested = (rfq.items || []).find((item) => product && rfqMatchesProduct({ ...rfq, items: [item] }, product));
-        if (product && requested) matches.push({ rfq_id: rfq.id, requested_item: requested.common_name || requested.botanical_name, requested_quantity: requested.quantity, product_id: product.id, product_name: product.common_name, quantity_available: product.quantity_available, delivery_city: rfq.delivery_city, delivery_state: rfq.delivery_state, quote_deadline: rfq.quote_deadline });
+      for (const rfq of [...open.items, ...received.items]) {
+        const match = findRfqProductMatch(rfq, inventory.items);
+        if (match) {
+          const requestedQuantity = Number(match.item.quantity) || 0;
+          const availableQuantity = Number(match.product.quantity_available) || 0;
+          matches.push({ rfq_id: rfq.id, requested_item: match.item.common_name || match.item.botanical_name, requested_quantity: requestedQuantity, product_id: match.product.id, product_name: match.product.common_name, quantity_available: availableQuantity, match_type: availableQuantity >= requestedQuantity ? "full" : "partial", delivery_city: rfq.delivery_city, delivery_state: rfq.delivery_state, quote_deadline: rfq.quote_deadline });
+        }
         if (matches.length === 6) break;
       }
-      queryData = { type: "rfq_matches", count: matches.length, items: matches };
+      const searchedExhaustively = inventory.exhausted && open.exhausted && received.exhausted;
+      queryData = { type: "rfq_matches", count: matches.length, searchedExhaustively, items: matches };
       results.cards = matches.map((match) => ({ type: "rfq_match", data: match }));
     } else if (intent === "seller_attention" || intent === "low_stock") {
       const products = await svc.entities.Product.filter({ vendor_owner_id: user.id, listing_status: "active" }, "-created_date", 100);

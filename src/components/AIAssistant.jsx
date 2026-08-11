@@ -231,7 +231,8 @@ function ResultCard({ card }) {
     return (
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
         <p className="font-semibold text-sm text-foreground">{match.requested_quantity}× {match.requested_item}</p>
-        <p className="text-xs text-muted-foreground">Matches {match.product_name} · {formatNumber(match.quantity_available)} available</p>
+        <p className="text-xs text-muted-foreground">{match.match_type === "partial" ? `Partial match — ${formatNumber(match.quantity_available)} of ${formatNumber(match.requested_quantity)} currently available.` : `Full match — ${formatNumber(match.quantity_available)} available.`}</p>
+        <p className="text-xs text-muted-foreground">Matches {match.product_name}</p>
         <p className="text-xs text-muted-foreground">{[match.delivery_city, match.delivery_state].filter(Boolean).join(", ")}{match.quote_deadline ? ` · Quote by ${match.quote_deadline}` : ""}</p>
         <div className="flex gap-2"><Button asChild variant="outline" size="sm"><Link to={`/rfqs/${match.rfq_id}`}>View RFQ</Link></Button><Button asChild size="sm"><Link to={`/vendor/rfqs/${match.rfq_id}/quote`}>Prepare Quote</Link></Button></div>
       </div>

@@ -19,6 +19,7 @@ import { CATEGORIES, approxDistance } from "@/lib/treebay";
 const PAGE_SIZE = 12;
 const BATCH_SIZE = 50;
 const DEFAULT_FILTERS = { category: "all", state: "all", priceMax: 0, minQty: 0, container: "", caliper: "", native: false, evergreen: "all", sun: "all", water: "all", pickup: false, delivery: false, wholesale: false, verified: false, sort: "relevance" };
+const US_STATES = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC", "PR", "VI", "GU", "AS", "MP"];
 
 export default function Marketplace() {
   const [params, setParams] = useSearchParams();
@@ -37,6 +38,7 @@ export default function Marketplace() {
   const [vendorName, setVendorName] = useState("");
   const vendorId = params.get("vendor");
   const myCity = buyerProfile?.city && buyerProfile?.state ? `${buyerProfile.city}, ${buyerProfile.state}` : null;
+  const sortConfig = filters.sort === "price_asc" ? { field: "unit_price", sort: "unit_price", direction: 1 } : filters.sort === "price_desc" ? { field: "unit_price", sort: "-unit_price", direction: -1 } : filters.sort === "qty" ? { field: "quantity_available", sort: "-quantity_available", direction: -1 } : { field: "created_date", sort: "-created_date", direction: -1 };
 
   const serverFilters = useMemo(() => {
     const next = { listing_status: "active" };
@@ -71,10 +73,17 @@ export default function Marketplace() {
     let matches = reset ? [] : pendingMatches.slice();
     let exhausted = false;
     for (let scans = 0; scans < 8 && matches.length < PAGE_SIZE; scans += 1) {
-      const query = nextCursor ? { ...serverFilters, created_date: { $lt: nextCursor } } : serverFilters;
-      const batch = await base44.entities.Product.filter(query, "-created_date", BATCH_SIZE);
+      const query = !nextCursor ? serverFilters : sortConfig.field === "created_date" ? { ...serverFilters, created_date: { $lt: nextCursor.createdDate } } : {
+        ...serverFilters,
+        $or: [
+          { [sortConfig.field]: { [sortConfig.direction === 1 ? "$gt" : "$lt"]: nextCursor.value } },
+          { [sortConfig.field]: nextCursor.value, created_date: { $lt: nextCursor.createdDate } },
+        ],
+      };
+      const batch = await base44.entities.Product.filter(query, sortConfig.sort, BATCH_SIZE);
       if (!batch?.length) { exhausted = true; break; }
-      nextCursor = batch[batch.length - 1].created_date;
+      const boundary = batch[batch.length - 1];
+      nextCursor = { value: boundary[sortConfig.field], createdDate: boundary.created_date };
       matches = matches.concat(batch.filter(matchesClientFilters));
       if (batch.length < BATCH_SIZE) { exhausted = true; break; }
     }
@@ -86,7 +95,7 @@ export default function Marketplace() {
     setHasMore(!exhausted || remaining.length > 0);
     setLoading(false);
     setLoadingMore(false);
-  }, [cursor, pendingMatches, serverFilters, matchesClientFilters]);
+  }, [cursor, pendingMatches, serverFilters, matchesClientFilters, sortConfig]);
 
   useEffect(() => {
     setQ(params.get("q") || "");
@@ -103,13 +112,10 @@ export default function Marketplace() {
   const distanceAvailable = useMemo(() => myCity && products.filter((product) => approxDistance(myCity, `${product.vendor_city}, ${product.vendor_state}`) !== null).length >= Math.ceil(products.length / 2), [myCity, products]);
   const displayProducts = useMemo(() => {
     const list = products.slice();
-    if (filters.sort === "price_asc") list.sort((a, b) => a.unit_price - b.unit_price);
-    else if (filters.sort === "price_desc") list.sort((a, b) => b.unit_price - a.unit_price);
-    else if (filters.sort === "qty") list.sort((a, b) => b.quantity_available - a.quantity_available);
-    else if (filters.sort === "distance" && distanceAvailable) list.sort((a, b) => (approxDistance(myCity, `${a.vendor_city}, ${a.vendor_state}`) ?? 9999) - (approxDistance(myCity, `${b.vendor_city}, ${b.vendor_state}`) ?? 9999));
+    if (filters.sort === "distance" && distanceAvailable) list.sort((a, b) => (approxDistance(myCity, `${a.vendor_city}, ${a.vendor_state}`) ?? 9999) - (approxDistance(myCity, `${b.vendor_city}, ${b.vendor_state}`) ?? 9999));
     return list;
   }, [products, filters.sort, distanceAvailable, myCity]);
-  const states = useMemo(() => [...new Set(products.map((product) => product.vendor_state).filter(Boolean))].sort(), [products]);
+  const states = US_STATES;
   const setF = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const clearVendor = () => { const next = new URLSearchParams(params); next.delete("vendor"); setParams(next); };
   const reset = () => { setFilters(DEFAULT_FILTERS); setCategory("all"); setQ(""); const next = new URLSearchParams(); if (vendorId) next.set("vendor", vendorId); setParams(next); };
@@ -130,7 +136,7 @@ export default function Marketplace() {
     {activeFilters.length > 0 && <div className="flex items-center gap-2 flex-wrap">{activeFilters.map((filter) => <button key={filter.key} onClick={filter.clear} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80">{filter.key === "vendor" ? `Grower: ${vendorName || "Selected grower"}` : filter.label} <X className="w-3 h-3" /></button>)}<button onClick={reset} className="text-xs text-primary font-medium">Clear all</button></div>}
     <div className="md:flex gap-6"><aside className="hidden md:block w-56 shrink-0"><div className="sticky top-20 space-y-4"><div className="flex items-center justify-between"><h2 className="font-heading font-semibold text-sm">Filters</h2>{activeFilters.length > 0 && <button onClick={reset} className="text-xs text-primary font-medium">Clear all</button>}</div><FilterControls filters={filters} setF={setF} category={category} setCategory={setCategory} states={states} reset={reset} variant="sidebar" /></div></aside>
       <div className="flex-1 min-w-0 space-y-4"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{loading ? "Searching…" : `${displayProducts.length} loaded result${displayProducts.length === 1 ? "" : "s"}${hasMore ? "+" : ""}`}</p><Select value={filters.sort} onValueChange={(value) => setF("sort", value)}><SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="relevance">Relevance</SelectItem><SelectItem value="price_asc">Price ↑</SelectItem><SelectItem value="price_desc">Price ↓</SelectItem>{distanceAvailable && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity</SelectItem></SelectContent></Select></div>
-      {loading ? <div className="grid grid-cols-2 md:grid-cols-3 gap-3"><SkeletonCard count={6} /></div> : displayProducts.length === 0 ? <EmptyState icon={Package} title="No plants match those filters yet." description="Try broadening your search, adjusting filters, or request a bulk quote." action={<div className="flex gap-2 justify-center"><Button variant="outline" onClick={reset}>Clear Filters</Button><Button asChild><Link to="/projects"><FileText className="w-4 h-4" /> Create an RFQ</Link></Button></div>} /> : <><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{displayProducts.map((product) => <ProductCard key={product.id} product={product} favorite={!!favs[product.id]} onToggleFavorite={() => toggleFav(product)} />)}</div>{hasMore && <div className="flex justify-center pt-2"><Button variant="outline" onClick={() => loadPage()} disabled={loadingMore} className="px-8">{loadingMore && <Loader2 className="w-4 h-4 animate-spin" />} Load more</Button></div>}{!hasMore && <p className="text-center text-xs text-muted-foreground">You’ve reached the end of these results.</p>}</>}
+      {loading ? <div className="grid grid-cols-2 md:grid-cols-3 gap-3"><SkeletonCard count={6} /></div> : displayProducts.length === 0 ? <EmptyState icon={Package} title={hasMore ? "No matches in the inventory searched so far." : "No plants match those filters yet."} description={hasMore ? "Continue searching more inventory, or broaden your filters." : "Try broadening your search, adjusting filters, or request a bulk quote."} action={<div className="flex gap-2 justify-center">{hasMore ? <Button onClick={() => loadPage()} disabled={loadingMore}>{loadingMore && <Loader2 className="w-4 h-4 animate-spin" />} Search More Inventory</Button> : <Button variant="outline" onClick={reset}>Clear Filters</Button>}<Button asChild><Link to="/projects"><FileText className="w-4 h-4" /> Create an RFQ</Link></Button></div>} /> : <><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{displayProducts.map((product) => <ProductCard key={product.id} product={product} favorite={!!favs[product.id]} onToggleFavorite={() => toggleFav(product)} />)}</div>{hasMore && <div className="flex justify-center pt-2"><Button variant="outline" onClick={() => loadPage()} disabled={loadingMore} className="px-8">{loadingMore && <Loader2 className="w-4 h-4 animate-spin" />} Load more</Button></div>}{!hasMore && <p className="text-center text-xs text-muted-foreground">You’ve reached the end of these results.</p>}</>}
       {!loading && <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5"><Sparkles className="w-5 h-5 text-primary shrink-0" /><p className="text-sm text-foreground flex-1">Can’t find what you need? Ask the TreEbay Assistant to search or build an RFQ draft.</p><Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}>Ask AI</Button></div>}</div></div>
   </div></PullToRefresh>;
 }
