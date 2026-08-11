@@ -87,4 +87,13 @@
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   .no-tap-highlight { -webkit-tap-highlight-color: transparent; }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--secondary)) 37%, hsl(var(--muted)) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .card-shadow { box-shadow: 0 1px 2px hsl(150 18% 12% / 0.04), 0 4px 12px hsl(150 18% 12% / 0.04); }
+  .card-shadow-hover { transition: box-shadow 0.2s ease, border-color 0.2s ease; }
+  .card-shadow-hover:hover { box-shadow: 0 2px 4px hsl(150 18% 12% / 0.06), 0 8px 24px hsl(150 18% 12% / 0.08); }
+  .text-balance { text-wrap: balance; }
 }

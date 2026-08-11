@@ -2,7 +2,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
 import { useAuth } from "@/lib/AuthContext";
 import { createNotification } from "@/lib/treebay";
-import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck, ChevronLeft } from "lucide-react";
+import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ShieldCheck, ChevronLeft, Sparkles } from "lucide-react";
+import AIAssistant from "@/components/AIAssistant";
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,7 @@ function getHeaderState(pathname) {
 }
 
 function TopBar() {
-  const { user, accountType } = useAppUser();
+  const { user, accountType, vendorProfiles, switchAccountType } = useAppUser();
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,7 +74,16 @@ function TopBar() {
             <span className="font-heading font-extrabold text-lg text-primary tracking-tight">TreEbay</span>
           </button>
         )}
+        {vendorProfiles?.length > 0 && !isChild && (
+          <div className="ml-2 flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium">
+            <button onClick={() => switchAccountType("buyer")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
+            <button onClick={() => switchAccountType("vendor")} className={cn("px-2.5 py-1 rounded-full no-tap-highlight transition", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>
+          </div>
+        )}
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="TreEbay Assistant">
+            <Sparkles className="w-5 h-5 text-primary" />
+          </Button>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
@@ -159,6 +169,7 @@ export default function Layout() {
           })}
         </div>
       </nav>
+      <AIAssistant />
     </div>
   );
 }

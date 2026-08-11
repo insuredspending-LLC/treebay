@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,9 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, SlidersHorizontal, Loader2, X } from "lucide-react";
+import { Search, SlidersHorizontal, Loader2, X, Package, FileText, Sparkles } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
+import SkeletonCard from "@/components/SkeletonCard";
 import EmptyState from "@/components/EmptyState";
 import PullToRefresh from "@/components/PullToRefresh";
 import { CATEGORIES, approxDistance } from "@/lib/treebay";
@@ -102,20 +103,29 @@ export default function Marketplace() {
   };
 
   const setF = (k, v) => setFilters((p) => ({ ...p, [k]: v }));
-  const reset = () => setFilters(DEFAULT_FILTERS);
-  const activeCount = Object.entries(filters).filter(([k, v]) => v !== DEFAULT_FILTERS[k] && v !== "" && v !== "all" && v !== 0 && v !== false).length;
+  const reset = () => { setFilters(DEFAULT_FILTERS); setCategory("all"); setQ(""); };
+  const activeFilters = [];
+  if (category !== "all") activeFilters.push({ key: "category", label: category, clear: () => setCategory("all") });
+  if (q) activeFilters.push({ key: "q", label: `"${q}"`, clear: () => setQ("") });
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v !== DEFAULT_FILTERS[k] && v !== "" && v !== "all" && v !== 0 && v !== false) {
+      const label = typeof v === "boolean" ? k : k === "priceMax" ? `≤$${v}` : k === "minQty" ? `≥${v} qty` : String(v);
+      activeFilters.push({ key: k, label, clear: () => setF(k, DEFAULT_FILTERS[k]) });
+    }
+  });
 
   return (
     <PullToRefresh onRefresh={() => load(true)}>
     <div className="space-y-4">
+      {/* Search + Filter button */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search trees, plants, nurseries..." className="pl-10 h-11" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search trees, plants, nurseries…" className="pl-10 h-11" />
         </div>
         <Sheet open={sheet} onOpenChange={setSheet}>
           <SheetTrigger asChild>
-            <Button variant="outline" className="h-11 relative"><SlidersHorizontal className="w-4 h-4" /> Filters {activeCount > 0 && <span className="ml-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">{activeCount}</span>}</Button>
+            <Button variant="outline" className="h-11 relative"><SlidersHorizontal className="w-4 h-4" /> Filters {activeFilters.length > 0 && <span className="ml-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">{activeFilters.length}</span>}</Button>
           </SheetTrigger>
           <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
             <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
@@ -185,21 +195,56 @@ export default function Marketplace() {
         </Sheet>
       </div>
 
+      {/* Active filter chips */}
+      {activeFilters.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {activeFilters.map((f) => (
+            <button key={f.key} onClick={f.clear} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80 no-tap-highlight">
+              {f.label} <X className="w-3 h-3" />
+            </button>
+          ))}
+          <button onClick={reset} className="text-xs text-primary font-medium no-tap-highlight">Clear all</button>
+        </div>
+      )}
+
+      {/* Results count + sort */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{loading ? "Searching..." : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}</p>
+        <p className="text-sm text-muted-foreground">{loading ? "Searching…" : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}</p>
         <Select value={filters.sort} onValueChange={(v) => setF("sort", v)}>
           <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="relevance">Relevance</SelectItem><SelectItem value="price_asc">Price ↑</SelectItem><SelectItem value="price_desc">Price ↓</SelectItem>{myCity && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity</SelectItem></SelectContent>
         </Select>
       </div>
 
+      {/* Grid */}
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <SkeletonCard count={8} />
+        </div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Search} title="No products match your search" description="Try adjusting filters or searching a different term." />
+        <EmptyState
+          icon={Package}
+          title="No plants match those filters yet."
+          description="Try broadening your search, adjusting filters, or request a bulk quote and let growers come to you."
+          action={
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button variant="outline" onClick={reset}>Clear Filters</Button>
+              <Button asChild><Link to="/projects"><FileText className="w-4 h-4" /> Create an RFQ</Link></Button>
+            </div>
+          }
+        />
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {filtered.map(({ p }) => <ProductCard key={p.id} product={p} favorite={!!favs[p.id]} onToggleFavorite={() => toggleFav(p)} />)}
+        </div>
+      )}
+
+      {/* AI Assistant nudge */}
+      {!loading && filtered.length > 0 && (
+        <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5">
+          <Sparkles className="w-5 h-5 text-primary shrink-0" />
+          <p className="text-sm text-foreground flex-1">Can't find what you need? Ask the TreEbay Assistant to search or build an RFQ draft.</p>
+          <Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}>Ask AI</Button>
         </div>
       )}
     </div>

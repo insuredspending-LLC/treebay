@@ -1,0 +1,251 @@
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import { base44 } from "@/api/base44Client";
+import { useAppUser } from "@/hooks/useAppUser";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sparkles, X, Send, ShoppingBag, Store, Package, FileText, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { formatCurrency, formatNumber, ORDER_STATUS_LABELS, RFQ_STATUS_LABELS } from "@/lib/treebay";
+import { cn } from "@/lib/utils";
+
+const BUYER_SUGGESTIONS = [
+  "Find 25 Live Oaks",
+  "Search drought-tolerant trees",
+  "Where is my order?",
+  "Create a bulk RFQ",
+];
+const SELLER_SUGGESTIONS = [
+  "What needs my attention?",
+  "Show low-stock products",
+  "Which RFQs match me?",
+  "Help me list a product",
+];
+
+export default function AIAssistant() {
+  const { accountType } = useAppUser();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener("trebay-ai-open", handler);
+    return () => window.removeEventListener("trebay-ai-open", handler);
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, loading]);
+
+  const send = async (text) => {
+    if (!text.trim() || loading) return;
+    const userMsg = { role: "user", text };
+    setMessages((m) => [...m, userMsg]);
+    setInput("");
+    setLoading(true);
+    try {
+      const res = await base44.functions.invoke("trebayAssistant", {
+        message: text,
+        context: { role: accountType, page: location.pathname },
+      });
+      const data = res.data || res;
+      setMessages((m) => [...m, { role: "assistant", text: data.reply || "I'm here to help.", cards: data.results?.cards || [], actions: data.results?.actions || [] }]);
+    } catch (e) {
+      setMessages((m) => [...m, { role: "assistant", text: "I'm having trouble connecting right now, but you can still browse the marketplace and manage your orders normally.", error: true }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const suggestions = accountType === "vendor" ? SELLER_SUGGESTIONS : BUYER_SUGGESTIONS;
+
+  return (
+    <>
+      {/* Floating button — hidden when sheet is open */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed z-40 bottom-20 right-4 md:bottom-6 md:right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center no-tap-highlight hover:bg-primary/90 transition card-shadow"
+          aria-label="Open TreEbay Assistant"
+        >
+          <Sparkles className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Mobile: full-height sheet / Desktop: side panel via Sheet on right */}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 h-14 border-b border-border bg-card">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <div>
+                <p className="font-heading font-bold text-sm text-foreground">TreEbay Assistant</p>
+                <p className="text-[10px] text-muted-foreground">{accountType === "vendor" ? "Seller mode" : "Buyer mode"}</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close"><X className="w-5 h-5" /></Button>
+          </div>
+
+          {/* Messages */}
+          <ScrollArea className="flex-1 px-4 py-4">
+          <div ref={scrollRef} className="space-y-4 min-h-full">
+            {messages.length === 0 && (
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-secondary p-4 text-sm text-foreground">
+                  Hi! I'm your TreEbay Assistant. I can help you find plants, compare suppliers, build RFQs, track orders, and navigate the marketplace. What do you need?
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Try asking:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((s) => (
+                      <button key={s} onClick={() => send(s)} className="px-3 py-1.5 rounded-full border border-border bg-card text-xs font-medium text-foreground hover:border-primary/40 hover:bg-secondary no-tap-highlight">
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+                <div className={cn("max-w-[85%] rounded-2xl px-4 py-2.5 text-sm", m.role === "user" ? "bg-primary text-primary-foreground" : m.error ? "bg-rose-50 text-rose-900 border border-rose-200" : "bg-secondary text-foreground")}>
+                  <p className="leading-relaxed">{m.text}</p>
+                </div>
+              </div>
+            ))}
+            {messages.map((m, i) => m.cards?.length > 0 && (
+              <div key={"cards-" + i} className="space-y-2">
+                {m.cards.map((card, ci) => <ResultCard key={ci} card={card} />)}
+              </div>
+            ))}
+            {messages.map((m, i) => m.actions?.length > 0 && (
+              <div key={"actions-" + i} className="flex flex-wrap gap-2">
+                {m.actions.map((a, ai) => (
+                  <Button key={ai} asChild variant="outline" size="sm" onClick={() => setOpen(false)}>
+                    <Link to={a.path}>{a.label} <ArrowRight className="w-3 h-3" /></Link>
+                  </Button>
+                ))}
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-secondary rounded-2xl px-4 py-3 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Searching TreEbay…</span>
+                </div>
+              </div>
+            )}
+          </div>
+          </ScrollArea>
+
+          {/* Input */}
+          <div className="p-3 border-t border-border bg-card">
+            <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex gap-2">
+              <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask about plants, orders, RFQs…" className="flex-1" disabled={loading} />
+              <Button type="submit" size="icon" disabled={loading || !input.trim()}><Send className="w-4 h-4" /></Button>
+            </form>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+function ResultCard({ card }) {
+  if (card.type === "product") {
+    const p = card.data;
+    return (
+      <Link to={"/product/" + p.id} className="block rounded-xl border border-border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition no-tap-highlight">
+        <div className="flex gap-3">
+          <div className="w-14 h-14 rounded-lg bg-muted overflow-hidden shrink-0">
+            {p.images?.[0] ? <img src={p.images[0]} alt={p.common_name} className="w-full h-full object-cover" /> : <Package className="w-5 h-5 text-muted-foreground m-auto mt-4" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-sm text-foreground truncate">{p.common_name}</p>
+            <p className="text-xs text-muted-foreground italic truncate">{p.botanical_name}</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-sm font-bold text-primary">{formatCurrency(p.unit_price)}</p>
+              <p className="text-[11px] text-muted-foreground">{formatNumber(p.quantity_available)} avail.</p>
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+  if (card.type === "vendor") {
+    const v = card.data;
+    return (
+      <Link to={"/vendor/" + v.id} className="block rounded-xl border border-border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition no-tap-highlight">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center shrink-0"><Store className="w-5 h-5 text-primary" /></div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm text-foreground truncate">{v.business_name}</p>
+            <p className="text-xs text-muted-foreground truncate">{[v.city, v.state].filter(Boolean).join(", ")}</p>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+  if (card.type === "order") {
+    const o = card.data;
+    return (
+      <Link to={"/orders/" + o.id} className="block rounded-xl border border-border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition no-tap-highlight">
+        <p className="font-semibold text-sm text-foreground">{o.order_number}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Status: {ORDER_STATUS_LABELS[o.order_status] || o.order_status}</p>
+        <p className="text-xs text-muted-foreground">Total: {formatCurrency(o.total)}</p>
+      </Link>
+    );
+  }
+  if (card.type === "rfq") {
+    const r = card.data;
+    return (
+      <Link to={"/rfqs/" + r.id} className="block rounded-xl border border-border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition no-tap-highlight">
+        <p className="font-semibold text-sm text-foreground">RFQ · {RFQ_STATUS_LABELS[r.status] || r.status}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{r.items?.length || 0} item(s) · {[r.delivery_city, r.delivery_state].filter(Boolean).join(", ")}</p>
+      </Link>
+    );
+  }
+  if (card.type === "rfq_draft") {
+    const d = card.data;
+    return (
+      <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <p className="font-semibold text-sm text-foreground flex items-center gap-1.5"><FileText className="w-4 h-4 text-primary" /> RFQ Draft</p>
+        {d.items?.map((it, i) => (
+          <p key={i} className="text-xs text-muted-foreground mt-1">• {it.quantity}× {it.common_name} {it.size_spec ? `(${it.size_spec})` : ""}</p>
+        ))}
+        {d.delivery_city && <p className="text-xs text-muted-foreground mt-1">Deliver to: {d.delivery_city}, {d.delivery_state}</p>}
+        <p className="text-[11px] text-primary font-medium mt-2">Review and confirm in Projects to submit.</p>
+      </div>
+    );
+  }
+  if (card.type === "listing_draft") {
+    const d = card.data;
+    return (
+      <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <p className="font-semibold text-sm text-foreground flex items-center gap-1.5"><Package className="w-4 h-4 text-primary" /> Listing Draft</p>
+        <p className="text-xs text-muted-foreground mt-1">{d.common_name} · {formatCurrency(d.unit_price)} · {formatNumber(d.physical_quantity)} units</p>
+        {d.bulk_price_tiers?.length > 0 && <p className="text-xs text-muted-foreground mt-0.5">Bulk tiers: {d.bulk_price_tiers.length}</p>}
+        <p className="text-[11px] text-primary font-medium mt-2">Review and publish in Inventory.</p>
+      </div>
+    );
+  }
+  if (card.type === "seller_alert") {
+    const d = card.data;
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <p className="font-semibold text-sm text-amber-900 flex items-center gap-1.5"><AlertCircle className="w-4 h-4" /> {d.title}</p>
+        <p className="text-xs text-amber-700 mt-0.5">{d.count} item(s) need attention</p>
+      </div>
+    );
+  }
+  return null;
+}
