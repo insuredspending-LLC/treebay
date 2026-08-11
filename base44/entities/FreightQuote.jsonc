@@ -1,0 +1,120 @@
+{
+  "name": "FreightQuote",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "checkout_quote_id": {
+      "type": "string"
+    },
+    "carrier_id": {
+      "type": "string",
+      "description": "CarrierProfile id"
+    },
+    "carrier_owner_id": {
+      "type": "string",
+      "description": "User id of the assigned carrier"
+    },
+    "buyer_id": {
+      "type": "string"
+    },
+    "vendor_owner_id": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string",
+      "default": "trebay_test_freight"
+    },
+    "quote_reference": {
+      "type": "string"
+    },
+    "linehaul_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "fuel_surcharge_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "accessorial_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "carrier_pay_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "buyer_freight_charge_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "equipment_type": {
+      "type": "string"
+    },
+    "pickup_window": {
+      "type": "string"
+    },
+    "delivery_window": {
+      "type": "string"
+    },
+    "estimated_transit_days": {
+      "type": "number"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "quoted",
+        "selected",
+        "expired",
+        "declined",
+        "assigned",
+        "cancelled"
+      ],
+      "default": "quoted"
+    }
+  },
+  "required": [
+    "provider",
+    "buyer_freight_charge_cents"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.carrier_owner_id": "{{user.id}}"
+        },
+        {
+          "data.buyer_id": "{{user.id}}"
+        },
+        {
+          "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

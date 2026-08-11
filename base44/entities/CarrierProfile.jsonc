@@ -41,6 +41,21 @@
     },
     "description": {
       "type": "string"
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "verified",
+        "suspended"
+      ],
+      "default": "pending"
+    },
+    "dot_number": {
+      "type": "string"
+    },
+    "mc_number": {
+      "type": "string"
     }
   },
   "required": [
