@@ -11,6 +11,10 @@
     "vendor_owner_id": {
       "type": "string"
     },
+    "carrier_owner_id": {
+      "type": "string",
+      "description": "User id of the assigned carrier (for RLS read access)"
+    },
     "pickup_location": {
       "type": "string"
     },
@@ -110,6 +114,9 @@
         },
         {
           "data.vendor_owner_id": "{{user.id}}"
+        },
+        {
+          "data.carrier_owner_id": "{{user.id}}"
         },
         {
           "created_by_id": "{{user.id}}"
