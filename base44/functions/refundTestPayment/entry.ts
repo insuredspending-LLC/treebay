@@ -24,8 +24,22 @@ export default async function(req) {
     const payments = await svc.entities.PaymentRecord.filter({ order_id: orderId });
     const payment = (payments || [])[0];
     if (!payment) return Response.json({ error: "No payment record found for this order." }, { status: 400 });
-    if (payment.status === "refunded") {
+    // Only treat as fully reconciled when BOTH the Order and the PaymentRecord agree.
+    if (order.order_status === "refunded" && payment.status === "refunded" && payment.refund_status === "full") {
       return Response.json({ payment, order, alreadyRefunded: true });
+    }
+    // PaymentRecord is refunded but the Order is still refund_pending — finish reconciliation.
+    if (payment.status === "refunded" && order.order_status === "refund_pending") {
+      try {
+        const result = await resumePendingRefund(svc, orderId, { type: isAdmin ? "admin" : "buyer", id: user.id });
+        await svc.entities.Notification.create({
+          user_id: order.vendor_owner_id, type: "general", title: "Order refunded",
+          body: order.order_number + " was refunded", reference_type: "order", reference_id: orderId, read: false,
+        });
+        return Response.json(result);
+      } catch (error) {
+        return Response.json({ error: "Refund is pending reconciliation: " + error.message, refundPending: true }, { status: 500 });
+      }
     }
     if (payment.status !== "paid") {
       return Response.json({ error: "This order has not been paid, so it cannot be refunded (payment is " + payment.status + ")." }, { status: 400 });

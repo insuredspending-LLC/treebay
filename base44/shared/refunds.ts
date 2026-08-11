@@ -27,7 +27,24 @@ export async function resumePendingRefund(svc, orderId, actor) {
   }
 
   const metadata = payment.metadata || {};
-  const originStatus = metadata.refund_origin_status || "delivered";
+  let originStatus = metadata.refund_origin_status;
+  if (!originStatus) {
+    // Staging failed after the Order transitioned to refund_pending — recover the
+    // origin state from the audit trail rather than guessing.
+    const events = await svc.entities.OrderEvent.filter({ order_id: orderId }, "-created_date", 50);
+    const toPending = (events || []).find((e) => e.event_type === "status_transition" && e.new_status === "refund_pending");
+    originStatus = toPending?.previous_status || null;
+    if (!originStatus) {
+      await raiseExceptionOnce(svc, {
+        severity: "CRITICAL", exception_type: "refund_reconciliation", order_id: orderId,
+        buyer_id: order.buyer_id, vendor_id: order.vendor_id, payment_id: payment.id,
+        reason: "Refund origin status could not be determined for " + order.order_number + " — no refund_origin_status metadata and no audit trail entry for the refund_pending transition.",
+        technical_details_private: "order_status=" + order.order_status + ", payment_status=" + payment.status,
+        recommended_action: "Admin must inspect the order history and set refund_origin_status before retrying the refund.", requires_admin: true,
+      });
+      throw new Error("Refund origin status could not be determined from metadata or audit trail.");
+    }
+  }
   const reason = metadata.refund_reason || "Buyer refund request";
   const totalCents = order.total_cents || Math.round((order.total || 0) * 100);
   const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;

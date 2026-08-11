@@ -154,10 +154,22 @@ export default async function(req) {
       }
     }
 
-    // ---- 4. Resume staged refunds. The helper is idempotent and leaves failures pending. ----
-    const pendingRefunds = await svc.entities.Order.filter({ order_status: "refund_pending" }, "-created_date", 100);
-    for (const order of (pendingRefunds || [])) {
+    // ---- 4. Resume staged refunds across ALL legitimate partial states. The helper
+    //         is idempotent and leaves failures pending. Recoverable combinations:
+    //         A. Order refund_pending + Payment not fully finalized
+    //         B. Order refund_pending + PaymentRecord refunded/full
+    //         C. Order refunded       + PaymentRecord not yet refunded/full
+    //         A completely reconciled Order=refunded + Payment=refunded/full is NOT reprocessed. ----
+    const refundCandidates = [
+      ...((await svc.entities.Order.filter({ order_status: "refund_pending" }, "-created_date", 100)) || []),
+      ...((await svc.entities.Order.filter({ order_status: "refunded" }, "-created_date", 100)) || []),
+    ];
+    for (const order of refundCandidates) {
       try {
+        const payments = await svc.entities.PaymentRecord.filter({ order_id: order.id });
+        const payment = (payments || [])[0];
+        // Skip a completely reconciled transaction — nothing to recover.
+        if (order.order_status === "refunded" && payment && payment.status === "refunded" && payment.refund_status === "full") continue;
         await resumePendingRefund(svc, order.id, { type: "system", id: actorId });
         refundsRecovered++;
       } catch {

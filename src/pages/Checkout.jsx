@@ -32,12 +32,29 @@ export default function Checkout() {
       try {
         const cq = await base44.entities.CheckoutQuote.get(quoteId);
         setQuote(cq);
-        setAddress((p) => ({ ...p, city: cq.destination_city || "", state: cq.destination_state || "", zip: cq.destination_zip || "" }));
+        // Rehydrate the visible address from the authoritative quote so an already-applied
+        // checkout reloads with the full destination on screen.
+        const hydratedAddress = {
+          name: cq.destination_name || cq.contact_name || "",
+          street: cq.destination_street || "",
+          city: cq.destination_city || "",
+          state: cq.destination_state || "",
+          zip: cq.destination_zip || "",
+          instructions: cq.delivery_instructions || "",
+          contact_name: cq.contact_name || "",
+          contact_phone: cq.contact_phone || "",
+        };
+        setAddress((p) => ({ ...p, ...hydratedAddress }));
         const opts = await base44.entities.DeliveryOption.filter({ checkout_quote_id: quoteId }) || [];
         setOptions(opts.filter((o) => o.status === "available" || o.status === "selected"));
         if (cq.delivery_method) {
           const sel = opts.find((o) => o.provider_type === cq.delivery_method);
           if (sel) setSelectedOption(sel.id);
+          // Snapshot the applied address so visible form == appliedAddress == quote on load.
+          // Pickup needs no delivery address snapshot.
+          if (cq.delivery_method !== "buyer_pickup" && cq.destination_street) {
+            setAppliedAddress({ ...hydratedAddress });
+          }
         }
         if (cq.vendor_id) { try { setVendor(await base44.entities.VendorProfile.get(cq.vendor_id)); } catch {} }
       } catch (e) { toast({ title: "Could not load quote", description: apiError(e), variant: "destructive" }); }
