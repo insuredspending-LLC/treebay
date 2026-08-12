@@ -50,7 +50,7 @@ export default function EditVendorProfile() {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       set(field, file_url);
-    } catch (e) {
+    } catch {
       toast({ title: "Upload failed", variant: "destructive" });
     } finally {
       if (field === "logo_url") setUploadingLogo(false); else setUploadingCover(false);
