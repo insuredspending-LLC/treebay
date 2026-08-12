@@ -4,6 +4,7 @@ import { advanceFulfillment, cancelOrder, recordDeliveryEvent } from "../../shar
 import { getActiveReservation, getReservation } from "../../shared/inventory.ts";
 import { allocationGroup, settlementGroup, refundGroup, createLedgerEntry, updateShipmentStatus, transitionOrder, vendorPayableCents } from "../../shared/transactions.ts";
 import { retryFreightAssignment } from "../../shared/freight.ts";
+import { notifySafely } from "../../shared/notifications.ts";
 
 // ADMIN TEST SIMULATOR.
 // Every scenario below runs through the SAME authoritative engines used in
@@ -123,14 +124,21 @@ export default async function(req) {
         break;
       }
       case "SCENARIO_A": {
-        // Direct listing, buyer pickup: pay -> confirm -> prepare -> ready -> pickup -> deliver -> complete -> settle
-        const steps = ["TEST_SUCCESS", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "MAINTENANCE"];
+        // Direct listing, buyer pickup: buyer pays -> vendor confirm/prepare/ready ->
+        // buyer pickup/receipt through the same Order state machine -> system complete/settle.
         const results = [];
-        for (const step of steps) {
-          if (step === "MAINTENANCE") { const res = await base44.functions.invoke("runTransactionMaintenance", {}); results.push({ step, result: res.data }); }
-          else if (step === "TEST_SUCCESS") { results.push({ step, result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body }); }
-          else { results.push({ step, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
+        results.push({ step: "buyer_pay", result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body });
+        for (let i = 0; i < 3; i++) results.push({ step: "vendor_advance_" + i, result: (await advanceFulfillment(svc, orderId, actor)).body });
+        let pickupOrder = await svc.entities.Order.get(orderId);
+        if (pickupOrder.order_status === "ready_for_pickup") {
+          await transitionOrder(svc, orderId, "picked_up", { type: "buyer", id: pickupOrder.buyer_id, description: "Buyer confirmed pickup (simulator)" });
+          results.push({ step: "buyer_confirm_pickup", result: { order_status: "picked_up" } });
+          await transitionOrder(svc, orderId, "delivered", { type: "buyer", id: pickupOrder.buyer_id, description: "Buyer confirmed receipt (simulator)" });
+          await svc.entities.Order.update(orderId, { delivered_at: new Date().toISOString() });
+          results.push({ step: "buyer_confirm_received", result: { order_status: "delivered" } });
         }
+        const maintenance = await base44.functions.invoke("runTransactionMaintenance", {});
+        results.push({ step: "system_complete_settle", result: maintenance.data });
         result = { composite: true, steps: results };
         break;
       }
@@ -207,16 +215,21 @@ export default async function(req) {
         break;
       }
       case "SCENARIO_E": {
-        // Notification fails after commercial state commits — verify state is preserved.
-        // notifySafely has bounded retry (3 attempts) and creates notification_delivery_failed
-        // SystemException on ultimate failure. Commercial state is NEVER rolled back.
+        // Controlled notification failure AFTER a successful commercial commit.
+        // Invalid notification enum guarantees the TEST notification write fails schema validation.
         const payResult = (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body;
+        const forcedNotification = await notifySafely(svc, {
+          user_id: order.buyer_id, type: "__TEST_FORCE_FAILURE__", eventType: "scenario_e_forced_failure",
+          title: "TEST forced failure", body: "TEST only", reference_type: "order", reference_id: orderId,
+          order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id,
+        });
         const orderAfter = await svc.entities.Order.get(orderId);
+        const exceptions = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "notification_delivery_failed" }, "-created_date", 20);
+        const notificationException = (exceptions || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
         result = {
-          composite: true,
-          payment: payResult,
+          composite: true, payment: payResult, forcedNotification,
           commercialStatePreserved: orderAfter.payment_status === "paid" && orderAfter.order_status === "inventory_reserved",
-          note: "Payment processed. Notifications use notifySafely with 3-attempt retry + exception. Order state preserved regardless of notification outcome.",
+          notificationExceptionCreated: !!notificationException,
         };
         break;
       }
