@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { useAppUser } from "@/hooks/useAppUser";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,9 +10,7 @@ import { Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { apiError } from "@/lib/treebay";
 
 export default function Settings() {
-  const { buyerProfile, vendorProfiles, refresh } = useAppUser();
   const { logout } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [delOpen, setDelOpen] = useState(false);
   const [confirm, setConfirm] = useState("");
