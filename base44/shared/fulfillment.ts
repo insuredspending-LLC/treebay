@@ -106,6 +106,13 @@ export async function advanceFulfillment(svc, orderId, actor) {
 
   const notifType = next === "ready_for_pickup" ? "order_ready" : next === "in_transit" ? "order_shipped" : next === "delivered" ? "order_delivered" : next === "vendor_confirmed" ? "order_accepted" : "general";
   await notifySafely(svc, { user_id: order.buyer_id, type: notifType, eventType: "fulfillment_" + next, title: "Order update", body: order.order_number + " -> " + next, reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
+
+  // Vendor-delivery completion is event-driven. The scheduled maintenance job remains
+  // a low-frequency recovery safety net rather than the normal settlement mechanism.
+  if (next === "delivered") {
+    try { await svc.functions.invoke("runTransactionMaintenance", { trigger: "vendor_delivery", order_id: orderId }); } catch { /* recovery scheduler handles it */ }
+  }
+
   return { ok: true, status: 200, body: { order_status: next } };
 }
 
