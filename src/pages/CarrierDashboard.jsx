@@ -4,9 +4,8 @@ import { useAppUser } from "@/hooks/useAppUser";
 import { base44 } from "@/api/base44Client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Truck, Package, CheckCircle2, BarChart3, Loader2, MapPin, Clock } from "lucide-react";
+import { Truck, Package, CheckCircle2, BarChart3, Loader2 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
-import { formatCents } from "@/lib/treebay";
 
 export default function CarrierDashboard() {
   const { carrierProfile } = useAppUser();

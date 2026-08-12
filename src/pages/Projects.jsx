@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { FolderKanban, Plus, MapPin, Calendar, Package, Loader2, Sparkles } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
-import { shortDate, formatNumber, apiError } from "@/lib/treebay";
+import { shortDate, formatNumber } from "@/lib/treebay";
 
 export default function Projects() {
   const { user } = useAppUser();

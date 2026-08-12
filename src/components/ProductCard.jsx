@@ -4,7 +4,6 @@ import { Image } from "@/components/ui/image";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/treebay";
 import { BulkPricingBadge, PickupDeliveryBadges } from "@/components/ProductBadges";
-import VerifiedBadge from "@/components/VerifiedBadge";
 
 export default function ProductCard({ product, favorite, onToggleFavorite, fromCity }) {
   const img = product.images?.[0];

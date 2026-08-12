@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { Truck, Package, CheckCircle2, MapPin, Loader2, Clock } from "lucide-react";
+import { Truck, Package, CheckCircle2, MapPin, Loader2 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
 import { formatCents, apiError } from "@/lib/treebay";
