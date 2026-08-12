@@ -19,6 +19,13 @@ export default async function(req) {
     // GMV = sum of all paid order totals
     const paidOrders = (orders || []).filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status));
     const gmv = paidOrders.reduce((s, o) => s + (o.total_cents || 0), 0);
+    // Taxable marketplace sales from the immutable CheckoutQuote tax snapshot.
+    let taxableMarketplaceSales = 0;
+    for (const o of paidOrders) {
+      if (!o.checkout_quote_id) continue;
+      const cq = await svc.entities.CheckoutQuote.get(o.checkout_quote_id);
+      if (cq) taxableMarketplaceSales += (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0);
+    }
 
     // Ledger breakdown
     const sumBy = (type, groupPrefix) => (ledgerEntries || [])
@@ -51,6 +58,7 @@ export default async function(req) {
         gmv_cents: gmv,
         paid_orders: paidOrders.length,
         total_orders: (orders || []).length,
+        taxable_marketplace_sales_cents: taxableMarketplaceSales,
         vendor_payables_cents: vendorPayables,
         carrier_payables_cents: carrierPayables,
         sales_tax_collected_cents: taxCollected,
