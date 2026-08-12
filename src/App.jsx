@@ -45,6 +45,7 @@ import BecomeCarrier from '@/pages/BecomeCarrier';
 import CarrierDashboard from '@/pages/CarrierDashboard';
 import CarrierLoads from '@/pages/CarrierLoads';
 import CarrierFinancials from '@/pages/CarrierFinancials';
+import EditCarrierProfile from '@/pages/EditCarrierProfile';
 import VendorFinancials from '@/pages/VendorFinancials';
 import CarrierGuard from '@/components/CarrierGuard';
 import DeleteAccount from '@/pages/DeleteAccount';
@@ -130,6 +131,7 @@ const AuthenticatedApp = () => {
               <Route path="/carrier" element={<CarrierDashboard />} />
               <Route path="/carrier/loads" element={<CarrierLoads />} />
               <Route path="/carrier/financials" element={<CarrierFinancials />} />
+              <Route path="/carrier/edit-profile" element={<EditCarrierProfile />} />
             </Route>
           </Route>
         </Route>
