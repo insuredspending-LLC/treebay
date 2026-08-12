@@ -4,13 +4,15 @@
   "automations": [
     {
       "type": "scheduled",
-      "name": "transaction_maintenance_15min",
-      "description": "Releases expired reservations, escalates overdue vendor confirmations, auto-completes delivered orders, settles completed orders, and recovers staged refunds every 15 minutes.",
-      "function_args": {},
+      "name": "transaction_maintenance_hourly_recovery",
+      "description": "Hourly recovery safety net for expired reservations, reminders, staged refunds, checkout/inventory recovery, freight retries, completion, reconciliation, and settlement. Normal delivery completion is event-driven.",
+      "function_args": { "trigger": "hourly_recovery" },
       "is_active": true,
       "schedule_mode": "recurring",
-      "schedule_type": "cron",
-      "cron_expression": "*/15 * * * *"
+      "schedule_type": "simple",
+      "repeat_unit": "hours",
+      "repeat_interval": 1,
+      "ends_type": "never"
     }
   ]
 }
