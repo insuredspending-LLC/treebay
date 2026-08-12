@@ -59,7 +59,7 @@ export default function AIAssistant() {
       });
       const data = res.data || res;
       setMessages((m) => [...m, { role: "assistant", text: data.reply || "I'm here to help.", cards: data.results?.cards || [], actions: data.results?.actions || [] }]);
-    } catch (e) {
+    } catch {
       setMessages((m) => [...m, { role: "assistant", text: "I'm having trouble connecting right now, but you can still browse the marketplace and manage your orders normally.", error: true }]);
     } finally {
       setLoading(false);
