@@ -20,7 +20,7 @@ import SectionHeader from "@/components/SectionHeader";
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { buyerProfile, vendorProfiles } = useAppUser();
+  const { buyerProfile } = useAppUser();
   const { toast } = useToast();
   const [product, setProduct] = useState(null);
   const [vendor, setVendor] = useState(null);
@@ -43,7 +43,7 @@ export default function ProductDetail() {
         if (p?.vendor_id) { try { const { data } = await base44.functions.invoke("getPublicVendorProfiles", { vendorIds: [p.vendor_id] }); setVendor(data?.vendors?.[p.vendor_id] || null); } catch {} }
         try { const r = await base44.entities.Review.filter({ vendor_id: p.vendor_id }, "-created_date", 5); setReviews(r || []); } catch {}
         try { const pr = await base44.entities.Project.list("-created_date", 50); setProjects(pr || []); } catch {}
-      } catch (e) { /* */ }
+      } catch { /* */ }
       finally { setLoading(false); }
     })();
   }, [id]);
