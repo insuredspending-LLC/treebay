@@ -24,7 +24,7 @@ export default async function(req) {
     // Disable the authentication account (supported Base44 method) — prevents future login.
     try { await svc.entities.User.update(uid, { disabled: true }); } catch {}
 
-    return Response.json({ ok: true, note: "Personal data removed; listings archived; auth account disabled; orders/reviews/messages retained as de-identified transaction records." });
+    return Response.json({ ok: true, note: "Active marketplace profiles and personal app data removed; listings archived; auth account disabled. Required orders, reviews, messages, delivery details, and related transaction records may be retained for accounting, tax, fraud prevention, dispute handling, and legal compliance." });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
