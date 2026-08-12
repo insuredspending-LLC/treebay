@@ -234,28 +234,43 @@ export default async function(req) {
         break;
       }
       case "SCENARIO_F": {
-        // Freight retry lifecycle: no carrier -> retries -> no immediate escalation ->
-        // retry exhaustion -> Admin escalation -> carrier available -> recovery -> exception resolved
+        // Freight retry lifecycle: no carrier -> scheduled retries -> escalation -> recovery.
         const results = [];
-        results.push({ step: "buyer_pay", result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body });
-        for (let i = 0; i < 3; i++) { results.push({ step: "vendor_advance_" + i, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
         const verifiedCarriers = await svc.entities.CarrierProfile.filter({ verification_status: "verified" });
-        for (const c of (verifiedCarriers || [])) { await svc.entities.CarrierProfile.update(c.id, { verification_status: "suspended" }); }
-        const res1 = await base44.functions.invoke("runTransactionMaintenance", {});
-        results.push({ step: "maintenance_no_carrier", result: res1.data });
-        const excs1 = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" });
-        const exc1 = (excs1 || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
-        results.push({ step: "exception_after_first_failure", exception: exc1 ? { severity: exc1.severity, status: exc1.status, requires_admin: exc1.requires_admin, retry_count: exc1.retry_count } : null });
-        for (let i = 0; i < 3; i++) { await base44.functions.invoke("runTransactionMaintenance", {}); }
-        const excs2 = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" });
-        const exc2 = (excs2 || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
-        results.push({ step: "exception_after_exhaustion", exception: exc2 ? { severity: exc2.severity, status: exc2.status, requires_admin: exc2.requires_admin, retry_count: exc2.retry_count } : null });
-        if (verifiedCarriers && verifiedCarriers.length) { await svc.entities.CarrierProfile.update(verifiedCarriers[0].id, { verification_status: "verified" }); }
-        const resFinal = await base44.functions.invoke("runTransactionMaintenance", {});
-        results.push({ step: "maintenance_after_restore", result: resFinal.data });
-        const excs3 = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" });
-        const exc3 = (excs3 || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
-        results.push({ step: "exception_after_recovery", exceptionResolved: !exc3 });
+        // Make carriers unavailable BEFORE the vendor reaches ready_for_pickup so the initial assignment fails.
+        for (const c of (verifiedCarriers || [])) await svc.entities.CarrierProfile.update(c.id, { verification_status: "suspended" });
+        try {
+          results.push({ step: "buyer_pay", result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body });
+          for (let i = 0; i < 3; i++) results.push({ step: "vendor_advance_" + i, result: (await advanceFulfillment(svc, orderId, actor)).body });
+
+          let excs = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" }, "-created_date", 20);
+          let exc = (excs || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
+          results.push({ step: "initial_failure", exception: exc ? { severity: exc.severity, status: exc.status, requires_admin: exc.requires_admin, retry_count: exc.retry_count } : null });
+
+          // Simulate the passage of the retry interval without waiting in real time.
+          for (let i = 0; i < 3; i++) {
+            excs = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" }, "-created_date", 20);
+            exc = (excs || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
+            if (exc && exc.status === "AUTO_RETRYING") await svc.entities.SystemException.update(exc.id, { next_retry_at: new Date(Date.now() - 1000).toISOString() });
+            const r = await base44.functions.invoke("runTransactionMaintenance", {});
+            results.push({ step: "retry_" + (i + 1), result: r.data });
+          }
+
+          excs = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" }, "-created_date", 20);
+          exc = (excs || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
+          results.push({ step: "after_exhaustion", exception: exc ? { severity: exc.severity, status: exc.status, requires_admin: exc.requires_admin, retry_count: exc.retry_count } : null });
+
+          // Restore at least one verified carrier and prove the system self-heals on maintenance.
+          if (verifiedCarriers && verifiedCarriers.length) await svc.entities.CarrierProfile.update(verifiedCarriers[0].id, { verification_status: "verified" });
+          const recovered = await base44.functions.invoke("runTransactionMaintenance", {});
+          results.push({ step: "recovery", result: recovered.data });
+          const excsAfter = await svc.entities.SystemException.filter({ order_id: orderId, exception_type: "freight_assignment_failed" }, "-created_date", 20);
+          const openAfter = (excsAfter || []).find((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
+          results.push({ step: "exception_after_recovery", exceptionResolved: !openAfter });
+        } finally {
+          // Restore all carriers that were verified before the test.
+          for (const c of (verifiedCarriers || [])) await svc.entities.CarrierProfile.update(c.id, { verification_status: "verified" });
+        }
         result = { composite: true, steps: results };
         break;
       }
