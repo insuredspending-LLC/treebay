@@ -79,7 +79,7 @@ export default function Conversation() {
       const otherId = meId === conv.buyer_id ? conv.vendor_owner_id : conv.buyer_id;
       await base44.entities.UserBlock.create({ blocker_id: meId, blocked_id: otherId });
       toast({ title: "User blocked", description: "They can no longer message you." });
-    } catch (e) { toast({ title: "Could not block", variant: "destructive" }); }
+    } catch { toast({ title: "Could not block", variant: "destructive" }); }
   };
 
   if (loading) return (
