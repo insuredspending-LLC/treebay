@@ -39,8 +39,13 @@ export default async function(req) {
       const taxCollected = quotes.reduce((s, cq) => s + (cq.tax_amount_cents || 0), 0);
       const vendorDeliveryRevenue = quotes.filter((cq) => cq.delivery_method === "vendor_delivery").reduce((s, cq) => s + (cq.delivery_amount_cents || 0), 0);
       const marketplaceFee = quotes.reduce((s, cq) => s + (cq.marketplace_fee_cents || 0), 0);
-      const feePayer = quotes[0]?.fee_payer || "buyer";
-      const vendorFeeDeduction = feePayer === "vendor" ? marketplaceFee : feePayer === "split" ? Math.round(marketplaceFee / 2) : 0;
+      const feePayers = new Set(quotes.map((cq) => cq.fee_payer || "buyer"));
+      const feePayer = feePayers.size <= 1 ? ([...feePayers][0] || "buyer") : "mixed";
+      const vendorFeeDeduction = quotes.reduce((sum, cq) => {
+        const payer = cq.fee_payer || "buyer";
+        const fee = cq.marketplace_fee_cents || 0;
+        return sum + (payer === "vendor" ? fee : payer === "split" ? Math.round(fee / 2) : 0);
+      }, 0);
 
       // Settlement entries (vendor payout)
       const settlementEntries = (ledgerEntries || []).filter((e) => e.entry_type === "payout" && (e.transaction_id || "").startsWith("settle:"));
@@ -60,7 +65,7 @@ export default async function(req) {
         vendor,
         totals: {
           gross_merchandise_sales_cents: grossMerchSales,
-          taxable_marketplace_sales_cents: grossMerchSales, // TEST: all merchandise is taxable
+          taxable_marketplace_sales_cents: quotes.reduce((sum, cq) => sum + (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0), 0)
           tax_collected_cents: taxCollected,
           tax_not_in_payout: taxCollected,
           vendor_delivery_revenue_cents: vendorDeliveryRevenue,
@@ -75,23 +80,24 @@ export default async function(req) {
         periods: {
           this_month: {
             gross_sales_cents: thisMonthQuotes.reduce((s, cq) => s + (cq.merchandise_subtotal_cents || 0), 0),
-            taxable_sales_cents: thisMonthQuotes.reduce((s, cq) => s + (cq.merchandise_subtotal_cents || 0), 0),
+            taxable_sales_cents: thisMonthQuotes.reduce((s, cq) => s + (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0), 0),
             tax_collected_cents: thisMonthQuotes.reduce((s, cq) => s + (cq.tax_amount_cents || 0), 0),
             order_count: thisMonthQuotes.length,
           },
           previous_month: {
             gross_sales_cents: lastMonthQuotes.reduce((s, cq) => s + (cq.merchandise_subtotal_cents || 0), 0),
-            taxable_sales_cents: lastMonthQuotes.reduce((s, cq) => s + (cq.merchandise_subtotal_cents || 0), 0),
+            taxable_sales_cents: lastMonthQuotes.reduce((s, cq) => s + (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0), 0),
             tax_collected_cents: lastMonthQuotes.reduce((s, cq) => s + (cq.tax_amount_cents || 0), 0),
             order_count: lastMonthQuotes.length,
           },
           year_to_date: {
             gross_sales_cents: ytdQuotes.reduce((s, cq) => s + (cq.merchandise_subtotal_cents || 0), 0),
-            taxable_sales_cents: ytdQuotes.reduce((s, cq) => s + (cq.merchandise_subtotal_cents || 0), 0),
+            taxable_sales_cents: ytdQuotes.reduce((s, cq) => s + (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0), 0),
             tax_collected_cents: ytdQuotes.reduce((s, cq) => s + (cq.tax_amount_cents || 0), 0),
             order_count: ytdQuotes.length,
           },
         },
+        _ledger_records_scanned: (ledgerEntries || []).length,
         recent_orders: (orders || []).slice(0, 20).map((o) => ({
           order_number: o.order_number, order_status: o.order_status, payment_status: o.payment_status,
           total_cents: o.total_cents, created_date: o.created_date,
@@ -100,7 +106,8 @@ export default async function(req) {
     }
 
     const totalRecords = vendorResults.reduce((s, v) => s + v.totals.total_orders, 0);
-    return Response.json({ vendors: vendorResults, partial: totalRecords >= 200, records_scanned: totalRecords });
+    const partial = vendorResults.some((v) => v.totals.total_orders >= 200 || (v._ledger_records_scanned || 0) >= 500);
+    return Response.json({ vendors: vendorResults.map(({ _ledger_records_scanned, ...v }) => v), partial, records_scanned: totalRecords });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
