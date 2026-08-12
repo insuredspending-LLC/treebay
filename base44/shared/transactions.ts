@@ -251,7 +251,15 @@ export async function applyDeliveryOption(svc, quoteId, optionId, address) {
   const siblings = await svc.entities.DeliveryOption.filter({ checkout_quote_id: quoteId });
   for (const o of (siblings || [])) {
     if (o.id === optionId) continue;
-    if (o.status === "selected") await svc.entities.DeliveryOption.update(o.id, { status: "available" });
+    if (o.status === "selected") {
+      await svc.entities.DeliveryOption.update(o.id, { status: "available" });
+      if (o.freight_quote_id) {
+        const previousFreight = await svc.entities.FreightQuote.get(o.freight_quote_id);
+        if (previousFreight && previousFreight.status === "selected") {
+          await svc.entities.FreightQuote.update(o.freight_quote_id, { status: "quoted" });
+        }
+      }
+    }
   }
   await svc.entities.DeliveryOption.update(optionId, { status: "selected" });
   // Mark the checkout FreightQuote as "selected" when the buyer selects the third-party option.
@@ -425,20 +433,16 @@ export async function createSettlementLedgerEntry(svc, order, cq) {
   // (NOT cq.delivery_amount_cents) so buyer freight charge and carrier pay stay distinct.
   // Idempotent per-entry: retries create only the missing entry.
   if (cq.delivery_method === "third_party_carrier" && (cq.delivery_amount_cents || 0) > 0) {
-    let carrierId = null;
-    let carrierPayCents = cq.delivery_amount_cents || 0; // fallback
     const shipRows = await svc.entities.Shipment.filter({ order_id: order.id });
     const shipment = (shipRows || [])[0];
-    if (shipment) {
-      carrierId = shipment.carrier_id || null;
-      if (shipment.freight_quote_id) {
-        const fq = await svc.entities.FreightQuote.get(shipment.freight_quote_id);
-        if (fq) carrierPayCents = fq.carrier_pay_cents || carrierPayCents;
-      }
-    }
+    if (!shipment?.carrier_id) throw new Error("Financial reconciliation: shipment has no carrier assigned.");
+    if (!shipment?.freight_quote_id) throw new Error("Financial reconciliation: shipment has no freight quote.");
+    const fq = await svc.entities.FreightQuote.get(shipment.freight_quote_id);
+    if (!fq) throw new Error("Financial reconciliation: freight quote not found.");
+    if (fq.carrier_id !== shipment.carrier_id) throw new Error("Financial reconciliation: freight quote carrier mismatch.");
     await createLedgerEntry(svc, {
-      order_id: order.id, transaction_id: group, entry_key: "carrier_payout", entry_type: "carrier_payable", party_type: "carrier", party_id: carrierId,
-      description: "Carrier freight payout (TEST)", debit_cents: carrierPayCents,
+      order_id: order.id, transaction_id: group, entry_key: "carrier_payout", entry_type: "carrier_payable", party_type: "carrier", party_id: shipment.carrier_id,
+      description: "Carrier freight payout (TEST)", debit_cents: fq.carrier_pay_cents || 0,
     });
   }
   return { created: true };
@@ -499,7 +503,9 @@ export async function updateCarrierPayablePartyId(svc, orderId, carrierId) {
   const group = allocationGroup(orderId);
   const rows = await svc.entities.TransactionLedgerEntry.filter({ order_id: orderId, transaction_id: group, entry_key: "delivery", party_type: "carrier" });
   for (const row of (rows || [])) {
-    if (!row.party_id) await svc.entities.TransactionLedgerEntry.update(row.id, { party_id: carrierId });
+    // Carrier assignment happens after payment and may change if a carrier declines.
+    // Keep the current carrier payable associated with the authoritative replacement carrier.
+    if (row.party_id !== carrierId) await svc.entities.TransactionLedgerEntry.update(row.id, { party_id: carrierId });
   }
 }
 
@@ -790,6 +796,21 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
     // Persist the created order id while the quote remains consuming. Concurrent callers
     // still receive a safe processing response and can never create another Order.
     await svc.entities.CheckoutQuote.update(cq.id, { order_id: order.id });
+    // Link the selected checkout FreightQuote to the durable Order. This preserves
+    // decline history, carrier financial reporting, and later settlement traceability.
+    if (cq.delivery_method === "third_party_carrier") {
+      const deliveryOptions = await svc.entities.DeliveryOption.filter({ checkout_quote_id: cq.id, provider_type: "third_party_carrier" });
+      const freightOption = (deliveryOptions || []).find((o) => o.status === "selected") || (deliveryOptions || [])[0];
+      if (freightOption?.freight_quote_id) {
+        const freightQuote = await svc.entities.FreightQuote.get(freightOption.freight_quote_id);
+        if (freightQuote) {
+          await svc.entities.FreightQuote.update(freightQuote.id, {
+            order_id: order.id,
+            status: freightQuote.status === "quoted" ? "selected" : freightQuote.status,
+          });
+        }
+      }
+    }
     if (cq.source_type === "direct_listing" && cq.product_id) {
       await reserveForCheckout(svc, order, cq, reservationExpiry);
     }
