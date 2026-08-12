@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/treebay";
 import { BulkPricingBadge, PickupDeliveryBadges } from "@/components/ProductBadges";
 
-export default function ProductCard({ product, favorite, onToggleFavorite, fromCity }) {
+export default function ProductCard({ product, favorite, onToggleFavorite }) {
   const img = product.images?.[0];
   const status = product.listing_status || "active";
   return (
