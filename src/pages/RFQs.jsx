@@ -10,7 +10,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { RFQ_STATUS_LABELS, shortDate, formatNumber } from "@/lib/treebay";
 
 export default function RFQs() {
-  const { accountType, user } = useAppUser();
+  const { user } = useAppUser();
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
 
