@@ -15,7 +15,7 @@ import PullToRefresh from "@/components/PullToRefresh";
 import VerifiedBadge from "@/components/VerifiedBadge";
 
 export default function Home() {
-  const { buyerProfile, accountType } = useAppUser();
+  const { buyerProfile } = useAppUser();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [featured, setFeatured] = useState([]);
@@ -46,7 +46,7 @@ export default function Home() {
         setNear(list.slice(0, 8));
       }
       setGrowers(vendors || []);
-    } catch (e) { /* */ }
+    } catch { /* */ }
     finally { if (!silent) setLoading(false); }
   };
   useEffect(() => { load(); }, [myCity]);
