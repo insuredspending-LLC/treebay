@@ -36,6 +36,18 @@ export default async function(req) {
     let newStatus = null;
     let description = "";
 
+    // Validate action/state BEFORE writing POD or other side effects.
+    const currentShipmentStatus = shipment.shipment_status;
+    const stateAllowed =
+      (action === "accept" && currentShipmentStatus === "assigned") ||
+      (action === "decline" && currentShipmentStatus === "assigned") ||
+      (action === "pickup" && currentShipmentStatus === "pickup_scheduled") ||
+      (action === "in_transit" && currentShipmentStatus === "picked_up") ||
+      (action === "deliver" && ["in_transit", "delivery_delayed"].includes(currentShipmentStatus));
+    if (!stateAllowed) {
+      return Response.json({ error: "Action " + action + " is not valid while shipment is " + currentShipmentStatus + "." }, { status: 400 });
+    }
+
     if (action === "accept") {
       newStatus = "pickup_scheduled";
       description = "Carrier accepted load";
