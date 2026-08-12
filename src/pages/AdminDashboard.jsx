@@ -31,7 +31,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
-  const seed = async () => { setSeeding(true); try { const r = await seedDemoData(); toast({ title: r.ok ? "Demo data loaded" : "Already seeded" }); load(); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } finally { setSeeding(false); } };
+  const seed = async () => { setSeeding(true); try { const r = await seedDemoData(); toast({ title: r.ok ? "Demo data loaded" : "Already seeded" }); load(); } catch { toast({ title: "Failed", variant: "destructive" }); } finally { setSeeding(false); } };
   const [runningMaint, setRunningMaint] = useState(false);
   const runMaintenance = async () => { setRunningMaint(true); try { const { data } = await base44.functions.invoke("runTransactionMaintenance", {}); toast({ title: "Maintenance complete", description: `Released: ${data.released}, Reminders: ${data.reminders}, Escalated: ${data.escalated}, Completed: ${data.completed}, Settled: ${data.settled}` }); load(); } catch (e) { toast({ title: "Maintenance failed", description: apiError(e), variant: "destructive" }); } finally { setRunningMaint(false); } };
   const generateDocs = async (orderId) => { try { for (const dt of ["buyer_order_confirmation", "buyer_invoice", "buyer_receipt", "vendor_purchase_order", "vendor_settlement_statement", "delivery_manifest"]) { await base44.functions.invoke("generateTransactionDocument", { orderId, documentType: dt }); } toast({ title: "Documents generated" }); } catch (e) { toast({ title: "Failed", description: apiError(e), variant: "destructive" }); } };
@@ -58,14 +58,13 @@ export default function AdminDashboard() {
   if (user && user.role !== "admin") return <Navigate to="/" replace />;
   if (!user) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
-  const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } };
-  const setCarrierVerification = async (id, status) => { try { await base44.entities.CarrierProfile.update(id, { verification_status: status }); load(); toast({ title: `Carrier ${VERIFICATION_LABELS[status]}` }); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } };
+  const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
+  const setCarrierVerification = async (id, status) => { try { await base44.entities.CarrierProfile.update(id, { verification_status: status }); load(); toast({ title: `Carrier ${VERIFICATION_LABELS[status]}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
   const setListingStatus = async (id, status) => { try { await base44.entities.Product.update(id, { listing_status: status }); load(); toast({ title: `Listing ${status}` }); } catch {} };
   const resolveReport = async (id, resolution) => { try { await base44.entities.ContentReport.update(id, { status: "actioned", resolution }); load(); toast({ title: "Report resolved" }); } catch {} };
   const dismissReport = async (id) => { try { await base44.entities.ContentReport.update(id, { status: "dismissed" }); load(); } catch {} };
 
   const pendingVendors = vendors.filter((v) => v.verification_status === "pending");
-  const totalSales = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (o.total || 0), 0);
 
   return (
     <div className="space-y-4">
