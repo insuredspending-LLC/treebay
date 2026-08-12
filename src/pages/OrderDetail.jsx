@@ -21,14 +21,15 @@ function getFulfillmentSequence(order) {
 
 function getNextStatus(order) {
   const s = order.order_status;
-  const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
+  const isVendorDelivery = order.fulfillment_method === "vendor_delivery";
   if (s === "inventory_reserved") return "vendor_confirmed";
   if (s === "vendor_confirmed") return "preparing";
   if (s === "preparing") return "ready_for_pickup";
-  if (s === "ready_for_pickup") return isPickup ? "picked_up" : "delivery_assigned";
-  if (s === "delivery_assigned") return "picked_up";
-  if (s === "picked_up") return isPickup ? "delivered" : "in_transit";
-  if (s === "in_transit") return "delivered";
+  // Seller stops at ready_for_pickup for buyer pickup and third-party freight.
+  if (s === "ready_for_pickup") return isVendorDelivery ? "delivery_assigned" : null;
+  if (s === "delivery_assigned") return isVendorDelivery ? "picked_up" : null;
+  if (s === "picked_up") return isVendorDelivery ? "in_transit" : null;
+  if (s === "in_transit") return isVendorDelivery ? "delivered" : null;
   return null;
 }
 
