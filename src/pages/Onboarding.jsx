@@ -31,7 +31,6 @@ export default function Onboarding() {
   const finish = async () => {
     setLoading(true);
     try {
-      await base44.auth.updateMe({ account_type: role, terms_accepted_at: new Date().toISOString(), terms_version: "1" });
       if (role === "buyer") {
         await base44.entities.BuyerProfile.create({
           full_name: f.full_name, business_name: f.business_name, buyer_type: f.buyer_type,
@@ -55,6 +54,8 @@ export default function Onboarding() {
           dot_number: f.dot_number, mc_number: f.mc_number,
         });
       }
+      // Commit the selected role and legal consent only after the role profile is successfully created.
+      await base44.auth.updateMe({ account_type: role, terms_accepted_at: new Date().toISOString(), terms_version: "1" });
       await refresh();
       navigate("/", { replace: true });
     } catch (e) {
