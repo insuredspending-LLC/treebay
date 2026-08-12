@@ -31,6 +31,7 @@ export default function AdminFinancials() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat icon={TrendingUp} label="GMV" value={formatCents(data.totals.gmv_cents)} />
+        <Stat icon={Receipt} label="Taxable Marketplace Sales" value={formatCents(data.totals.taxable_marketplace_sales_cents)} />
         <Stat icon={Receipt} label="Sales Tax Collected" value={formatCents(data.totals.sales_tax_collected_cents)} />
         <Stat icon={DollarSign} label="TreEbay Fee Revenue" value={formatCents(data.totals.treebay_fee_revenue_cents)} />
         <Stat icon={AlertTriangle} label="Open Exceptions" value={data.totals.open_exceptions} />
