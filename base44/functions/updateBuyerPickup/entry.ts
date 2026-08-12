@@ -65,6 +65,12 @@ export default async function(req) {
     const notifType = newStatus === "picked_up" ? "order_shipped" : "order_delivered";
     await notifySafely(svc, { user_id: order.vendor_owner_id, type: notifType, eventType: "buyer_pickup_" + action, title: "Pickup update", body: order.order_number + " — " + description, reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
 
+    // Buyer receipt is the normal completion trigger for pickup orders. Finalize now;
+    // the hourly recovery automation remains the fallback for any transient failure.
+    if (newStatus === "delivered") {
+      try { await svc.functions.invoke("runTransactionMaintenance", { trigger: "buyer_pickup_received", order_id: orderId }); } catch { /* recovery scheduler handles it */ }
+    }
+
     return Response.json({ ok: true, order_status: newStatus });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
