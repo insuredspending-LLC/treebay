@@ -20,6 +20,7 @@ export default function Checkout() {
   const [quote, setQuote] = useState(null);
   const [options, setOptions] = useState([]);
   const [vendor, setVendor] = useState(null);
+  const [freightQuotes, setFreightQuotes] = useState({});
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [applyingDelivery, setApplyingDelivery] = useState(false);
@@ -46,7 +47,12 @@ export default function Checkout() {
         };
         setAddress((p) => ({ ...p, ...hydratedAddress }));
         const opts = await base44.entities.DeliveryOption.filter({ checkout_quote_id: quoteId }) || [];
-        setOptions(opts.filter((o) => o.status === "available" || o.status === "selected"));
+        const visibleOpts = opts.filter((o) => o.status === "available" || o.status === "selected");
+        setOptions(visibleOpts);
+        const freightEntries = await Promise.all(visibleOpts.filter((o) => o.freight_quote_id).map(async (o) => {
+          try { return [o.freight_quote_id, await base44.entities.FreightQuote.get(o.freight_quote_id)]; } catch { return [o.freight_quote_id, null]; }
+        }));
+        setFreightQuotes(Object.fromEntries(freightEntries.filter(([, fq]) => fq)));
         if (cq.delivery_method) {
           const sel = opts.find((o) => o.provider_type === cq.delivery_method);
           if (sel) setSelectedOption(sel.id);
@@ -161,6 +167,10 @@ export default function Checkout() {
                 <div className="flex-1">
                   <p className="text-sm font-medium capitalize">{opt.service_type || opt.provider_type.replace(/_/g, " ")}</p>
                   <p className="text-xs text-muted-foreground">{formatCents(opt.delivery_price_cents)}{opt.estimated_delivery_days ? ` · ${opt.estimated_delivery_days} day(s)` : ""}</p>
+                  {opt.provider_type === "third_party_carrier" && freightQuotes[opt.freight_quote_id] && (() => {
+                    const fq = freightQuotes[opt.freight_quote_id];
+                    return <p className="text-[11px] text-amber-700 mt-0.5">TEST FREIGHT · {fq.quote_reference} · {fq.equipment_type || "equipment TBD"}{fq.estimated_transit_days ? ` · ~${fq.estimated_transit_days} day transit` : ""}{fq.expires_at ? ` · expires ${new Date(fq.expires_at).toLocaleString()}` : ""}</p>;
+                  })()}
                 </div>
               </label>
             ))}
