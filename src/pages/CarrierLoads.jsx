@@ -48,6 +48,7 @@ export default function CarrierLoads() {
   };
 
   if (!carrierProfile) return null;
+  if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
   const available = shipments.filter((s) => s.shipment_status === "assigned");
   const active = shipments.filter((s) => ["pickup_scheduled", "picked_up", "in_transit"].includes(s.shipment_status));
