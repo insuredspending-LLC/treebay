@@ -125,7 +125,10 @@ export default function Account() {
               <p className="text-[11px] text-amber-700 bg-amber-50 rounded-md p-2">Verification is pending. An admin must verify your carrier profile before you can accept freight loads.</p>
             )}
           </div>
-          <Button variant="outline" size="sm" asChild className="w-full"><Link to="/carrier"><Truck className="w-4 h-4 mr-1" /> Go to Carrier Dashboard</Link></Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild className="flex-1"><Link to="/carrier/edit-profile"><Settings className="w-4 h-4 mr-1" /> Edit Profile</Link></Button>
+            <Button variant="outline" size="sm" asChild className="flex-1"><Link to="/carrier"><Truck className="w-4 h-4 mr-1" /> Dashboard</Link></Button>
+          </div>
         </Card>
       )}
 
