@@ -70,7 +70,7 @@ export default function Projects() {
       });
       setForm({}); setOpen(false); setAiDraft(null);
       navigate(`/projects/${proj.id}`);
-    } catch (e) { /* */ }
+    } catch { /* */ }
     finally { setSaving(false); }
   };
 
