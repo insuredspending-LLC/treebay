@@ -24,7 +24,7 @@ export default function PrivacyPolicy() {
       <p>We keep your profile and marketplace data while your account is active. Orders, reviews, and messages are retained as transaction records for accounting, tax, fraud prevention, and legal compliance, even after account deletion.</p>
 
       <h3>Account deletion</h3>
-      <p>You can delete your account from Settings → Delete Account, or from the public <em>Delete your account</em> page. Deletion removes your profile, projects, favorites, blocks, and notifications, and archives your listings. Orders, reviews, and messages are retained as <strong>de-identified transaction records</strong> and are no longer linked to an identifiable profile. Your login account is signed out; full removal of the underlying authentication account is completed by TreEbay on request.</p>
+      <p>You can delete your account from Settings → Delete Account, or from the public <em>Delete your account</em> page. Deletion removes your active marketplace profiles, projects, favorites, blocks, and notifications, and archives your listings. Orders, reviews, messages, delivery details, and related transaction records may be retained where needed for accounting, tax, fraud prevention, dispute handling, and legal compliance. Retained records remain protected by access controls. Your login account is disabled and can no longer be used to sign in.</p>
 
       <h3>Security</h3>
       <p>We protect data with access controls, row-level permissions, and secure server-side processing of marketplace transactions. No system is perfectly secure, but we apply industry-standard safeguards.</p>
