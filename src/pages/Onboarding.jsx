@@ -14,7 +14,7 @@ import { BUYER_TYPES } from "@/lib/treebay";
 const ROLES = [
   { id: "buyer", title: "Buy plants & trees", desc: "Source inventory, request quotes, and order for your projects.", icon: ShoppingCart },
   { id: "vendor", title: "Sell plants & trees", desc: "List inventory, respond to RFQs, and fulfill orders.", icon: Store },
-  { id: "carrier", title: "Transportation provider", desc: "Move plants and trees for buyers and vendors (coming soon).", icon: Truck },
+  { id: "carrier", title: "Transportation provider", desc: "Move plants and trees for buyers and vendors in TEST freight mode.", icon: Truck },
 ];
 
 export default function Onboarding() {
@@ -46,12 +46,13 @@ export default function Onboarding() {
           wholesale_available: !!f.wholesale_available,
         });
       } else {
-        await base44.entities.CarrierProfile.create({
+        await base44.functions.invoke("createCarrierProfile", {
           business_name: f.business_name, contact_name: f.contact_name, phone: f.phone,
           address: f.address, city: f.city, state: f.state, zip_code: f.zip_code,
           equipment_type: f.equipment_type, service_radius: f.service_radius,
           operating_regions: f.operating_regions, load_capabilities: f.load_capabilities,
           description: f.description,
+          dot_number: f.dot_number, mc_number: f.mc_number,
         });
       }
       await refresh();
@@ -74,8 +75,8 @@ export default function Onboarding() {
         <p className="text-muted-foreground mt-1">You can switch roles later from your account settings.</p>
         <div className="mt-8 space-y-3">
           {ROLES.map((r) => (
-            <button key={r.id} disabled={r.id === "carrier"} onClick={() => { if (r.id === "carrier") return; setRole(r.id); setStep("profile"); }}
-              className={"w-full text-left p-4 rounded-2xl border border-border bg-card transition flex gap-4 items-start " + (r.id === "carrier" ? "opacity-50 cursor-not-allowed" : "hover:border-primary hover:shadow-sm")}>
+            <button key={r.id} onClick={() => { setRole(r.id); setStep("profile"); }}
+              className="w-full text-left p-4 rounded-2xl border border-border bg-card transition flex gap-4 items-start hover:border-primary hover:shadow-sm">
               <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center shrink-0"><r.icon className="w-6 h-6 text-primary" /></div>
               <div className="flex-1">
                 <p className="font-semibold flex items-center gap-2">{r.title}{r.id === "carrier" && <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Coming soon</span>}</p>
