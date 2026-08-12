@@ -65,7 +65,7 @@ export default async function(req) {
         vendor,
         totals: {
           gross_merchandise_sales_cents: grossMerchSales,
-          taxable_marketplace_sales_cents: quotes.reduce((sum, cq) => sum + (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0), 0)
+          taxable_marketplace_sales_cents: quotes.reduce((sum, cq) => sum + (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0), 0),
           tax_collected_cents: taxCollected,
           tax_not_in_payout: taxCollected,
           vendor_delivery_revenue_cents: vendorDeliveryRevenue,
