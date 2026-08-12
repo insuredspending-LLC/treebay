@@ -26,7 +26,11 @@ export default function CarrierLoads() {
     setLoading(true);
     try {
       const list = await base44.entities.Shipment.filter({ carrier_id: carrierProfile.id }, "-created_date", 100);
-      setShipments(list || []);
+      const enriched = await Promise.all((list || []).map(async (shipment) => {
+        if (!shipment.freight_quote_id) return shipment;
+        try { return { ...shipment, _freightQuote: await base44.entities.FreightQuote.get(shipment.freight_quote_id) }; } catch { return shipment; }
+      }));
+      setShipments(enriched);
     } catch {}
     finally { setLoading(false); }
   };
@@ -115,8 +119,12 @@ function LoadCard({ shipment: s, children }) {
         </div>
         <StatusBadge status={s.shipment_status} />
       </div>
-      {s.delivery_price_cents != null && (
-        <p className="text-sm font-medium text-primary">{formatCents(s.delivery_price_cents)}</p>
+      {s._freightQuote && (
+        <div className="text-xs text-muted-foreground">
+          <p className="text-sm font-semibold text-primary">Carrier pay: {formatCents(s._freightQuote.carrier_pay_cents)}</p>
+          <p>Linehaul {formatCents(s._freightQuote.linehaul_cents)} · Fuel {formatCents(s._freightQuote.fuel_surcharge_cents)} · Accessorials {formatCents(s._freightQuote.accessorial_cents)}</p>
+          <p className="text-amber-700">TEST FREIGHT · {s._freightQuote.quote_reference}</p>
+        </div>
       )}
       {children}
     </Card>
