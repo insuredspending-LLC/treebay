@@ -53,8 +53,8 @@ export default async function(req) {
         settled_loads: settlementEntries.length,
       },
       loads,
-      partial: (allFreightQuotes || []).length >= 200,
-      records_scanned: (allFreightQuotes || []).length,
+      partial: (allFreightQuotes || []).length >= 200 || (ledgerEntries || []).length >= 500 || (shipments || []).length >= 100,
+      records_scanned: { freight_quotes: (allFreightQuotes || []).length, ledger_entries: (ledgerEntries || []).length, shipments: (shipments || []).length },
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
