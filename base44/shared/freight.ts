@@ -89,12 +89,16 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
 
   // Find the checkout FreightQuote (created at checkout time, status "selected" or "quoted")
   let freightQuote = null;
-  const checkoutQuotes = await svc.entities.FreightQuote.filter({ checkout_quote_id: cq.id, status: "selected" });
+  let checkoutQuotes = await svc.entities.FreightQuote.filter({ checkout_quote_id: cq.id, status: "selected" });
+  if (!checkoutQuotes || !checkoutQuotes.length) {
+    checkoutQuotes = await svc.entities.FreightQuote.filter({ checkout_quote_id: cq.id, status: "quoted" });
+  }
   if (checkoutQuotes && checkoutQuotes.length) {
     freightQuote = checkoutQuotes[0];
     // Associate the selected FreightQuote with the assigned carrier
     // buyer_freight_charge_cents stays LOCKED — never altered
     await svc.entities.FreightQuote.update(freightQuote.id, {
+      order_id: order.id,
       carrier_id: carrier.id,
       carrier_owner_id: carrier.created_by_id,
       status: "assigned",
@@ -166,12 +170,18 @@ export async function reassignFreight(svc, order, cq, shipment, declinedCarrierI
   if (shipment.freight_quote_id) {
     try { await svc.entities.FreightQuote.update(shipment.freight_quote_id, { status: "declined" }); } catch {}
   }
-  // Release carrier assignment from Shipment
+  // Release carrier assignment from Shipment and place it into an exception state
+  // until a replacement carrier is secured.
   await svc.entities.Shipment.update(shipment.id, {
     carrier_id: null, carrier_owner_id: null, freight_quote_id: null,
   });
-  // Try to assign a new carrier (autoAssignFreight excludes declined carriers)
-  return autoAssignFreight(svc, order, cq, shipment);
+  try {
+    await updateShipmentStatus(svc, shipment.id, "exception", { type: "system", description: "Carrier declined — awaiting reassignment" });
+  } catch { /* shipment may already be in an exception-compatible state */ }
+  // Try to assign a new carrier (autoAssignFreight excludes declined carriers).
+  const result = await autoAssignFreight(svc, order, cq, await svc.entities.Shipment.get(shipment.id));
+  await updateShipmentStatus(svc, shipment.id, "assigned", { type: "system", description: "Replacement carrier assigned" });
+  return result;
 }
 
 // Retry freight assignment for orders stuck at ready_for_pickup with third_party_carrier
@@ -193,6 +203,12 @@ export async function retryFreightAssignment(svc) {
 
     const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
     if (!cq) continue;
+
+    // Respect the retry schedule. A transient failure should not exhaust all retries
+    // simply because maintenance runs frequently.
+    const existingExceptions = await svc.entities.SystemException.filter({ order_id: order.id, exception_type: "freight_assignment_failed" }, "-created_date", 20);
+    const activeException = (existingExceptions || []).find((x) => x.status !== "RESOLVED" && x.status !== "CLOSED");
+    if (activeException?.status === "AUTO_RETRYING" && activeException.next_retry_at && now < new Date(activeException.next_retry_at)) continue;
 
     try {
       await autoAssignFreight(svc, order, cq, shipment);
@@ -226,7 +242,8 @@ export async function retryFreightAssignment(svc) {
     }
   }
 
-  // Also handle legacy: orders at delivery_assigned with a shipment but no carrier
+  // Also handle delivery_assigned orders whose carrier assignment was released
+  // (for example after a carrier decline). Use the SAME retry/escalation lifecycle.
   const assignedOrders = await svc.entities.Order.filter({ order_status: "delivery_assigned" }, "-created_date", 100);
   for (const order of (assignedOrders || [])) {
     if (order.fulfillment_method !== "third_party_carrier") continue;
@@ -235,11 +252,36 @@ export async function retryFreightAssignment(svc) {
     if (!shipment || (shipment.carrier_id && shipment.freight_quote_id)) continue;
     const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
     if (!cq) continue;
+
+    const existingExceptions = await svc.entities.SystemException.filter({ order_id: order.id, exception_type: "freight_assignment_failed" }, "-created_date", 20);
+    const activeException = (existingExceptions || []).find((x) => x.status !== "RESOLVED" && x.status !== "CLOSED");
+    if (activeException?.status === "AUTO_RETRYING" && activeException.next_retry_at && now < new Date(activeException.next_retry_at)) continue;
+
     try {
       await autoAssignFreight(svc, order, cq, shipment);
+      await updateShipmentStatus(svc, shipment.id, "assigned", { type: "system", description: "Replacement freight assigned automatically" });
       assigned++;
     } catch {
       failed++;
+      const excs = await svc.entities.SystemException.filter({ order_id: order.id, exception_type: "freight_assignment_failed" }, "-created_date", 20);
+      const exc = (excs || []).find((x) => x.status !== "RESOLVED" && x.status !== "CLOSED");
+      if (exc) {
+        const newRetryCount = (exc.retry_count || 0) + 1;
+        if (newRetryCount >= (exc.max_retries || 3)) {
+          await svc.entities.SystemException.update(exc.id, {
+            severity: "ACTION_REQUIRED", status: "ADMIN_REVIEW", requires_admin: true,
+            retry_count: newRetryCount,
+            reason: "Freight reassignment failed after " + newRetryCount + " retries for " + order.order_number,
+            recommended_action: "Verify another carrier in admin, then re-run transaction maintenance.",
+          });
+          escalated++;
+        } else {
+          await svc.entities.SystemException.update(exc.id, {
+            retry_count: newRetryCount,
+            next_retry_at: new Date(now.getTime() + FREIGHT_RETRY_INTERVAL_MS).toISOString(),
+          });
+        }
+      }
     }
   }
 
