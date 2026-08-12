@@ -17,19 +17,16 @@ import { autoAssignFreight } from "./freight.ts";
 // delivery:     ... ready_for_pickup -> delivery_assigned -> picked_up -> in_transit -> delivered
 export function getNextStatus(order) {
   const s = order.order_status;
-  const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
   const isVendorDelivery = order.fulfillment_method === "vendor_delivery";
   if (s === "inventory_reserved") return "vendor_confirmed";
   if (s === "vendor_confirmed") return "preparing";
   if (s === "preparing") return "ready_for_pickup";
   // Vendor responsibility ENDS at ready_for_pickup for buyer_pickup and third_party_carrier.
-  // buyer_pickup: buyer confirms pickup via updateBuyerPickup.
-  // third_party_carrier: system auto-assigns freight, then transitions to delivery_assigned.
-  // vendor_delivery: vendor continues to delivery_assigned.
+  // Only vendor_delivery remains vendor-owned after ready_for_pickup.
   if (s === "ready_for_pickup") return isVendorDelivery ? "delivery_assigned" : null;
-  if (s === "delivery_assigned") return "picked_up";
-  if (s === "picked_up") return isPickup ? "delivered" : "in_transit";
-  if (s === "in_transit") return "delivered";
+  if (s === "delivery_assigned") return isVendorDelivery ? "picked_up" : null;
+  if (s === "picked_up") return isVendorDelivery ? "in_transit" : null;
+  if (s === "in_transit") return isVendorDelivery ? "delivered" : null;
   return null;
 }
 
@@ -139,6 +136,11 @@ export async function recordDeliveryEvent(svc, orderId, event, actor) {
   const shipments = await svc.entities.Shipment.filter({ order_id: orderId });
   const shipment = (shipments || [])[0];
   if (!shipment) return err(400, "No shipment exists for this order yet.");
+  // A vendor may report delivery events only for vendor-owned delivery.
+  // Third-party freight belongs to the assigned carrier; buyer pickup belongs to the buyer.
+  if (actor.type !== "admin" && order.fulfillment_method !== "vendor_delivery") {
+    return err(403, "Only vendor-delivery orders can be updated by the vendor delivery workflow.");
+  }
 
   if (event === "delay") {
     const target = ["picked_up", "in_transit"].includes(shipment.shipment_status) ? "delivery_delayed" : "pickup_delayed";
