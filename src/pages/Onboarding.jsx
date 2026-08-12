@@ -79,7 +79,7 @@ export default function Onboarding() {
               className="w-full text-left p-4 rounded-2xl border border-border bg-card transition flex gap-4 items-start hover:border-primary hover:shadow-sm">
               <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center shrink-0"><r.icon className="w-6 h-6 text-primary" /></div>
               <div className="flex-1">
-                <p className="font-semibold flex items-center gap-2">{r.title}{r.id === "carrier" && <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Coming soon</span>}</p>
+                <p className="font-semibold flex items-center gap-2">{r.title}{r.id === "carrier" && <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">TEST freight</span>}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">{r.desc}</p>
               </div>
             </button>
