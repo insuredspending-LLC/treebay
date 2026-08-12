@@ -7,24 +7,42 @@ export default async function(req) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const svc = base44.asServiceRole;
     const uid = user.id;
+    const failures = [];
 
-    // Archive vendor listings (records retained for order history)
-    try { await svc.entities.Product.updateMany({ vendor_owner_id: uid }, { $set: { listing_status: "archived" } }); } catch {}
-    // Remove personal marketplace data the user owns
-    try { await svc.entities.Favorite.deleteMany({ created_by_id: uid }); } catch {}
-    try { await svc.entities.Notification.deleteMany({ user_id: uid }); } catch {}
-    try { await svc.entities.UserBlock.deleteMany({ blocker_id: uid }); } catch {}
-    try { await svc.entities.Project.deleteMany({ created_by_id: uid }); } catch {}
-    try { await svc.entities.BuyerProfile.deleteMany({ created_by_id: uid }); } catch {}
-    try { await svc.entities.VendorProfile.deleteMany({ created_by_id: uid }); } catch {}
-    try { await svc.entities.CarrierProfile.deleteMany({ created_by_id: uid }); } catch {}
-    // De-identify retained transaction records (bodies kept for dispute/accounting history)
-    try { await svc.entities.Message.updateMany({ sender_id: uid }, { $set: { sender_name: "Deleted user" } }); } catch {}
-    try { await svc.entities.Review.updateMany({ reviewer_id: uid }, { $set: { reviewer_name: "Deleted user" } }); } catch {}
-    // Disable the authentication account (supported Base44 method) — prevents future login.
-    try { await svc.entities.User.update(uid, { disabled: true }); } catch {}
+    const attempt = async (label, fn) => {
+      try { await fn(); }
+      catch (error) { failures.push({ step: label, error: error?.message || String(error) }); }
+    };
 
-    return Response.json({ ok: true, note: "Active marketplace profiles and personal app data removed; listings archived; auth account disabled. Required orders, reviews, messages, delivery details, and related transaction records may be retained for accounting, tax, fraud prevention, dispute handling, and legal compliance." });
+    // Every operation is idempotent so a partially completed deletion can safely be retried.
+    await attempt("archive_listings", () => svc.entities.Product.updateMany({ vendor_owner_id: uid }, { $set: { listing_status: "archived" } }));
+    await attempt("delete_favorites", () => svc.entities.Favorite.deleteMany({ created_by_id: uid }));
+    await attempt("delete_notifications", () => svc.entities.Notification.deleteMany({ user_id: uid }));
+    await attempt("delete_blocks", () => svc.entities.UserBlock.deleteMany({ blocker_id: uid }));
+    await attempt("delete_projects", () => svc.entities.Project.deleteMany({ created_by_id: uid }));
+    await attempt("delete_buyer_profile", () => svc.entities.BuyerProfile.deleteMany({ created_by_id: uid }));
+    await attempt("delete_vendor_profile", () => svc.entities.VendorProfile.deleteMany({ created_by_id: uid }));
+    await attempt("delete_carrier_profile", () => svc.entities.CarrierProfile.deleteMany({ created_by_id: uid }));
+
+    // Minimize directly displayed identity on retained records while preserving the records
+    // required for transaction, fraud, dispute, tax, and legal history.
+    await attempt("anonymize_message_display_name", () => svc.entities.Message.updateMany({ sender_id: uid }, { $set: { sender_name: "Deleted user" } }));
+    await attempt("anonymize_review_display_name", () => svc.entities.Review.updateMany({ reviewer_id: uid }, { $set: { reviewer_name: "Deleted user" } }));
+
+    // Disabling authentication is critical: never report deletion success if this fails.
+    await attempt("disable_login", () => svc.entities.User.update(uid, { disabled: true }));
+
+    if (failures.length) {
+      return Response.json({
+        error: "Account deletion was only partially completed. It is safe to retry.",
+        failed_steps: failures.map((f) => f.step),
+      }, { status: 500 });
+    }
+
+    return Response.json({
+      ok: true,
+      note: "Active marketplace profiles and personal app data removed; listings archived; auth account disabled. Required orders, reviews, messages, delivery details, and related transaction records may be retained for accounting, tax, fraud prevention, dispute handling, and legal compliance.",
+    });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
