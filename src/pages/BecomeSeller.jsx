@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Leaf, Loader2, ArrowLeft, ArrowRight, Check, Store, MapPin, Truck, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { apiError } from "@/lib/treebay";
 
 const STEPS = [
   { num: 1, label: "Business", icon: Store },
@@ -18,7 +19,7 @@ const STEPS = [
 ];
 
 export default function BecomeSeller() {
-  const { refresh } = useAppUser();
+  const { refresh, switchAccountType } = useAppUser();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
@@ -40,8 +41,18 @@ export default function BecomeSeller() {
     setStep((s) => Math.min(4, s + 1));
   };
   const back = () => setStep((s) => Math.max(1, s - 1));
+  const exitSetup = async () => {
+    await switchAccountType("buyer");
+    navigate("/", { replace: true });
+  };
 
   const finish = async () => {
+    const required = [f.business_name, f.contact_name, f.phone, f.city, f.state, f.zip_code];
+    if (required.some((value) => !String(value || "").trim())) {
+      toast({ title: "Required information is missing", description: "Enter your business name, contact name, phone, city, state, and ZIP code before submitting.", variant: "destructive" });
+      setStep(!f.business_name || !f.contact_name || !f.phone ? 1 : 2);
+      return;
+    }
     setLoading(true);
     try {
       await base44.functions.invoke("createVendorProfile", {
@@ -55,7 +66,7 @@ export default function BecomeSeller() {
       toast({ title: "Vendor profile created", description: "Verification starts as pending." });
       navigate("/vendor", { replace: true });
     } catch (e) {
-      toast({ title: "Could not save profile", description: e.message, variant: "destructive" });
+      toast({ title: "Could not save profile", description: apiError(e), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -64,9 +75,12 @@ export default function BecomeSeller() {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="max-w-lg mx-auto">
-        <button onClick={() => (step === 1 ? navigate(-1) : back())} className="inline-flex items-center gap-1 text-sm text-muted-foreground mb-4">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <button onClick={() => (step === 1 ? navigate(-1) : back())} className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <Button type="button" variant="outline" size="sm" onClick={exitSetup}>Exit to Buying</Button>
+        </div>
 
         <div className="flex items-center gap-2 mb-2">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center"><Leaf className="w-5 h-5 text-primary-foreground" /></div>
