@@ -1,11 +1,10 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2, BarChart3, Shield } from "lucide-react";
 import AIAssistant from "@/components/AIAssistant";
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { cn } from "@/lib/utils";
-import KeepAliveOutlet from "@/components/KeepAliveOutlet";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -287,7 +286,7 @@ export default function Layout() {
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-5 pb-24 md:pb-8">
-        <KeepAliveOutlet key={accountType} keepPaths={nav.map((n) => n.to)} />
+        <Outlet />
       </main>
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className={nav.length === 4 ? "max-w-md mx-auto grid grid-cols-4" : "max-w-md mx-auto grid grid-cols-5"}>
