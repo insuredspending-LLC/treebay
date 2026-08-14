@@ -51,6 +51,7 @@ import CarrierGuard from '@/components/CarrierGuard';
 import DeleteAccount from '@/pages/DeleteAccount';
 import VendorGuard from '@/components/VendorGuard';
 import { ThemeProvider } from "next-themes";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -149,7 +150,9 @@ function App() {
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
-            <AuthenticatedApp />
+            <AppErrorBoundary>
+              <AuthenticatedApp />
+            </AppErrorBoundary>
           </Router>
           <Toaster />
         </QueryClientProvider>
