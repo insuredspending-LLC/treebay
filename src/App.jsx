@@ -25,6 +25,7 @@ import Conversation from '@/pages/Conversation';
 import Favorites from '@/pages/Favorites';
 import Account from '@/pages/Account';
 import Settings from '@/pages/Settings';
+import ReportProblem from '@/pages/ReportProblem';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import Terms from '@/pages/Terms';
 import CommunityRules from '@/pages/CommunityRules';
@@ -115,6 +116,7 @@ const AuthenticatedApp = () => {
             <Route path="/favorites" element={<Favorites />} />
             <Route path="/account" element={<Account />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/report-problem" element={<ReportProblem />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/exceptions/:id" element={<ExceptionDetail />} />
             <Route element={<VendorGuard />}>
