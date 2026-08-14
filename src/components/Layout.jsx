@@ -154,6 +154,11 @@ function TopBar() {
   const location = useLocation();
   const { isChild, title } = getHeaderState(location.pathname);
   const desktopNav = accountType === "vendor" ? VENDOR_DESKTOP_NAV : accountType === "carrier" ? CARRIER_DESKTOP_NAV : BUYER_DESKTOP_NAV;
+  const switchMode = async (type) => {
+    const ok = await switchAccountType(type);
+    if (!ok) return;
+    navigate(type === "vendor" ? "/vendor" : type === "carrier" ? "/carrier" : "/");
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border pt-[env(safe-area-inset-top)]">
@@ -191,13 +196,13 @@ function TopBar() {
         <div className="flex items-center gap-1 shrink-0">
           {(vendorProfiles?.length > 0 || carrierProfile) && !isChild && (
             <div className="flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium" aria-label="Marketplace mode">
-              <button onClick={() => switchAccountType("buyer")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
-              {vendorProfiles?.length > 0 && <button onClick={() => switchAccountType("vendor")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>}
-              {carrierProfile && <button onClick={() => switchAccountType("carrier")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "carrier" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Carrier</button>}
+              <button onClick={() => switchMode("buyer")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
+              {vendorProfiles?.length > 0 && <button onClick={() => switchMode("vendor")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>}
+              {carrierProfile && <button onClick={() => switchMode("carrier")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "carrier" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Carrier</button>}
             </div>
           )}
           {vendorProfiles?.length > 0 && isChild && (
-            <Popover><PopoverTrigger asChild><Button variant="ghost" size="icon" aria-label="Switch marketplace mode"><ChevronsUpDown className="w-4 h-4" /></Button></PopoverTrigger><PopoverContent align="end" className="w-36 p-1"><button onClick={() => switchAccountType("buyer")} className={cn("w-full rounded-md px-3 py-2 text-left text-sm", accountType === "buyer" && "bg-secondary text-primary")}>Buyer mode</button><button onClick={() => switchAccountType("vendor")} className={cn("w-full rounded-md px-3 py-2 text-left text-sm", accountType === "vendor" && "bg-secondary text-primary")}>Seller mode</button></PopoverContent></Popover>
+            <Popover><PopoverTrigger asChild><Button variant="ghost" size="icon" aria-label="Switch marketplace mode"><ChevronsUpDown className="w-4 h-4" /></Button></PopoverTrigger><PopoverContent align="end" className="w-36 p-1"><button onClick={() => switchMode("buyer")} className={cn("w-full rounded-md px-3 py-2 text-left text-sm", accountType === "buyer" && "bg-secondary text-primary")}>Buyer mode</button><button onClick={() => switchMode("vendor")} className={cn("w-full rounded-md px-3 py-2 text-left text-sm", accountType === "vendor" && "bg-secondary text-primary")}>Seller mode</button></PopoverContent></Popover>
           )}
           <Button variant="ghost" size="icon" asChild aria-label="Messages">
             <Link to="/messages"><MessageSquare className="w-5 h-5" /></Link>
