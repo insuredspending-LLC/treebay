@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Heart, Settings, FileText, ShieldCheck, LogOut, ChevronRight, Store, Leaf, User as UserIcon, LifeBuoy, FolderKanban, Lock, ExternalLink, Truck } from "lucide-react";
+import { ShoppingCart, Heart, Settings, FileText, ShieldCheck, LogOut, ChevronRight, Store, Leaf, User as UserIcon, LifeBuoy, FolderKanban, Lock, ExternalLink, Truck, AlertTriangle } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 
 export default function Account() {
@@ -158,6 +158,7 @@ export default function Account() {
         <Link to="/privacy"><MenuRow icon={ShieldCheck} label="Privacy Policy" /></Link>
         <Link to="/terms"><MenuRow icon={FileText} label="Terms of Service" /></Link>
         <Link to="/community-rules"><MenuRow icon={LifeBuoy} label="Marketplace Rules" /></Link>
+        <Link to="/report-problem"><MenuRow icon={AlertTriangle} label="Report a Problem" /></Link>
       </div>
 
       <Button variant="outline" className="w-full h-12 text-rose-600" onClick={() => logout()}>
