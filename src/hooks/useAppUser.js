@@ -38,7 +38,11 @@ export function useAppUser() {
       await base44.auth.updateMe({ account_type: type });
       setAccountType(type);
       await checkUserAuth();
-    } catch (e) { /* ignore */ }
+      return true;
+    } catch (e) {
+      console.error("Failed to switch marketplace mode", e);
+      return false;
+    }
   }, [checkUserAuth]);
 
   const hasOnboarded = !!(buyerProfile || vendorProfiles.length || carrierProfile);
