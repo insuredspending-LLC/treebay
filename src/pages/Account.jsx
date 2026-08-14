@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Heart, Settings, FileText, ShieldCheck, LogOut, ChevronRight, Store, Leaf, User as UserIcon, LifeBuoy, FolderKanban, Lock, ExternalLink, Truck, AlertTriangle } from "lucide-react";
+import { ShoppingCart, Heart, Settings, FileText, ShieldCheck, LogOut, ChevronRight, Store, Leaf, User as UserIcon, LifeBuoy, FolderKanban, Lock, ExternalLink, Truck, AlertTriangle, Shield } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 
 export default function Account() {
@@ -21,8 +21,8 @@ export default function Account() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold">Account</h1>
-        <p className="text-sm text-muted-foreground">Manage your profile, marketplace mode, and settings.</p>
+        <h1 className="text-xl font-bold">Profile & Account</h1>
+        <p className="text-sm text-muted-foreground">Manage your buyer, seller, and carrier profiles, marketplace mode, and settings.</p>
       </div>
 
       {/* Profile */}
@@ -35,6 +35,19 @@ export default function Account() {
           </div>
         </div>
       </Card>
+
+      {user?.role === "admin" && (
+        <Card className="p-4 border-primary/20 bg-primary/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"><Shield className="w-5 h-5 text-primary-foreground" /></div>
+            <div className="flex-1">
+              <p className="font-semibold">Administrator</p>
+              <p className="text-xs text-muted-foreground">Manage users, vendors, carriers, reports, orders, exceptions, financials, and TEST tools.</p>
+            </div>
+            <Button asChild size="sm"><Link to="/admin">Admin Console</Link></Button>
+          </div>
+        </Card>
+      )}
 
       {/* Marketplace Mode */}
       <Card className="p-4 space-y-3">
@@ -65,20 +78,29 @@ export default function Account() {
       </Card>
 
       {/* Buyer Information */}
-      {buyerProfile && (
-        <Card className="p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-primary" />
-            <h2 className="font-semibold text-sm">Buyer Information</h2>
-          </div>
-          <div className="text-sm space-y-1.5">
-            {buyerProfile.business_name && <p><span className="text-muted-foreground">Business:</span> {buyerProfile.business_name}</p>}
-            {buyerProfile.buyer_type && <p><span className="text-muted-foreground">Type:</span> {buyerProfile.buyer_type}</p>}
-            <p><span className="text-muted-foreground">Location:</span> {buyerProfile.city}, {buyerProfile.state} {buyerProfile.zip_code || ""}</p>
-            {buyerProfile.phone && <p><span className="text-muted-foreground">Phone:</span> {buyerProfile.phone}</p>}
-          </div>
-        </Card>
-      )}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="w-4 h-4 text-primary" />
+          <h2 className="font-semibold text-sm">Buyer Profile</h2>
+        </div>
+        {buyerProfile ? (
+          <>
+            <div className="text-sm space-y-1.5">
+              <p><span className="text-muted-foreground">Name:</span> {buyerProfile.full_name}</p>
+              {buyerProfile.business_name && <p><span className="text-muted-foreground">Business:</span> {buyerProfile.business_name}</p>}
+              {buyerProfile.buyer_type && <p><span className="text-muted-foreground">Type:</span> {buyerProfile.buyer_type}</p>}
+              <p><span className="text-muted-foreground">Location:</span> {buyerProfile.city}, {buyerProfile.state} {buyerProfile.zip_code || ""}</p>
+              {buyerProfile.phone && <p><span className="text-muted-foreground">Phone:</span> {buyerProfile.phone}</p>}
+            </div>
+            <Button asChild variant="outline" size="sm" className="w-full"><Link to="/edit-buyer-profile"><Settings className="w-4 h-4 mr-1" /> Edit Buyer Profile</Link></Button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">No buyer profile is set up yet. You can browse without one, but a buyer profile is used for RFQs, checkout defaults, and delivery estimates.</p>
+            <Button asChild className="w-full"><Link to="/edit-buyer-profile">Create Buyer Profile</Link></Button>
+          </>
+        )}
+      </Card>
 
       {/* Seller Profile */}
       {vendor && (
