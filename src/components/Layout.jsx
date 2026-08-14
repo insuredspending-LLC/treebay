@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
-import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2, BarChart3 } from "lucide-react";
+import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2, BarChart3, Shield } from "lucide-react";
 import AIAssistant from "@/components/AIAssistant";
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -101,7 +101,7 @@ const BUYER_NAV = [
   { to: "/marketplace", label: "Marketplace", icon: Store, match: ["/marketplace", "/product", "/vendor"] },
   { to: "/projects", label: "Projects", icon: FolderKanban, match: ["/projects", "/rfqs"] },
   { to: "/orders", label: "Orders", icon: ShoppingCart, match: ["/orders"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
+  { to: "/account", label: "Profile", icon: User, match: ["/account", "/profile", "/edit-buyer-profile", "/settings", "/favorites", "/privacy", "/terms", "/community-rules", "/report-problem"] },
 ];
 
 const VENDOR_NAV = [
@@ -109,14 +109,14 @@ const VENDOR_NAV = [
   { to: "/vendor/inventory", label: "Inventory", icon: Package, match: ["/vendor/inventory"] },
   { to: "/vendor/rfqs", label: "RFQs", icon: FileText, match: ["/vendor/rfqs"] },
   { to: "/vendor/orders", label: "Orders", icon: ShoppingCart, match: ["/vendor/orders", "/orders"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
+  { to: "/account", label: "Profile", icon: User, match: ["/account", "/profile", "/edit-buyer-profile", "/settings", "/favorites", "/privacy", "/terms", "/community-rules", "/report-problem"] },
 ];
 
 const CARRIER_NAV = [
   { to: "/carrier", label: "Dashboard", icon: LayoutDashboard, match: ["/carrier"], exact: true },
   { to: "/carrier/loads", label: "Loads", icon: Truck, match: ["/carrier/loads"] },
   { to: "/carrier/financials", label: "Earnings", icon: BarChart3, match: ["/carrier/financials"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/privacy", "/terms", "/community-rules"] },
+  { to: "/account", label: "Profile", icon: User, match: ["/account", "/profile", "/edit-buyer-profile", "/settings", "/privacy", "/terms", "/community-rules", "/report-problem"] },
 ];
 
 const BUYER_DESKTOP_NAV = [
@@ -148,7 +148,7 @@ function isItemActive(pathname, item) {
 }
 
 function TopBar() {
-  const { accountType, vendorProfiles, carrierProfile, switchAccountType } = useAppUser();
+  const { user, accountType, vendorProfiles, carrierProfile, switchAccountType } = useAppUser();
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
@@ -264,7 +264,12 @@ function TopBar() {
               </ScrollArea>
             </PopoverContent>
           </Popover>
-          <Button variant="ghost" size="icon" asChild aria-label="Account">
+          {user?.role === "admin" && (
+            <Button variant="ghost" size="icon" asChild aria-label="Admin console">
+              <Link to="/admin"><Shield className="w-5 h-5 text-primary" /></Link>
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" asChild aria-label="Profile and account">
             <Link to="/account"><User className="w-5 h-5" /></Link>
           </Button>
         </div>
