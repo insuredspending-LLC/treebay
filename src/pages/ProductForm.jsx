@@ -39,7 +39,7 @@ function SectionTitle({ icon: Icon, title, children }) {
 export default function ProductForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { vendorProfiles } = useAppUser();
+  const { vendorProfiles, switchAccountType } = useAppUser();
   const vendor = vendorProfiles[0];
   const { toast } = useToast();
   const [f, setF] = useState(EMPTY);
@@ -49,6 +49,10 @@ export default function ProductForm() {
   const [loading, setLoading] = useState(!!id);
   const [searchParams] = useSearchParams();
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const exitToBuyer = async () => {
+    await switchAccountType("buyer");
+    navigate("/", { replace: true });
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -121,7 +125,10 @@ export default function ProductForm() {
 
   return (
     <div className="space-y-5 max-w-2xl">
-      <h1 className="text-xl font-bold">{id ? "Edit listing" : "New listing"}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold">{id ? "Edit listing" : "New listing"}</h1>
+        <Button type="button" variant="outline" onClick={exitToBuyer}>Exit to Buying</Button>
+      </div>
 
       {/* Basic Information */}
       <Card className="p-4 space-y-4">
@@ -242,11 +249,11 @@ export default function ProductForm() {
           </div>
           <div className="space-y-1.5"><Label className="text-xs">Sun</Label>
             <Select value={f.sun_requirement || ""} onValueChange={(v) => set("sun_requirement", v)}><SelectTrigger className="h-11"><SelectValue placeholder="Any" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>Any</SelectItem><SelectItem value="full sun">Full sun</SelectItem><SelectItem value="part sun">Part sun</SelectItem><SelectItem value="part shade">Part shade</SelectItem><SelectItem value="full shade">Full shade</SelectItem></SelectContent></Select>
+              <SelectContent><SelectItem value="any">Any</SelectItem><SelectItem value="full sun">Full sun</SelectItem><SelectItem value="part sun">Part sun</SelectItem><SelectItem value="part shade">Part shade</SelectItem><SelectItem value="full shade">Full shade</SelectItem></SelectContent></Select>
           </div>
           <div className="space-y-1.5"><Label className="text-xs">Water</Label>
             <Select value={f.water_requirement || ""} onValueChange={(v) => set("water_requirement", v)}><SelectTrigger className="h-11"><SelectValue placeholder="Any" /></SelectTrigger>
-              <SelectContent><SelectItem value={null}>Any</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select>
+              <SelectContent><SelectItem value="any">Any</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select>
           </div>
           <Field label="USDA zones" value={f.usda_zones} onChange={(v) => set("usda_zones", v)} placeholder="6-9" />
           <Field label="Mature height" value={f.mature_height} onChange={(v) => set("mature_height", v)} placeholder="40-60 ft" />
