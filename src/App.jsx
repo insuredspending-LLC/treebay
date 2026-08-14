@@ -24,6 +24,7 @@ import Messages from '@/pages/Messages';
 import Conversation from '@/pages/Conversation';
 import Favorites from '@/pages/Favorites';
 import Account from '@/pages/Account';
+import EditBuyerProfile from '@/pages/EditBuyerProfile';
 import Settings from '@/pages/Settings';
 import ReportProblem from '@/pages/ReportProblem';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
@@ -115,6 +116,8 @@ const AuthenticatedApp = () => {
             <Route path="/messages/:id" element={<Conversation />} />
             <Route path="/favorites" element={<Favorites />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/profile" element={<Account />} />
+            <Route path="/edit-buyer-profile" element={<EditBuyerProfile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/report-problem" element={<ReportProblem />} />
             <Route path="/admin" element={<AdminDashboard />} />
