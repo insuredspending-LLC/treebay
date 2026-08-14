@@ -12,6 +12,11 @@ export default function Account() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const vendor = vendorProfiles[0];
+  const changeMode = async (mode) => {
+    const ok = await switchAccountType(mode);
+    if (!ok) return;
+    navigate(mode === "vendor" ? "/vendor" : mode === "carrier" ? "/carrier" : "/", { replace: true });
+  };
 
   return (
     <div className="space-y-5">
@@ -38,7 +43,7 @@ export default function Account() {
           <h2 className="font-semibold text-sm">Marketplace Mode</h2>
         </div>
         {vendorProfiles.length > 0 || carrierProfile ? (
-          <Select value={accountType} onValueChange={(v) => switchAccountType(v)}>
+          <Select value={accountType} onValueChange={changeMode}>
             <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="buyer">Buyer Mode</SelectItem>
