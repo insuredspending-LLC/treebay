@@ -18,8 +18,8 @@ export function useAppUser() {
       setAccountType(acc);
       const [buyers, vendors, carriers] = await Promise.all([
         base44.entities.BuyerProfile.filter({ created_by_id: me.id }).catch(() => []),
-        base44.entities.VendorProfile.filter({ created_by_id: me.id }).catch(() => []),
-        base44.entities.CarrierProfile.filter({ created_by_id: me.id }).catch(() => []),
+        base44.entities.VendorProfile.filter({ owner_id: me.id }, "-created_date", 20).catch(() => []),
+        base44.entities.CarrierProfile.filter({ owner_id: me.id }, "-created_date", 20).catch(() => []),
       ]);
       setBuyerProfile(buyers?.[0] || null);
       setVendorProfiles(vendors || []);

@@ -11,7 +11,7 @@ export default async function(req) {
     const body = await req.json() || {};
 
     const svc = base44.asServiceRole;
-    const vendors = await svc.entities.VendorProfile.filter({ created_by_id: user.id });
+    const vendors = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     const vendor = (vendors || [])[0];
     if (!vendor) return Response.json({ error: "No vendor profile found. Complete vendor onboarding first." }, { status: 403 });
 

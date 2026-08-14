@@ -244,7 +244,7 @@ export default async function(req) {
             const carrier = await svc.entities.CarrierProfile.get(sh.carrier_id);
             const freightQuote = await svc.entities.FreightQuote.get(sh.freight_quote_id);
             await generateAndStoreDocument(svc, order, "carrier_settlement_statement", cq, { freightQuote, carrier });
-            await notifySafely(svc, { user_id: carrier?.created_by_id, type: "general", eventType: "carrier_settlement", title: "Freight settlement statement ready", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, carrier_id: sh.carrier_id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
+            await notifySafely(svc, { user_id: carrier?.owner_id, type: "general", eventType: "carrier_settlement", title: "Freight settlement statement ready", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, carrier_id: sh.carrier_id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
           }
         }
         await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "vendor_settlement", title: "Settlement statement ready", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });

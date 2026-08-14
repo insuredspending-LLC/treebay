@@ -21,7 +21,7 @@ export default async function(req: Request): Promise<Response> {
     } else if (type === "general") {
       let vendor;
       try { vendor = await svc.entities.VendorProfile.get(referenceId); } catch { return Response.json({ error: "Vendor not found" }, { status: 404 }); }
-      buyerId = user.id; vOwnerId = vendor.created_by_id; vendorId = vendor.id; referenceLabel = vendor.business_name;
+      buyerId = user.id; vOwnerId = vendor.owner_id; vendorId = vendor.id; referenceLabel = vendor.business_name;
     } else if (type === "rfq") {
       const rfq = await svc.entities.RFQ.get(referenceId);
       if (!rfq || !vendorOwnerId) return Response.json({ error: "RFQ conversation is unavailable" }, { status: 400 });

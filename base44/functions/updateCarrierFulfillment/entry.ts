@@ -23,7 +23,7 @@ export default async function(req) {
 
     // Verify carrier authorization: the carrier must own the assigned CarrierProfile
     const carrier = await svc.entities.CarrierProfile.get(shipment.carrier_id);
-    if (!carrier || carrier.created_by_id !== user.id) {
+    if (!carrier || carrier.owner_id !== user.id) {
       return Response.json({ error: "You are not the assigned carrier for this shipment." }, { status: 403 });
     }
     if (carrier.verification_status !== "verified") {

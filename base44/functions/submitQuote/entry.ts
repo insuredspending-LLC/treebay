@@ -21,7 +21,7 @@ export default async function(req) {
     }
 
     const svc = base44.asServiceRole;
-    const vendors = await svc.entities.VendorProfile.filter({ created_by_id: user.id });
+    const vendors = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     const vendor = (vendors || [])[0];
     if (!vendor) return Response.json({ error: "No vendor profile found" }, { status: 403 });
     // Same seller-trust bar as direct listings: only verified sellers may quote commercially.

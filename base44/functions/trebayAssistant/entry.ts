@@ -95,7 +95,7 @@ export default async function(req: Request): Promise<Response> {
     const { message, context = {}, history = [] } = body;
     if (!message) return Response.json({ error: "Message is required" }, { status: 400 });
     const svc = base44.asServiceRole;
-    const vendorProfiles = await svc.entities.VendorProfile.filter({ created_by_id: user.id }, "-created_date", 20);
+    const vendorProfiles = await svc.entities.VendorProfile.filter({ owner_id: user.id }, "-created_date", 20);
     const isSeller = vendorProfiles.length > 0;
     const isVerifiedSeller = vendorProfiles.some((profile) => profile.verification_status === "verified");
     const presentationRole = context.role === "vendor" && isSeller ? "seller" : "buyer";

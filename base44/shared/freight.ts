@@ -100,7 +100,7 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
     await svc.entities.FreightQuote.update(freightQuote.id, {
       order_id: order.id,
       carrier_id: carrier.id,
-      carrier_owner_id: carrier.created_by_id,
+      carrier_owner_id: carrier.owner_id,
       status: "assigned",
     });
     freightQuote = await svc.entities.FreightQuote.get(freightQuote.id);
@@ -111,7 +111,7 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
     const expiresAt = new Date(Date.now() + FREIGHT_QUOTE_TTL_HOURS * 3600000).toISOString();
     freightQuote = await svc.entities.FreightQuote.create({
       order_id: order.id, checkout_quote_id: cq.id,
-      carrier_id: carrier.id, carrier_owner_id: carrier.created_by_id,
+      carrier_id: carrier.id, carrier_owner_id: carrier.owner_id,
       buyer_id: order.buyer_id, vendor_owner_id: order.vendor_owner_id,
       provider: TEST_FREIGHT_PROVIDER, quote_reference: quoteRef,
       linehaul_cents: freight.linehaul_cents, fuel_surcharge_cents: freight.fuel_surcharge_cents,
@@ -126,7 +126,7 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
   // Update Shipment with carrier assignment + freight quote reference + carrier_owner_id for RLS
   await svc.entities.Shipment.update(shipment.id, {
     carrier_id: carrier.id,
-    carrier_owner_id: carrier.created_by_id,
+    carrier_owner_id: carrier.owner_id,
     freight_quote_id: freightQuote.id,
     delivery_price_cents: freightQuote.buyer_freight_charge_cents,
     equipment_requirement: freightQuote.equipment_type,
@@ -140,7 +140,7 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
 
   // Notify carrier, vendor, buyer — via notifySafely (never rolls back)
   await notifySafely(svc, {
-    user_id: carrier.created_by_id, type: "new_order", eventType: "freight_assigned",
+    user_id: carrier.owner_id, type: "new_order", eventType: "freight_assigned",
     title: "New freight load assigned", body: order.order_number + " — " + (shipment.delivery_location || ""),
     reference_type: "shipment", reference_id: shipment.id,
     order_id: order.id, carrier_id: carrier.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id,

@@ -11,10 +11,10 @@ export default async function(req) {
       return Response.json({ error: "Required fields missing" }, { status: 400 });
     const svc = base44.asServiceRole;
     // Prevent duplicate profiles for the same user
-    const existing = await svc.entities.VendorProfile.filter({ created_by_id: user.id });
+    const existing = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     if (existing && existing.length) return Response.json({ vendor: existing[0] });
     const vendor = await svc.entities.VendorProfile.create({
-      business_name: body.business_name, contact_name: body.contact_name, phone: body.phone,
+      owner_id: user.id, business_name: body.business_name, contact_name: body.contact_name, phone: body.phone,
       address: body.address || "", city: body.city, state: body.state, zip_code: body.zip_code,
       website: body.website || "", description: body.description || "", service_area: body.service_area || "",
       pickup_available: body.pickup_available !== false, delivery_available: body.delivery_available !== false,

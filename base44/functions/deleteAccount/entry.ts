@@ -21,8 +21,8 @@ export default async function(req) {
     await attempt("delete_blocks", () => svc.entities.UserBlock.deleteMany({ blocker_id: uid }));
     await attempt("delete_projects", () => svc.entities.Project.deleteMany({ created_by_id: uid }));
     await attempt("delete_buyer_profile", () => svc.entities.BuyerProfile.deleteMany({ created_by_id: uid }));
-    await attempt("delete_vendor_profile", () => svc.entities.VendorProfile.deleteMany({ created_by_id: uid }));
-    await attempt("delete_carrier_profile", () => svc.entities.CarrierProfile.deleteMany({ created_by_id: uid }));
+    await attempt("delete_vendor_profile", () => svc.entities.VendorProfile.deleteMany({ owner_id: uid }));
+    await attempt("delete_carrier_profile", () => svc.entities.CarrierProfile.deleteMany({ owner_id: uid }));
 
     // Minimize directly displayed identity on retained records while preserving the records
     // required for transaction, fraud, dispute, tax, and legal history.

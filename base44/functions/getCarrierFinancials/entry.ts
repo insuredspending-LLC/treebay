@@ -9,7 +9,7 @@ export default async function(req) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const svc = base44.asServiceRole;
 
-    const carriers = await svc.entities.CarrierProfile.filter({ created_by_id: user.id });
+    const carriers = await svc.entities.CarrierProfile.filter({ owner_id: user.id });
     const carrier = (carriers || [])[0];
     if (!carrier) return Response.json({ error: "No carrier profile found" }, { status: 404 });
 

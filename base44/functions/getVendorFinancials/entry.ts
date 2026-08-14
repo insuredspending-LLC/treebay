@@ -10,7 +10,7 @@ export default async function(req) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const svc = base44.asServiceRole;
 
-    const vendors = await svc.entities.VendorProfile.filter({ created_by_id: user.id });
+    const vendors = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     if (!vendors || !vendors.length) return Response.json({ vendors: [] });
 
     const now = new Date();
