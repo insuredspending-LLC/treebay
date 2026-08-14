@@ -248,11 +248,11 @@ export default function ProductForm() {
               <SelectContent><SelectItem value="n/a">N/A</SelectItem><SelectItem value="evergreen">Evergreen</SelectItem><SelectItem value="deciduous">Deciduous</SelectItem></SelectContent></Select>
           </div>
           <div className="space-y-1.5"><Label className="text-xs">Sun</Label>
-            <Select value={f.sun_requirement || ""} onValueChange={(v) => set("sun_requirement", v)}><SelectTrigger className="h-11"><SelectValue placeholder="Any" /></SelectTrigger>
+            <Select value={f.sun_requirement || "any"} onValueChange={(v) => set("sun_requirement", v === "any" ? "" : v)}><SelectTrigger className="h-11"><SelectValue placeholder="Any" /></SelectTrigger>
               <SelectContent><SelectItem value="any">Any</SelectItem><SelectItem value="full sun">Full sun</SelectItem><SelectItem value="part sun">Part sun</SelectItem><SelectItem value="part shade">Part shade</SelectItem><SelectItem value="full shade">Full shade</SelectItem></SelectContent></Select>
           </div>
           <div className="space-y-1.5"><Label className="text-xs">Water</Label>
-            <Select value={f.water_requirement || ""} onValueChange={(v) => set("water_requirement", v)}><SelectTrigger className="h-11"><SelectValue placeholder="Any" /></SelectTrigger>
+            <Select value={f.water_requirement || "any"} onValueChange={(v) => set("water_requirement", v === "any" ? "" : v)}><SelectTrigger className="h-11"><SelectValue placeholder="Any" /></SelectTrigger>
               <SelectContent><SelectItem value="any">Any</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select>
           </div>
           <Field label="USDA zones" value={f.usda_zones} onChange={(v) => set("usda_zones", v)} placeholder="6-9" />
