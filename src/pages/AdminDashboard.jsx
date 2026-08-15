@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { useAppUser } from "@/hooks/useAppUser";
-import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3, FlaskConical, Truck } from "lucide-react";
+import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3, FlaskConical, Truck, Bug } from "lucide-react";
 import TestSimulator from "@/components/admin/TestSimulator";
 import AdminFinancials from "@/components/admin/AdminFinancials";
 import StatusBadge from "@/components/StatusBadge";
@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
   const [reports, setReports] = useState([]);
+  const [appIssues, setAppIssues] = useState([]);
   const [orders, setOrders] = useState([]);
   const [rfqs, setRfqs] = useState([]);
   const [users, setUsers] = useState([]);
@@ -39,7 +40,7 @@ export default function AdminDashboard() {
   const load = async () => {
     setLoading(true);
     try {
-      const [v, p, r, o, rfq, exc, carr] = await Promise.all([
+      const [v, p, r, o, rfq, exc, carr, issues] = await Promise.all([
         base44.entities.VendorProfile.list("-created_date", 100),
         base44.entities.Product.list("-created_date", 100),
         base44.entities.ContentReport.filter({ status: "open" }, "-created_date", 50),
@@ -47,8 +48,9 @@ export default function AdminDashboard() {
         base44.entities.RFQ.list("-created_date", 50),
         base44.entities.SystemException.filter({ requires_admin: true }, "-created_date", 50),
         base44.entities.CarrierProfile.list("-created_date", 100),
+        base44.entities.CrashReport.list("-created_date", 100),
       ]);
-      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []); setExceptions((exc || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED")); setCarriers(carr || []);
+      setVendors(v || []); setProducts(p || []); setReports(r || []); setAppIssues((issues || []).filter((issue) => issue.status !== "resolved" && issue.status !== "dismissed")); setOrders(o || []); setRfqs(rfq || []); setExceptions((exc || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED")); setCarriers(carr || []);
       try { setUsers(await base44.entities.User.list() || []); } catch {}
     } catch {}
     finally { setLoading(false); }
@@ -63,6 +65,18 @@ export default function AdminDashboard() {
   const setListingStatus = async (id, status) => { try { await base44.entities.Product.update(id, { listing_status: status }); load(); toast({ title: `Listing ${status}` }); } catch {} };
   const resolveReport = async (id, resolution) => { try { await base44.entities.ContentReport.update(id, { status: "actioned", resolution }); load(); toast({ title: "Report resolved" }); } catch {} };
   const dismissReport = async (id) => { try { await base44.entities.ContentReport.update(id, { status: "dismissed" }); load(); } catch {} };
+  const updateAppIssue = async (id, status) => {
+    try {
+      await base44.entities.CrashReport.update(id, {
+        status,
+        resolution: status === "resolved" ? "Reviewed and resolved from the TreEbay admin issue inbox." : "Marked in progress from the TreEbay admin issue inbox.",
+      });
+      load();
+      toast({ title: status === "resolved" ? "Issue resolved" : "Issue marked in progress" });
+    } catch (e) {
+      toast({ title: "Could not update issue", description: apiError(e), variant: "destructive" });
+    }
+  };
 
   const pendingVendors = vendors.filter((v) => v.verification_status === "pending");
 
@@ -86,7 +100,8 @@ export default function AdminDashboard() {
             <TabsTrigger value="exceptions"><ShieldAlert className="w-4 h-4 mr-1" /> Exceptions {exceptions.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{exceptions.length}</span>}</TabsTrigger>
             <TabsTrigger value="vendors"><Store className="w-4 h-4 mr-1" /> Vendors {pendingVendors.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-amber-500 text-white text-[10px]">{pendingVendors.length}</span>}</TabsTrigger>
             <TabsTrigger value="listings"><Package className="w-4 h-4 mr-1" /> Listings</TabsTrigger>
-            <TabsTrigger value="reports"><Flag className="w-4 h-4 mr-1" /> Reports {reports.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{reports.length}</span>}</TabsTrigger>
+            <TabsTrigger value="issues"><Bug className="w-4 h-4 mr-1" /> App Issues {appIssues.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-amber-500 text-white text-[10px]">{appIssues.length}</span>}</TabsTrigger>
+            <TabsTrigger value="reports"><Flag className="w-4 h-4 mr-1" /> Content Reports {reports.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{reports.length}</span>}</TabsTrigger>
             <TabsTrigger value="orders"><ShoppingCart className="w-4 h-4 mr-1" /> Orders</TabsTrigger>
             <TabsTrigger value="rfqs"><FileText className="w-4 h-4 mr-1" /> RFQs</TabsTrigger>
             <TabsTrigger value="users"><Users className="w-4 h-4 mr-1" /> Users</TabsTrigger>
@@ -99,8 +114,16 @@ export default function AdminDashboard() {
             {exceptions.length > 0 && (
               <Card className="p-4 border-rose-200 bg-rose-50">
                 <div className="flex items-center justify-between">
-                  <div><p className="text-sm font-semibold text-rose-800">REQUIRES YOUR ATTENTION</p><p className="text-3xl font-bold text-rose-800">{exceptions.length}</p></div>
+                  <div><p className="text-sm font-semibold text-rose-800">COMMERCE EXCEPTIONS</p><p className="text-3xl font-bold text-rose-800">{exceptions.length}</p></div>
                   <Button size="sm" onClick={() => setTab("exceptions")}>Review Exceptions</Button>
+                </div>
+              </Card>
+            )}
+            {appIssues.length > 0 && (
+              <Card className="p-4 border-amber-200 bg-amber-50">
+                <div className="flex items-center justify-between gap-3">
+                  <div><p className="text-sm font-semibold text-amber-900">USER & APP ISSUES</p><p className="text-3xl font-bold text-amber-900">{appIssues.length}</p></div>
+                  <Button size="sm" variant="outline" onClick={() => setTab("issues")}>Open Issue Inbox</Button>
                 </div>
               </Card>
             )}
@@ -176,6 +199,38 @@ export default function AdminDashboard() {
                       <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="paused">Pause</SelectItem><SelectItem value="sold_out">Sold out</SelectItem><SelectItem value="archived">Archive</SelectItem></SelectContent>
                     </Select>
                     <Button asChild variant="ghost" size="sm"><Link to={`/product/${p.id}`}>View</Link></Button>
+                  </div>
+                </Card>
+              ))}</div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="issues">
+            {appIssues.length === 0 ? <EmptyState icon={Bug} title="No open app issues" description="Automatic errors and user-submitted usability reports will appear here." /> : (
+              <div className="space-y-3">{appIssues.map((issue) => (
+                <Card key={issue.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="capitalize">{(issue.report_type || "manual bug").replace(/_/g, " ")}</Badge>
+                        <Badge variant={issue.impact === "blocked" ? "destructive" : "secondary"} className="capitalize">{(issue.impact || "unknown").replace(/_/g, " ")}</Badge>
+                      </div>
+                      <p className="font-semibold text-sm mt-2">{issue.message || "App issue"}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">{shortDate(issue.created_date)}</span>
+                  </div>
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{issue.details || "No description was included."}</p>
+                  {issue.expected_behavior && <div className="rounded-lg bg-secondary/60 p-3 text-sm"><span className="font-semibold">Expected:</span> {issue.expected_behavior}</div>}
+                  <p className="text-xs text-muted-foreground break-all">Screen: {issue.route || "Unknown"}</p>
+                  {(issue.stack || issue.component_stack) && (
+                    <details className="text-xs text-muted-foreground">
+                      <summary className="cursor-pointer font-medium">Technical details</summary>
+                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3">{issue.stack || issue.component_stack}</pre>
+                    </details>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => updateAppIssue(issue.id, "in_progress")}>Mark in progress</Button>
+                    <Button size="sm" onClick={() => updateAppIssue(issue.id, "resolved")}><CheckCircle2 className="w-4 h-4" /> Resolve</Button>
                   </div>
                 </Card>
               ))}</div>
