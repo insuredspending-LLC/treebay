@@ -9,7 +9,13 @@ const INTENT_SCHEMA = {
   },
 };
 
-const SYSTEM_PROMPT = `You are the TreEbay Assistant for a B2B nursery-stock marketplace. Never invent inventory, pricing, availability, vendors, RFQs, order states, or transaction data. Extract intent and search parameters only; a secure system query follows. Client mode is presentation only, not authorization. Seller-only intents are seller_attention, low_stock, match_rfqs, and list_draft. Use prior conversation only to resolve references. Keep replies concise.`;
+const SYSTEM_PROMPT = `You are the TreEbay Assistant for a B2B nursery-stock marketplace. Never invent inventory, pricing, availability, vendors, RFQs, order states, or transaction data. Extract intent and search parameters only; a secure system query follows. Client mode is presentation only, not authorization. Seller-only intents are seller_attention, low_stock, match_rfqs, and list_draft. Use prior conversation only to resolve references. Keep replies concise.
+
+When Onboarding is yes, give plain-language setup guidance only and do not claim that a profile or marketplace permission already exists. Known setup fields:
+- Buyer: full name, optional business name, buyer type, phone, city, state, ZIP.
+- Vendor: business and contact name, phone, address, city, state, ZIP, optional website, service area, description, pickup, delivery, and wholesale options.
+- Carrier: business and contact name, phone, address, city, state, ZIP, equipment type, service radius, operating regions, load capabilities, and description. Freight remains TEST mode.
+Explain fields without inventing legal, tax, freight, pricing, plant-care, or verification advice. If the user reports something broken, tell them to use the Report a problem control in the assistant.`;
 
 const sellerIntents = new Set(["seller_attention", "low_stock", "match_rfqs", "list_draft"]);
 const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -99,10 +105,12 @@ export default async function(req: Request): Promise<Response> {
     const isSeller = vendorProfiles.length > 0;
     const isVerifiedSeller = vendorProfiles.some((profile) => profile.verification_status === "verified");
     const presentationRole = context.role === "vendor" && isSeller ? "seller" : "buyer";
+    const onboardingContext = context.onboarding === true && context.page === "/onboarding";
+    const setupRole = ["buyer", "vendor", "carrier"].includes(context.role) ? context.role : "buyer";
     const pageCtx = parsePageContext(context.page || "");
     const historyStr = history.slice(-8).map((turn) => `${turn.role === "user" ? "User" : "Assistant"}: ${turn.text || ""}`).join("\n");
     const classification = await base44.integrations.Core.InvokeLLM({
-      prompt: `${SYSTEM_PROMPT}\n\nPresentation mode: ${presentationRole}\nCurrent page: ${context.page || "unknown"}${historyStr ? `\nPrior completed turns:\n${historyStr}` : ""}\n\nCurrent user message: "${message}"\n\nClassify intent, extract parameters, and write a short acknowledgement.`,
+      prompt: `${SYSTEM_PROMPT}\n\nPresentation mode: ${presentationRole}\nOnboarding: ${onboardingContext ? "yes" : "no"}\nSelected setup role: ${setupRole}\nCurrent page: ${context.page || "unknown"}${historyStr ? `\nPrior completed turns:\n${historyStr}` : ""}\n\nCurrent user message: "${message}"\n\nClassify intent, extract parameters, and write a short, directly useful answer.`,
       response_json_schema: INTENT_SCHEMA,
     });
     const intent = classification.intent || "general";
@@ -111,7 +119,9 @@ export default async function(req: Request): Promise<Response> {
     const results = { cards: [], actions: [] };
     let queryData = null;
 
-    if (sellerIntents.has(intent) && !isSeller) {
+    if (onboardingContext) {
+      reply = classification.reply || "I can explain any setup field and help you choose the right TreEbay role.";
+    } else if (sellerIntents.has(intent) && !isSeller) {
       queryData = { type: "seller_access", seller_profile: false };
       reply = "Seller tools are available once you create a grower profile. You can still browse inventory, request quotes, and manage projects in buyer mode.";
     } else if (intent === "match_rfqs" && !isVerifiedSeller) {
