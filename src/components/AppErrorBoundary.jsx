@@ -1,5 +1,5 @@
 import React from "react";
-import { base44 } from "@/api/base44Client";
+import { reportClientError } from "@/lib/errorReporting";
 
 export default class AppErrorBoundary extends React.Component {
   constructor(props) {
@@ -13,26 +13,27 @@ export default class AppErrorBoundary extends React.Component {
 
   componentDidCatch(error, info) {
     console.error("TreEbay app crash", error, info);
-    this.setState({ info });
+    this.setState({ info }, () => {
+      this.submitReport("automatic");
+    });
   }
 
-  submitReport = async () => {
-    const { error, info } = this.state;
-    if (!error) return;
+  submitReport = async (source = "manual") => {
+    const { error, info, reporting, reported } = this.state;
+    if (!error || reporting || reported) return;
     this.setState({ reporting: true, reportError: "" });
     try {
-      await base44.entities.CrashReport.create({
-        route: window.location.pathname + window.location.search,
-        message: error?.message || String(error),
-        stack: error?.stack || "",
-        component_stack: info?.componentStack || "",
-        user_agent: navigator.userAgent || "",
-        details: "Submitted from the in-app crash recovery screen.",
-        status: "open",
+      await reportClientError({
+        error,
+        componentStack: info?.componentStack || "",
+        details: source === "automatic"
+          ? "Automatically submitted from the in-app crash recovery screen."
+          : "Resubmitted by the user from the in-app crash recovery screen.",
+        impact: "blocked",
       });
       this.setState({ reported: true });
     } catch (e) {
-      this.setState({ reportError: e?.message || "Could not submit the report." });
+      this.setState({ reportError: e?.message || "Could not submit the report automatically." });
     } finally {
       this.setState({ reporting: false });
     }
@@ -47,7 +48,7 @@ export default class AppErrorBoundary extends React.Component {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-destructive">TreEbay recovered from a page crash</p>
             <h1 className="text-xl font-bold mt-1">This page could not open.</h1>
-            <p className="text-sm text-muted-foreground mt-2">You do not need to close the app. Return to a safe page, reload, or submit this crash so it can be reviewed.</p>
+            <p className="text-sm text-muted-foreground mt-2">You do not need to close the app. TreEbay is sending a private error report automatically so this can be reviewed.</p>
           </div>
 
           <div className="rounded-xl bg-muted p-3 text-xs break-words">
@@ -65,7 +66,7 @@ export default class AppErrorBoundary extends React.Component {
               disabled={this.state.reporting}
               className="w-full min-h-11 rounded-lg border border-input px-4 text-sm font-medium disabled:opacity-60"
             >
-              {this.state.reporting ? "Submitting…" : "Submit Crash Report"}
+              {this.state.reporting ? "Sending report…" : "Retry error report"}
             </button>
           )}
           {this.state.reportError && <p className="text-xs text-destructive">{this.state.reportError}</p>}
