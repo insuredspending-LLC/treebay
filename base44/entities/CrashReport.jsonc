@@ -20,13 +20,42 @@
     "details": {
       "type": "string"
     },
+    "expected_behavior": {
+      "type": "string"
+    },
+    "report_type": {
+      "type": "string",
+      "enum": [
+        "automatic_crash",
+        "manual_bug",
+        "usability",
+        "onboarding",
+        "suggestion"
+      ],
+      "default": "manual_bug"
+    },
+    "impact": {
+      "type": "string",
+      "enum": [
+        "minor",
+        "slows_me_down",
+        "blocked"
+      ],
+      "default": "slows_me_down"
+    },
     "status": {
       "type": "string",
       "enum": [
         "open",
-        "resolved"
+        "triaged",
+        "in_progress",
+        "resolved",
+        "dismissed"
       ],
       "default": "open"
+    },
+    "resolution": {
+      "type": "string"
     }
   },
   "required": [
