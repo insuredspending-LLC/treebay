@@ -6,7 +6,8 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, X, Send, Store, Package, FileText, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
+import { Sparkles, X, Send, Store, Package, FileText, ArrowRight, AlertCircle, Loader2, Bug } from "lucide-react";
+import ProblemReportDialog from "@/components/ProblemReportDialog";
 import { formatCurrency, formatNumber, ORDER_STATUS_LABELS, RFQ_STATUS_LABELS } from "@/lib/treebay";
 import { cn } from "@/lib/utils";
 
@@ -22,8 +23,13 @@ const SELLER_SUGGESTIONS = [
   "Which RFQs match me?",
   "Help me list a product",
 ];
+const ONBOARDING_SUGGESTIONS = {
+  buyer: ["Help me choose a buyer type", "What information do I need?", "How do bulk quotes work?"],
+  vendor: ["Help me set up my seller profile", "What should I write in my description?", "How do I list inventory?"],
+  carrier: ["Help me set up my carrier profile", "What do load capabilities mean?", "How does TEST freight work?"],
+};
 
-export default function AIAssistant() {
+export default function AIAssistant({ onboarding = false, onboardingRole = null }) {
   const { accountType } = useAppUser();
   const location = useLocation();
   const navigate = useNavigate();
@@ -31,10 +37,15 @@ export default function AIAssistant() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const scrollRef = useRef(null);
+  const assistantRole = onboardingRole || accountType || "buyer";
 
   useEffect(() => {
-    const handler = () => setOpen(true);
+    const handler = (event) => {
+      if (event.detail?.prompt) setInput(event.detail.prompt);
+      setOpen(true);
+    };
     window.addEventListener("trebay-ai-open", handler);
     return () => window.removeEventListener("trebay-ai-open", handler);
   }, []);
@@ -54,7 +65,7 @@ export default function AIAssistant() {
       const history = messages.slice(-8).map((m) => ({ role: m.role, text: m.text }));
       const res = await base44.functions.invoke("trebayAssistant", {
         message: text,
-        context: { role: accountType, page: location.pathname },
+        context: { role: assistantRole, page: location.pathname, onboarding },
         history,
       });
       const data = res.data || res;
@@ -71,17 +82,24 @@ export default function AIAssistant() {
     navigate(action.path);
   };
 
-  const suggestions = accountType === "vendor" ? SELLER_SUGGESTIONS : BUYER_SUGGESTIONS;
+  const suggestions = onboarding
+    ? ONBOARDING_SUGGESTIONS[assistantRole] || ONBOARDING_SUGGESTIONS.buyer
+    : assistantRole === "vendor" ? SELLER_SUGGESTIONS : BUYER_SUGGESTIONS;
+  const openProblemReport = () => {
+    setOpen(false);
+    setReportOpen(true);
+  };
 
   return (
     <>
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed z-40 bottom-20 right-4 md:bottom-6 md:right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center no-tap-highlight hover:bg-primary/90 transition card-shadow"
+          className="fixed z-40 bottom-20 right-4 md:bottom-6 md:right-6 h-12 px-4 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center gap-2 no-tap-highlight hover:bg-primary/90 transition card-shadow"
           aria-label="Open TreEbay Assistant"
         >
-          <Sparkles className="w-6 h-6" />
+          <Sparkles className="w-5 h-5" />
+          <span className="text-sm font-semibold">{onboarding ? "Setup help" : "Ask TreEbay"}</span>
         </button>
       )}
 
@@ -95,7 +113,7 @@ export default function AIAssistant() {
               </div>
               <div>
                 <p className="font-heading font-bold text-sm text-foreground">TreEbay Assistant</p>
-                <p className="text-[10px] text-muted-foreground">{accountType === "vendor" ? "Seller mode" : "Buyer mode"}</p>
+                <p className="text-[10px] text-muted-foreground">{onboarding ? "Setup guide" : assistantRole === "vendor" ? "Seller mode" : assistantRole === "carrier" ? "Carrier mode" : "Buyer mode"}</p>
               </div>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close"><X className="w-5 h-5" /></Button>
@@ -107,7 +125,9 @@ export default function AIAssistant() {
               {messages.length === 0 && (
                 <div className="space-y-4">
                   <div className="rounded-2xl bg-secondary p-4 text-sm text-foreground">
-                    Hi! I'm your TreEbay Assistant. I can help you find plants, compare suppliers, build RFQs, track orders, and navigate the marketplace. What do you need?
+                    {onboarding
+                      ? "Welcome to TreEbay. I can explain each setup choice in plain language and help you finish without guessing."
+                      : "Hi! I'm your TreEbay Assistant. I can help you find plants, compare suppliers, build RFQs, track orders, and navigate the marketplace. What do you need?"}
                   </div>
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2">Try asking:</p>
@@ -161,12 +181,16 @@ export default function AIAssistant() {
           {/* Input */}
           <div className="p-3 border-t border-border bg-card">
             <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex gap-2">
-              <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask about plants, orders, RFQs…" className="flex-1" disabled={loading} />
+              <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder={onboarding ? "Ask a setup question…" : "Ask about plants, orders, RFQs…"} className="flex-1" disabled={loading} />
               <Button type="submit" size="icon" disabled={loading || !input.trim()}><Send className="w-4 h-4" /></Button>
             </form>
+            <button type="button" onClick={openProblemReport} className="mt-2 w-full min-h-9 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center gap-1.5">
+              <Bug className="w-3.5 h-3.5" /> Something wrong? Report a problem
+            </button>
           </div>
         </SheetContent>
       </Sheet>
+      <ProblemReportDialog open={reportOpen} onOpenChange={setReportOpen} defaultType={onboarding ? "onboarding" : "manual_bug"} />
     </>
   );
 }
