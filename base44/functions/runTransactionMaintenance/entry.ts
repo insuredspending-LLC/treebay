@@ -125,6 +125,22 @@ export default async function(req) {
     }
 
     // ---- 3. Vendor confirmation reminders + escalation ----
+    // First close stale reminder exceptions whose order has already moved past
+    // inventory_reserved (refund, cancellation, confirmation, fulfillment, etc.).
+    // This keeps historical TEST reminders from appearing as active incidents.
+    const reminderExceptions = await svc.entities.SystemException.filter({ exception_type: "vendor_confirmation_reminder" }, "-created_date", 200);
+    for (const ex of (reminderExceptions || [])) {
+      if (ex.status === "RESOLVED" || ex.status === "CLOSED" || !ex.order_id) continue;
+      const linked = await svc.entities.Order.get(ex.order_id);
+      if (!linked || linked.order_status !== "inventory_reserved") {
+        await svc.entities.SystemException.update(ex.id, {
+          status: "RESOLVED", requires_admin: false,
+          resolved_at: new Date().toISOString(), resolved_by: "system",
+          resolution: linked ? "Order moved beyond vendor-confirmation wait state." : "Related TEST order no longer exists.",
+        });
+      }
+    }
+
     const reserved = await svc.entities.Order.filter({ order_status: "inventory_reserved" }, "-created_date", 200);
     for (const order of (reserved || [])) {
       if (!order.vendor_confirm_deadline) continue;
