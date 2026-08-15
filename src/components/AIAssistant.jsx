@@ -185,7 +185,7 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
               <Button type="submit" size="icon" disabled={loading || !input.trim()}><Send className="w-4 h-4" /></Button>
             </form>
             <button type="button" onClick={openProblemReport} className="mt-2 w-full min-h-9 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center gap-1.5">
-              <Bug className="w-3.5 h-3.5" /> Something wrong? Report a problem
+              <Bug className="w-3.5 h-3.5" /> Report an AI response or problem
             </button>
           </div>
         </SheetContent>
