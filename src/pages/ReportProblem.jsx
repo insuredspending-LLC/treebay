@@ -24,12 +24,15 @@ export default function ReportProblem() {
     setSaving(true);
     try {
       await base44.entities.CrashReport.create({
-        route: location.state?.from || "manual-report",
+        route: location.state?.from || window.location.pathname + window.location.search,
         message: "User-submitted app problem",
         stack: "",
         component_stack: "",
         user_agent: navigator.userAgent || "",
         details: details.trim(),
+        expected_behavior: "",
+        report_type: "manual_bug",
+        impact: "slows_me_down",
         status: "open",
       });
       toast({ title: "Problem submitted", description: "The report was saved for review." });
