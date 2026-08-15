@@ -51,7 +51,7 @@ export default async function(req) {
     const financialExceptions = openExceptions.filter((e) => financialExceptionTypes.includes(e.exception_type));
 
     // Active fee policy
-    const activeFeeRule = (feeRules || [])[0] || { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 500, maximum_fee_cents: 0, fee_payer: "buyer" };
+    const activeFeeRule = (feeRules || [])[0] || { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 0, maximum_fee_cents: 0, fee_payer: "buyer" };
 
     return Response.json({
       totals: {
