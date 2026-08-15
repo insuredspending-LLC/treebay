@@ -54,6 +54,7 @@ import DeleteAccount from '@/pages/DeleteAccount';
 import VendorGuard from '@/components/VendorGuard';
 import { ThemeProvider } from "next-themes";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import ClientErrorReporter from "@/components/ClientErrorReporter";
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -156,6 +157,7 @@ function App() {
         <QueryClientProvider client={queryClientInstance}>
           <Router>
             <AppErrorBoundary>
+              <ClientErrorReporter />
               <AuthenticatedApp />
             </AppErrorBoundary>
           </Router>
