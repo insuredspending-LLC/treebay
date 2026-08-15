@@ -58,7 +58,7 @@ import ClientErrorReporter from "@/components/ClientErrorReporter";
 // Add page imports here
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -69,16 +69,10 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
-    }
-  }
+  // Public routes must remain reachable while signed out. Authentication and
+  // registration errors are handled inside ProtectedRoute for protected pages;
+  // handling them here would redirect legal/privacy/account-deletion URLs before
+  // React Router has a chance to render those public pages.
 
   // Render the main app
   return (
