@@ -35,7 +35,7 @@ export function fromCents(cents) {
 export async function getActiveFeeRule(svc) {
   const rules = await svc.entities.MarketplaceFeeRule.filter({ active: true }, "-effective_date", 10);
   if (rules && rules.length) return rules[0];
-  return { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 500, maximum_fee_cents: 0, fee_payer: DEFAULT_FEE_PAYER };
+  return { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 0, maximum_fee_cents: 0, fee_payer: DEFAULT_FEE_PAYER };
 }
 
 export function calculateMarketplaceFeeCents(merchandiseCents, rule) {
