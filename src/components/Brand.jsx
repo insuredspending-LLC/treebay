@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 export const BRAND_NAME = "TreEbay";
 export const BRAND_TAGLINE = "THE LANDSCAPE SUPPLY MARKETPLACE";
-export const BRAND_STATEMENT = "SOURCE • CONNECT • GROW";
+export const BRAND_STATEMENT = "SOURCE BETTER • BUY SMARTER • GROW MORE";
 
 // Centralized brand mark. When an approved logo asset is added, replace the
 // Leaf icon with an <img src={logoUrl} /> here and every screen updates.
