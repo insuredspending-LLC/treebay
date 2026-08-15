@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Leaf, ShoppingCart, Store, Truck, Loader2, ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { BUYER_TYPES } from "@/lib/treebay";
+import AIAssistant from "@/components/AIAssistant";
 
 const ROLES = [
   { id: "buyer", title: "Buy plants & trees", desc: "Source inventory, request quotes, and order for your projects.", icon: ShoppingCart },
@@ -67,17 +68,33 @@ export default function Onboarding() {
 
   if (step === "role") {
     return (
-      <div className="min-h-screen flex flex-col bg-background px-4 py-10">
-        <div className="flex items-center gap-2 mb-8">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center"><Leaf className="w-5 h-5 text-primary-foreground" /></div>
-          <span className="font-heading font-extrabold text-xl text-primary">TreEbay</span>
-        </div>
+      <>
+        <div className="min-h-screen bg-gradient-to-b from-secondary/80 via-background to-background px-4 py-8 sm:py-12">
+          <div className="w-full max-w-2xl mx-auto">
+            <div className="flex items-center justify-between gap-3 mb-7">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/15"><Leaf className="w-5 h-5 text-primary-foreground" /></div>
+                <span className="font-heading font-extrabold text-xl text-primary">TreEbay</span>
+              </div>
+              <span className="rounded-full border border-primary/15 bg-card/80 px-3 py-1.5 text-xs font-semibold text-primary shadow-sm">Step 1 of 2</span>
+            </div>
+            <div className="rounded-[28px] border border-primary/10 bg-card/95 p-5 sm:p-8 shadow-xl shadow-primary/5">
+              <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary mb-4">
+                <Sparkles className="w-3.5 h-3.5" /> AI-guided setup
+              </div>
         <h1 className="text-2xl font-bold">How will you use TreEbay?</h1>
-        <p className="text-muted-foreground mt-1">You can switch roles later from your account settings.</p>
-        <div className="mt-8 space-y-3">
+        <p className="text-muted-foreground mt-2 max-w-xl">Choose the closest match. TreEbay will personalize the app, and you can switch roles later.</p>
+        <Button
+          variant="outline"
+          className="mt-5 h-11 border-primary/20 bg-secondary/40"
+          onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open", { detail: { prompt: "Help me choose the right TreEbay role." } }))}
+        >
+          <Sparkles className="w-4 h-4" /> Help me choose
+        </Button>
+        <div className="mt-7 space-y-3">
           {ROLES.map((r) => (
             <button key={r.id} onClick={() => { setRole(r.id); setStep("profile"); }}
-              className="w-full text-left p-4 rounded-2xl border border-border bg-card transition flex gap-4 items-start hover:border-primary hover:shadow-sm">
+              className="w-full text-left p-4 sm:p-5 rounded-2xl border border-border bg-background/70 transition flex gap-4 items-start hover:border-primary hover:shadow-md active:scale-[0.99]">
               <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center shrink-0"><r.icon className="w-6 h-6 text-primary" /></div>
               <div className="flex-1">
                 <p className="font-semibold flex items-center gap-2">{r.title}{r.id === "carrier" && <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">TEST freight</span>}</p>
@@ -94,16 +111,24 @@ export default function Onboarding() {
             <li>• Track orders and deliveries</li>
             <li>• Switch to Seller mode anytime</li>
           </ul>
-          <p className="text-xs text-muted-foreground flex items-center gap-1"><Sparkles className="w-3 h-3" /> TreEbay Assistant can help you search and draft RFQs — but the app is fully usable without it.</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1"><Sparkles className="w-3 h-3" /> Your setup assistant stays available from every screen after you finish.</p>
         </div>
-      </div>
+            </div>
+          </div>
+        </div>
+        <AIAssistant onboarding onboardingRole={role} />
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8">
-      <div className="max-w-lg mx-auto">
-        <button onClick={() => setStep("role")} className="inline-flex items-center gap-1 text-sm text-muted-foreground mb-4"><ArrowLeft className="w-4 h-4" /> Back</button>
+    <>
+      <div className="min-h-screen bg-gradient-to-b from-secondary/80 via-background to-background px-4 py-8">
+        <div className="max-w-2xl mx-auto rounded-[28px] border border-primary/10 bg-card/95 p-5 sm:p-8 shadow-xl shadow-primary/5">
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <button onClick={() => setStep("role")} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="w-4 h-4" /> Back</button>
+            <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary">Step 2 of 2</span>
+          </div>
         <h1 className="text-2xl font-bold">{role === "buyer" ? "Buyer profile" : role === "vendor" ? "Vendor profile" : "Carrier profile"}</h1>
         <p className="text-muted-foreground mt-1">This information helps match you with the right marketplace.</p>
 
@@ -178,8 +203,10 @@ export default function Onboarding() {
           Continue
         </Button>
         <p className="text-xs text-muted-foreground text-center mt-4 flex items-center justify-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Your private details stay visible only to you.</p>
+        </div>
       </div>
-    </div>
+      <AIAssistant onboarding onboardingRole={role} />
+    </>
   );
 }
 
