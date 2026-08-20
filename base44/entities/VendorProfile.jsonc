@@ -48,6 +48,55 @@
       "type": "boolean",
       "default": false
     },
+    "seller_plan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "professional",
+        "business"
+      ],
+      "default": "free",
+      "description": "Currently active seller entitlement; paid plans remain inactive during preview"
+    },
+    "seller_plan_status": {
+      "type": "string",
+      "enum": [
+        "preview",
+        "active",
+        "past_due",
+        "canceled",
+        "inactive"
+      ],
+      "default": "preview"
+    },
+    "seller_billing_provider": {
+      "type": "string",
+      "enum": [
+        "none",
+        "stripe"
+      ],
+      "default": "none"
+    },
+    "requested_seller_plan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "professional",
+        "business"
+      ],
+      "default": "free",
+      "description": "Founding-plan interest; does not grant paid access or create a charge"
+    },
+    "requested_plan_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "seller_provider_customer_id": {
+      "type": "string"
+    },
+    "seller_provider_subscription_id": {
+      "type": "string"
+    },
     "verification_status": {
       "type": "string",
       "enum": [
