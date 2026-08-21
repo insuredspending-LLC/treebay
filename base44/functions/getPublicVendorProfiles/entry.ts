@@ -7,7 +7,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 const PUBLIC_FIELDS = [
   "id", "business_name", "city", "state", "website", "description",
   "service_area", "pickup_available", "delivery_available", "wholesale_available",
-  "verification_status", "logo_url", "cover_url", "rating", "review_count",
+  "verification_status", "selling_status", "logo_url", "cover_url", "rating", "review_count",
   "created_date"
 ];
 
