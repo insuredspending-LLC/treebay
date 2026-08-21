@@ -68,7 +68,8 @@ export default function ProductDetail() {
   const showReqQuote = unitPrice === null;
   const subtotal = showReqQuote ? null : unitPrice * qty;
   const sellerVerified = vendor?.verification_status === "verified";
-  const canOrder = sellerVerified && product.listing_status === "active" && product.quantity_available > 0 && !showReqQuote && qty <= product.quantity_available;
+  const sellerActive = !!vendor && vendor.verification_status !== "suspended" && !["restricted", "suspended"].includes(vendor.selling_status || "active");
+  const canOrder = sellerActive && product.listing_status === "active" && product.quantity_available > 0 && !showReqQuote && qty <= product.quantity_available;
 
   const toggleFav = async () => {
     if (fav) {
@@ -234,9 +235,10 @@ export default function ProductDetail() {
 
             <Button onClick={buyNow} disabled={!canOrder || submitting} size="lg" className="w-full h-12 text-base">
               {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-              {!sellerVerified ? "Seller not verified" : showReqQuote ? "Request quote to buy" : "Start Order"}
+              {!sellerActive ? "Seller unavailable" : showReqQuote ? "Request quote to buy" : "Start Order"}
             </Button>
-            {!sellerVerified && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Purchasing is disabled while this seller is {vendor?.verification_status || "unverified"}.</p>}
+            {!sellerActive && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> This seller account is not currently active for new orders.</p>}
+            {sellerActive && !sellerVerified && <p className="text-xs text-muted-foreground flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Seller is active. TreEbay verification badge is still pending.</p>}
 
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">
