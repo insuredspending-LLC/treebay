@@ -129,8 +129,8 @@ export default function AdminDashboard() {
               </Card>
             )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Stat icon={ShoppingCart} label="Orders today" value={orders.filter((o) => shortDate(o.created_date) === shortDate(new Date())).length} />
-              <Stat icon={BarChart3} label="Gross volume" value={formatCurrency(orders.reduce((s, o) => s + (o.total || 0), 0))} />
+              <Stat icon={ShoppingCart} label="LIVE orders today" value={orders.filter((o) => o.commerce_mode === "live" && shortDate(o.created_date) === shortDate(new Date())).length} />
+              <Stat icon={BarChart3} label="LIVE gross volume" value={formatCurrency(orders.filter((o) => o.commerce_mode === "live").reduce((s, o) => s + (o.total || 0), 0))} />
               <Stat icon={Store} label="Vendors" value={vendors.length} />
               <Stat icon={Package} label="Listings" value={products.length} />
             </div>
