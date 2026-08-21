@@ -11,6 +11,15 @@
     "vendor_owner_id": {
       "type": "string"
     },
+    "commerce_mode": {
+      "type": "string",
+      "enum": [
+        "test",
+        "live"
+      ],
+      "default": "test",
+      "description": "Test records never represent real money. Live records must be backed by a production payment provider."
+    },
     "provider": {
       "type": "string",
       "default": "trebay_test"
