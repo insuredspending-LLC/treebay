@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-// Secure vendor profile creation. Derives owner from auth; forces pending verification, rating 0.
+// Secure vendor profile creation. Derives owner from auth; activates normal selling automatically while trust verification remains pending.
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -24,7 +24,7 @@ export default async function(req) {
       wholesale_available: !!body.wholesale_available,
       seller_plan: "free", seller_plan_status: "preview", seller_billing_provider: "none",
       requested_seller_plan: requestedPlan, requested_plan_at: new Date().toISOString(),
-      verification_status: "pending", rating: 0, review_count: 0,
+      verification_status: "pending", selling_status: "active", rating: 0, review_count: 0,
     });
     await base44.auth.updateMe({ account_type: "vendor", terms_accepted_at: new Date().toISOString(), terms_version: "1" });
     return Response.json({ vendor });
