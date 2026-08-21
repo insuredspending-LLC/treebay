@@ -116,14 +116,14 @@ export default function Account() {
               <span className="text-muted-foreground">Verification:</span>
               <StatusBadge status={vendor.verification_status} />
             </div>
-            {vendor.verification_status === "pending" && (
-              <p className="text-[11px] text-amber-700 bg-amber-50 rounded-md p-2">Verification is pending. You can create listings and prepare quotes, but buyers can't purchase until you're verified.</p>
+            {vendor.verification_status === "pending" && (vendor.selling_status || "active") === "active" && (
+              <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded-md p-2">Your seller account is active. You can list, quote, and receive orders now; TreEbay verification is still pending for the trust badge.</p>
             )}
             {vendor.verification_status === "verified" && (
               <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded-md p-2">Your nursery is verified. Buyers can purchase your listings directly and accept your quotes.</p>
             )}
-            {vendor.verification_status === "suspended" && (
-              <p className="text-[11px] text-red-700 bg-red-50 rounded-md p-2">Your seller account is suspended. Contact support for assistance.</p>
+            {(vendor.verification_status === "suspended" || ["restricted", "suspended"].includes(vendor.selling_status)) && (
+              <p className="text-[11px] text-red-700 bg-red-50 rounded-md p-2">Your seller account is not currently active for new orders. Contact support for assistance.</p>
             )}
           </div>
           <div className="flex gap-2 pt-1">
