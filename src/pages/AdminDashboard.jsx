@@ -61,6 +61,7 @@ export default function AdminDashboard() {
   if (!user) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
   const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
+  const setSellingStatus = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { selling_status: status }); load(); toast({ title: `Seller ${status}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
   const setCarrierVerification = async (id, status) => { try { await base44.entities.CarrierProfile.update(id, { verification_status: status }); load(); toast({ title: `Carrier ${VERIFICATION_LABELS[status]}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
   const setListingStatus = async (id, status) => { try { await base44.entities.Product.update(id, { listing_status: status }); load(); toast({ title: `Listing ${status}` }); } catch {} };
   const resolveReport = async (id, resolution) => { try { await base44.entities.ContentReport.update(id, { status: "actioned", resolution }); load(); toast({ title: "Report resolved" }); } catch {} };
@@ -147,13 +148,14 @@ export default function AdminDashboard() {
             </Card>
             {pendingVendors.length > 0 && (
               <Card className="p-4">
-                <h2 className="font-semibold mb-2">Pending vendor verifications</h2>
+                <h2 className="font-semibold mb-1">Pending TreEbay trust verifications</h2>
+                <p className="text-xs text-muted-foreground mb-2">Seller accounts activate automatically. Verification only controls the public trust badge; suspend selling only for an exception.</p>
                 <div className="space-y-2">{pendingVendors.map((v) => (
                   <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-50">
-                    <div><p className="font-medium text-sm">{v.business_name}</p><p className="text-xs text-muted-foreground">{v.city}, {v.state}</p></div>
+                    <div><p className="font-medium text-sm">{v.business_name}</p><p className="text-xs text-muted-foreground">{v.city}, {v.state} · Selling {(v.selling_status || "active")}</p></div>
                     <div className="flex gap-1">
-                      <Button size="sm" onClick={() => setVerification(v.id, "verified")}><CheckCircle2 className="w-4 h-4 mr-1" /> Verify</Button>
-                      <Button size="sm" variant="outline" onClick={() => setVerification(v.id, "suspended")}><XCircle className="w-4 h-4 mr-1" /> Suspend</Button>
+                      <Button size="sm" onClick={() => setVerification(v.id, "verified")}><CheckCircle2 className="w-4 h-4 mr-1" /> Mark Verified</Button>
+                      <Button size="sm" variant="outline" onClick={() => setSellingStatus(v.id, "suspended")}><XCircle className="w-4 h-4 mr-1" /> Suspend Selling</Button>
                     </div>
                   </div>
                 ))}</div>
@@ -174,11 +176,16 @@ export default function AdminDashboard() {
               <div className="space-y-2">{vendors.map((v) => (
                 <Card key={v.id} className="p-3 flex items-center justify-between gap-2">
                   <div className="min-w-0"><p className="font-medium text-sm truncate">{v.business_name}</p><p className="text-xs text-muted-foreground">{v.city}, {v.state} · {v.contact_name}</p></div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <StatusBadge status={v.verification_status} label={VERIFICATION_LABELS[v.verification_status]} />
-                    <Select value={v.verification_status} onValueChange={(s) => setVerification(v.id, s)}>
+                    <StatusBadge status={v.selling_status || "active"} label={`Selling ${v.selling_status || "active"}`} />
+                    <Select value={v.verification_status === "suspended" ? "pending" : v.verification_status} onValueChange={(s) => setVerification(v.id, s)}>
                       <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="verified">Verify</SelectItem><SelectItem value="suspended">Suspend</SelectItem></SelectContent>
+                      <SelectContent><SelectItem value="pending">Badge pending</SelectItem><SelectItem value="verified">Verified badge</SelectItem></SelectContent>
+                    </Select>
+                    <Select value={v.selling_status || "active"} onValueChange={(s) => setSellingStatus(v.id, s)}>
+                      <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="active">Selling active</SelectItem><SelectItem value="restricted">Restricted</SelectItem><SelectItem value="suspended">Suspended</SelectItem></SelectContent>
                     </Select>
                     <Button asChild variant="ghost" size="sm"><Link to={`/vendor/${v.id}`}>View</Link></Button>
                   </div>
