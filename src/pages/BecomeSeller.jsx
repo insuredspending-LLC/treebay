@@ -69,7 +69,7 @@ export default function BecomeSeller() {
         requested_seller_plan: f.requested_seller_plan,
       });
       await refresh();
-      toast({ title: "Vendor profile created", description: "Verification starts as pending." });
+      toast({ title: "Seller account activated", description: "You can list and sell immediately. TreEbay verification is a separate trust badge." });
       navigate("/vendor", { replace: true });
     } catch (e) {
       toast({ title: "Could not save profile", description: apiError(e), variant: "destructive" });
@@ -158,8 +158,8 @@ export default function BecomeSeller() {
                 <p className="text-sm font-medium">Why TreEbay verifies growers</p>
               </div>
               <p className="text-xs text-muted-foreground">TreEbay verifies growers to ensure buyers receive healthy, accurately represented plants. Verification confirms your nursery is a legitimate business.</p>
-              <p className="text-xs text-muted-foreground"><span className="font-medium text-amber-700">Pending sellers</span> can create their selling profile, prepare listings, and browse sourcing opportunities. Listings and commercial quotes become transactable after verification.</p>
-              <p className="text-xs text-muted-foreground"><span className="font-medium text-emerald-700">Verified sellers</span> can sell directly — buyers can purchase listings and accept quotes.</p>
+              <p className="text-xs text-muted-foreground"><span className="font-medium text-emerald-700">Active sellers</span> can list inventory, submit commercial quotes, and receive orders immediately after onboarding.</p>
+              <p className="text-xs text-muted-foreground"><span className="font-medium text-primary">Verified sellers</span> receive a separate TreEbay trust badge after verification. The badge is not required for normal selling.</p>
             </Card>
           </div>
         )}
@@ -215,7 +215,7 @@ export default function BecomeSeller() {
                 <p className="text-xs text-muted-foreground">No charge or paid entitlement is created today.</p>
               </div>
             </Card>
-            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Verification begins as pending — your listings become purchasable once verified. Plan billing remains disabled during preview.</p>
+            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Your seller account activates automatically; TreEbay verification begins as pending and only controls the trust badge. Plan billing remains disabled during preview.</p>
           </div>
         )}
 
@@ -225,7 +225,7 @@ export default function BecomeSeller() {
             <Button onClick={next} className="flex-1 h-12">Continue <ArrowRight className="w-4 h-4 ml-1" /></Button>
           ) : (
             <Button onClick={finish} disabled={loading} className="flex-1 h-12">
-              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />} Submit for verification
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />} Activate Seller Account
             </Button>
           )}
         </div>
