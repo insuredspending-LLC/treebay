@@ -11,13 +11,20 @@ export default async function(req) {
     if (user.role !== "admin") return Response.json({ error: "Admin only" }, { status: 403 });
     const svc = base44.asServiceRole;
 
-    const orders = await svc.entities.Order.list("-created_date", 500);
-    const ledgerEntries = await svc.entities.TransactionLedgerEntry.list("-created_date", 1000);
+    const allOrders = await svc.entities.Order.list("-created_date", 500);
+    const allLedgerEntries = await svc.entities.TransactionLedgerEntry.list("-created_date", 1000);
     const exceptions = await svc.entities.SystemException.filter({ requires_admin: true }, "-created_date", 100);
     const feeRules = await svc.entities.MarketplaceFeeRule.filter({ active: true }, "-effective_date", 10);
 
-    // GMV = sum of all paid order totals
-    const paidOrders = (orders || []).filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status));
+    // Financial headline metrics are LIVE ONLY. Legacy orders without commerce_mode are
+    // intentionally classified as test so simulated history can never masquerade as revenue.
+    const orders = (allOrders || []).filter((o) => o.commerce_mode === "live");
+    const testOrders = (allOrders || []).filter((o) => o.commerce_mode !== "live");
+    const liveOrderIds = new Set(orders.map((o) => o.id));
+    const ledgerEntries = (allLedgerEntries || []).filter((e) => liveOrderIds.has(e.order_id));
+
+    // GMV = sum of LIVE paid order totals
+    const paidOrders = orders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status));
     const gmv = paidOrders.reduce((s, o) => s + (o.total_cents || 0), 0);
     // Taxable marketplace sales from the immutable CheckoutQuote tax snapshot.
     let taxableMarketplaceSales = 0;
@@ -74,8 +81,14 @@ export default async function(req) {
         id: e.id, type: e.exception_type, severity: e.severity, status: e.status,
         order_id: e.order_id, reason: e.reason, created_date: e.created_date,
       })),
-      partial: (orders || []).length >= 500 || (ledgerEntries || []).length >= 1000,
-      records_scanned: { orders: (orders || []).length, ledger_entries: (ledgerEntries || []).length },
+      test_summary: {
+        orders: testOrders.length,
+        paid_orders: testOrders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status)).length,
+        simulated_gmv_cents: testOrders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status)).reduce((sum, o) => sum + (o.total_cents || 0), 0),
+      },
+      partial: (allOrders || []).length >= 500 || (allLedgerEntries || []).length >= 1000,
+      records_scanned: { orders: (allOrders || []).length, ledger_entries: (allLedgerEntries || []).length },
+      scope: "live_only", 
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
