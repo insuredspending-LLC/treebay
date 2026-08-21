@@ -110,7 +110,7 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
     const quoteRef = genFreightQuoteReference();
     const expiresAt = new Date(Date.now() + FREIGHT_QUOTE_TTL_HOURS * 3600000).toISOString();
     freightQuote = await svc.entities.FreightQuote.create({
-      order_id: order.id, checkout_quote_id: cq.id,
+      order_id: order.id, checkout_quote_id: cq.id, commerce_mode: order.commerce_mode || "test",
       carrier_id: carrier.id, carrier_owner_id: carrier.owner_id,
       buyer_id: order.buyer_id, vendor_owner_id: order.vendor_owner_id,
       provider: TEST_FREIGHT_PROVIDER, quote_reference: quoteRef,
