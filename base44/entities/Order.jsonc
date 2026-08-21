@@ -28,6 +28,15 @@
       "type": "string",
       "description": "Authoritative financial snapshot"
     },
+    "commerce_mode": {
+      "type": "string",
+      "enum": [
+        "test",
+        "live"
+      ],
+      "default": "test",
+      "description": "Whether this order is a simulated test transaction or a real-money live transaction. Legacy records without this field are treated as test."
+    },
     "items": {
       "type": "array",
       "items": {
