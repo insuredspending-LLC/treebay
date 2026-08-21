@@ -104,7 +104,18 @@
         "verified",
         "suspended"
       ],
-      "default": "pending"
+      "default": "pending",
+      "description": "Trust badge status. Pending does not block normal selling; verified may only be shown after TreEbay verification. The suspended value is retained for backward compatibility."
+    },
+    "selling_status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "restricted",
+        "suspended"
+      ],
+      "default": "active",
+      "description": "Operational selling permission. New sellers activate automatically; only risk, policy, payout, or compliance exceptions should restrict or suspend selling."
     },
     "logo_url": {
       "type": "string"
