@@ -25,8 +25,15 @@ export default function VendorFinancials() {
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold">Seller Financials</h1>
-        <p className="text-sm text-muted-foreground">Authoritative data from transaction ledger — TEST MODE.</p>
+        <p className="text-sm text-muted-foreground">Live earnings only. Test transactions are excluded from sales and payout totals.</p>
       </div>
+
+      {v.totals.test_orders_excluded > 0 && (
+        <Card className="p-4 border-amber-200 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">Test history excluded</p>
+          <p className="text-xs text-amber-800 mt-1">{v.totals.test_orders_excluded} simulated orders · {formatCents(v.totals.test_simulated_gmv_cents || 0)} simulated GMV. This is not seller revenue.</p>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <StatCard icon={TrendingUp} label="Gross Marketplace Sales" value={formatCents(v.totals.gross_merchandise_sales_cents)} />
@@ -36,7 +43,7 @@ export default function VendorFinancials() {
         <StatCard icon={CheckCircle2} label="Net Settled Proceeds" value={formatCents(v.totals.net_settled_proceeds_cents)} />
         <StatCard icon={Receipt} label="Refunds" value={formatCents(v.totals.refunds_cents)} />
       </div>
-      {data.partial && <p className="text-xs text-amber-600">Partial TEST totals — more records exist beyond the scanned window.</p>}
+      {data.partial && <p className="text-xs text-amber-600">Partial totals — more records exist beyond the scanned window.</p>}
 
       <Card className="p-4">
         <h2 className="font-semibold text-sm mb-2">Fee Policy</h2>
