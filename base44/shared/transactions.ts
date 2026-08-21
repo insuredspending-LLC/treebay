@@ -730,13 +730,24 @@ export async function rollbackExpiredRFQCheckout(svc, cq) {
   await closeDeliveryOptions(svc, cq.id);
 }
 
-// ---- Seller trust ----
-// Direct listings and RFQ-sourced orders follow the SAME seller-trust requirement.
+// ---- Seller operational status vs trust verification ----
+// New sellers become operational automatically. `verification_status` controls the
+// public trust badge; it is deliberately NOT the normal-commerce gate. This keeps
+// onboarding autonomous without falsely labeling every new business as "Verified".
+// The legacy verification_status="suspended" value remains a blocking condition so
+// previously suspended accounts cannot be re-enabled accidentally by this migration.
+export function vendorCanSell(vendor) {
+  if (!vendor) return false;
+  if (vendor.verification_status === "suspended") return false;
+  const sellingStatus = vendor.selling_status || "active";
+  return sellingStatus !== "restricted" && sellingStatus !== "suspended";
+}
+
 export async function assertVendorSellable(svc, vendorId) {
   const vendor = await svc.entities.VendorProfile.get(vendorId);
   if (!vendor) throw new Error("Seller profile not found.");
-  if (vendor.verification_status !== "verified") {
-    throw new Error("This seller is not currently verified and cannot accept new orders.");
+  if (!vendorCanSell(vendor)) {
+    throw new Error("This seller account is not currently active for new orders.");
   }
   return vendor;
 }
