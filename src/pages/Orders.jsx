@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, Loader2, Truck, Clock, ChevronRight } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";
@@ -96,7 +97,7 @@ export default function Orders() {
                   <Card className="p-4 hover:shadow-sm hover:border-primary/40 transition">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold">{o.order_number}</p>
+                        <div className="flex items-center gap-2"><p className="font-semibold">{o.order_number}</p><Badge variant={(o.commerce_mode || "test") === "live" ? "default" : "outline"}>{(o.commerce_mode || "test") === "live" ? "LIVE" : "TEST"}</Badge></div>
                         {isSeller ? (
                           <p className="text-xs text-muted-foreground mt-0.5 truncate">{jobsiteDisplay(o)}</p>
                         ) : (
