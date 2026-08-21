@@ -176,6 +176,13 @@ export default function OrderDetail() {
         </div>
       </div>
 
+      {(order.commerce_mode || "test") !== "live" && (
+        <Card className="p-4 border-amber-300 bg-amber-50">
+          <p className="font-semibold text-sm text-amber-900">TEST transaction — no real money moved</p>
+          <p className="text-xs text-amber-700 mt-0.5">Payment, tax, freight, payouts, and settlement on this order are simulated.</p>
+        </Card>
+      )}
+
       {/* Exception banner */}
       {hasException && (
         <Card className="p-4 border-amber-300 bg-amber-50">
