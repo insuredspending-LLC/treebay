@@ -18,6 +18,15 @@
         "accepted_quote"
       ]
     },
+    "commerce_mode": {
+      "type": "string",
+      "enum": [
+        "test",
+        "live"
+      ],
+      "default": "test",
+      "description": "Test quotes are simulated; live quotes may only be created by a production-ready commerce provider."
+    },
     "product_id": {
       "type": "string"
     },
