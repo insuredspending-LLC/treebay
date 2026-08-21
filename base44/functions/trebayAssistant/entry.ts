@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { vendorCanSell } from "../../shared/transactions.ts";
 
 const INTENT_SCHEMA = {
   type: "object",
@@ -25,7 +26,7 @@ function sanitizeProduct(p) {
   return { id: p.id, common_name: p.common_name, botanical_name: p.botanical_name, unit_price: p.unit_price, quantity_available: p.quantity_available, container_size: p.container_size, caliper: p.caliper, vendor_name: p.vendor_name, vendor_city: p.vendor_city, vendor_state: p.vendor_state, verified_vendor: p.verified_vendor, pickup_eligible: p.pickup_eligible, delivery_eligible: p.delivery_eligible, images: p.images?.length ? [p.images[0]] : [] };
 }
 function sanitizeVendor(v) {
-  return { id: v.id, business_name: v.business_name, logo_url: v.logo_url || null, city: v.city, state: v.state, verification_status: v.verification_status, rating: v.rating, review_count: v.review_count, pickup_available: v.pickup_available, delivery_available: v.delivery_available, wholesale_available: v.wholesale_available };
+  return { id: v.id, business_name: v.business_name, logo_url: v.logo_url || null, city: v.city, state: v.state, verification_status: v.verification_status, selling_status: v.selling_status || "active", rating: v.rating, review_count: v.review_count, pickup_available: v.pickup_available, delivery_available: v.delivery_available, wholesale_available: v.wholesale_available };
 }
 function sanitizeOrder(o) {
   return { id: o.id, order_number: o.order_number, order_status: o.order_status, payment_status: o.payment_status, total: o.total, vendor_name: o.vendor_name, fulfillment_method: o.fulfillment_method, items: (o.items || []).map((i) => ({ line_name: i.line_name, quantity: i.quantity, unit_price: i.unit_price })) };
@@ -103,7 +104,7 @@ export default async function(req: Request): Promise<Response> {
     const svc = base44.asServiceRole;
     const vendorProfiles = await svc.entities.VendorProfile.filter({ owner_id: user.id }, "-created_date", 20);
     const isSeller = vendorProfiles.length > 0;
-    const isVerifiedSeller = vendorProfiles.some((profile) => profile.verification_status === "verified");
+    const isActiveSeller = vendorProfiles.some((profile) => vendorCanSell(profile));
     const presentationRole = context.role === "vendor" && isSeller ? "seller" : "buyer";
     const onboardingContext = context.onboarding === true && context.page === "/onboarding";
     const setupRole = ["buyer", "vendor", "carrier"].includes(context.role) ? context.role : "buyer";
@@ -124,9 +125,9 @@ export default async function(req: Request): Promise<Response> {
     } else if (sellerIntents.has(intent) && !isSeller) {
       queryData = { type: "seller_access", seller_profile: false };
       reply = "Seller tools are available once you create a grower profile. You can still browse inventory, request quotes, and manage projects in buyer mode.";
-    } else if (intent === "match_rfqs" && !isVerifiedSeller) {
-      queryData = { type: "seller_access", verified_seller: false };
-      reply = "RFQ matching is available after your grower profile is verified. You can continue preparing your inventory in the meantime.";
+    } else if (intent === "match_rfqs" && !isActiveSeller) {
+      queryData = { type: "seller_access", active_seller: false };
+      reply = "RFQ matching is unavailable while your seller account is restricted or suspended.";
     } else if (intent === "search_inventory") {
       if (pageCtx.productId) {
         const product = await svc.entities.Product.get(pageCtx.productId);
@@ -139,7 +140,8 @@ export default async function(req: Request): Promise<Response> {
       results.cards = queryData.items.map((product) => ({ type: "product", data: product }));
       results.actions.push({ label: "View in Marketplace", path: "/marketplace" });
     } else if (intent === "find_growers") {
-      const vendors = pageCtx.vendorId ? [await svc.entities.VendorProfile.get(pageCtx.vendorId)].filter(Boolean) : await svc.entities.VendorProfile.filter({ verification_status: "verified" }, "-rating", 6);
+      const candidates = pageCtx.vendorId ? [await svc.entities.VendorProfile.get(pageCtx.vendorId)].filter(Boolean) : await svc.entities.VendorProfile.filter({}, "-rating", 30);
+      const vendors = candidates.filter(vendorCanSell).slice(0, 6);
       queryData = { type: "vendors", count: vendors.length, items: vendors.map(sanitizeVendor) };
       results.cards = vendors.map((vendor) => ({ type: "vendor", data: sanitizeVendor(vendor) }));
       results.actions.push({ label: "Browse Marketplace", path: "/marketplace" });
