@@ -27,6 +27,7 @@ export default async function(req) {
 
     const payload = {};
     for (const k of ALLOWED) { if (body[k] !== undefined) payload[k] = body[k]; }
+    payload.is_test_fixture = false;
     payload.vendor_id = vendor.id;
     payload.vendor_owner_id = user.id;
     payload.vendor_name = vendor.business_name;
