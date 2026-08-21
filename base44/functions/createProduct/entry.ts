@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { isPositiveNumber, isNonNegativeNumber } from "../../shared/marketplace.ts";
+import { vendorCanSell } from "../../shared/transactions.ts";
 
 const ALLOWED = ["common_name","botanical_name","cultivar","category","description","sku","container_size","box_size","caliper","current_height","approximate_spread","quantity_available","unit_price","minimum_order_quantity","wholesale_eligible","pickup_eligible","delivery_eligible","native_status","foliage_type","usda_zones","sun_requirement","water_requirement","mature_height","mature_spread","listing_status","bulk_price_tiers","images"];
 
@@ -14,6 +15,7 @@ export default async function(req) {
     const vendors = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     const vendor = (vendors || [])[0];
     if (!vendor) return Response.json({ error: "No vendor profile found. Complete vendor onboarding first." }, { status: 403 });
+    if (!vendorCanSell(vendor)) return Response.json({ error: "Your seller account is not currently active for new listings." }, { status: 403 });
 
     if (!body.common_name || !body.category) return Response.json({ error: "Name and category are required" }, { status: 400 });
     const qty = Number(body.quantity_available) || 0;
