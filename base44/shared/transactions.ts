@@ -135,7 +135,7 @@ export async function assembleCheckout(svc, p) {
   const dest = p.destination || {};
   const quote = await svc.entities.CheckoutQuote.create({
     buyer_id: p.buyer_id, vendor_id: p.vendor_id, vendor_owner_id: p.vendor_owner_id,
-    source_type: p.source_type, product_id: p.product_id || null, quote_id: p.quote_id || null, rfq_id: p.rfq_id || null,
+    source_type: p.source_type, commerce_mode: "test", product_id: p.product_id || null, quote_id: p.quote_id || null, rfq_id: p.rfq_id || null,
     items: p.items, merchandise_subtotal_cents: p.merchandise_cents, bulk_discount_cents: 0,
     delivery_amount_cents: deliveryCents, taxable_amount_cents: taxableCents, tax_amount_cents: tax.taxCents,
     marketplace_fee_cents: feeCents, fee_payer: feePayer, other_fees_cents: 0, total_amount_cents: totalCents,
@@ -150,7 +150,7 @@ export async function assembleCheckout(svc, p) {
   const taxableDeliveryCents = 0; // TEST policy: delivery is not taxable
   const totalTaxableCents = taxableCents + taxableDeliveryCents;
   await svc.entities.TaxCalculation.create({
-    checkout_quote_id: quote.id, provider: tax.provider, jurisdiction: dest.state || null,
+    checkout_quote_id: quote.id, commerce_mode: "test", provider: tax.provider, jurisdiction: dest.state || null,
     taxable_amount_cents: taxableCents, taxable_delivery_amount_cents: taxableDeliveryCents,
     total_taxable_amount_cents: totalTaxableCents, tax_amount_cents: tax.taxCents, rate: tax.rate,
     status: tax.status, collection_party: "trebay_test", remittance_responsibility: "trebay_test",
@@ -165,7 +165,7 @@ export async function assembleCheckout(svc, p) {
     if (opt.provider_type === "third_party_carrier") {
       const freight = calculateTestFreightQuote(opt.delivery_price_cents, "flatbed");
       const fq = await svc.entities.FreightQuote.create({
-        order_id: null, checkout_quote_id: quote.id, carrier_id: null, carrier_owner_id: null,
+        order_id: null, checkout_quote_id: quote.id, commerce_mode: "test", carrier_id: null, carrier_owner_id: null,
         buyer_id: p.buyer_id, vendor_owner_id: p.vendor_owner_id,
         provider: "trebay_test_freight", quote_reference: genFreightQuoteReference(),
         linehaul_cents: freight.linehaul_cents, fuel_surcharge_cents: freight.fuel_surcharge_cents,
@@ -790,7 +790,7 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
   let order = null;
   try {
     order = await svc.entities.Order.create({
-    order_number: orderNumber, buyer_id: cq.buyer_id, vendor_id: cq.vendor_id, vendor_owner_id: cq.vendor_owner_id,
+    order_number: orderNumber, commerce_mode: cq.commerce_mode || "test", buyer_id: cq.buyer_id, vendor_id: cq.vendor_id, vendor_owner_id: cq.vendor_owner_id,
     vendor_name: vendor?.business_name || "", quote_id: cq.quote_id || "", rfq_id: cq.rfq_id || "", checkout_quote_id: cq.id,
     items: (cq.items || []).map((i) => ({ line_name: i.line_name, quantity: i.quantity, unit_price: fromCents(i.unit_price_cents), subtotal: fromCents(i.subtotal_cents) })),
     subtotal: fromCents(cq.merchandise_subtotal_cents), delivery_charges: fromCents(cq.delivery_amount_cents),
