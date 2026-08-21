@@ -9,6 +9,11 @@
     "business_name": {
       "type": "string"
     },
+    "is_test_fixture": {
+      "type": "boolean",
+      "default": false,
+      "description": "Internal test/demo seller record. Test fixtures are excluded from the public production marketplace."
+    },
     "contact_name": {
       "type": "string"
     },
