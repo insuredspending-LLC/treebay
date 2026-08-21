@@ -21,11 +21,15 @@ export default async function(req) {
 
     const vendorResults = [];
     for (const vendor of vendors) {
-      const orders = await svc.entities.Order.filter({ vendor_id: vendor.id }, "-created_date", 200);
-      const ledgerEntries = await svc.entities.TransactionLedgerEntry.filter({ party_type: "vendor", party_id: vendor.id }, "-created_date", 500);
+      const allOrders = await svc.entities.Order.filter({ vendor_id: vendor.id }, "-created_date", 200);
+      const allLedgerEntries = await svc.entities.TransactionLedgerEntry.filter({ party_type: "vendor", party_id: vendor.id }, "-created_date", 500);
+      const orders = (allOrders || []).filter((o) => o.commerce_mode === "live");
+      const testOrders = (allOrders || []).filter((o) => o.commerce_mode !== "live");
+      const liveOrderIds = new Set(orders.map((o) => o.id));
+      const ledgerEntries = (allLedgerEntries || []).filter((e) => liveOrderIds.has(e.order_id));
 
-      // Get CheckoutQuotes for paid/refunded orders
-      const paidOrders = (orders || []).filter((o) => ["paid", "refunded", "partially_refunded"].includes(o.payment_status));
+      // Get CheckoutQuotes for LIVE paid/refunded orders
+      const paidOrders = orders.filter((o) => ["paid", "refunded", "partially_refunded"].includes(o.payment_status));
       const quotes = [];
       for (const o of paidOrders) {
         if (o.checkout_quote_id) {
@@ -74,8 +78,10 @@ export default async function(req) {
           vendor_fee_deduction_cents: vendorFeeDeduction,
           refunds_cents: refunds,
           net_settled_proceeds_cents: netSettledProceeds,
-          total_orders: (orders || []).length,
+          total_orders: orders.length,
           paid_orders: paidOrders.length,
+          test_orders_excluded: testOrders.length,
+          test_simulated_gmv_cents: testOrders.reduce((sum, o) => sum + (o.total_cents || 0), 0),
         },
         periods: {
           this_month: {
@@ -97,17 +103,18 @@ export default async function(req) {
             order_count: ytdQuotes.length,
           },
         },
-        _ledger_records_scanned: (ledgerEntries || []).length,
-        recent_orders: (orders || []).slice(0, 20).map((o) => ({
+        _all_orders_scanned: (allOrders || []).length,
+        _all_ledger_records_scanned: (allLedgerEntries || []).length,
+        recent_orders: orders.slice(0, 20).map((o) => ({
           order_number: o.order_number, order_status: o.order_status, payment_status: o.payment_status,
           total_cents: o.total_cents, created_date: o.created_date,
         })),
       });
     }
 
-    const totalRecords = vendorResults.reduce((s, v) => s + v.totals.total_orders, 0);
-    const partial = vendorResults.some((v) => v.totals.total_orders >= 200 || (v._ledger_records_scanned || 0) >= 500);
-    return Response.json({ vendors: vendorResults.map(({ _ledger_records_scanned, ...v }) => v), partial, records_scanned: totalRecords });
+    const totalRecords = vendorResults.reduce((s, v) => s + (v._all_orders_scanned || 0), 0);
+    const partial = vendorResults.some((v) => (v._all_orders_scanned || 0) >= 200 || (v._all_ledger_records_scanned || 0) >= 500);
+    return Response.json({ vendors: vendorResults.map(({ _all_orders_scanned, _all_ledger_records_scanned, ...v }) => v), partial, records_scanned: totalRecords, scope: "live_only" });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
