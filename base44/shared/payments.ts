@@ -98,7 +98,7 @@ export async function processTestPayment(svc, orderId, outcome, actor) {
   if (!payment) {
     payment = await svc.entities.PaymentRecord.create({
       order_id: orderId, buyer_id: order.buyer_id, vendor_owner_id: order.vendor_owner_id,
-      provider: "trebay_test", amount: order.total,
+      commerce_mode: order.commerce_mode || "test", provider: "trebay_test", amount: order.total,
       amount_cents: order.total_cents || Math.round((order.total || 0) * 100),
       status: "pending",
     });
