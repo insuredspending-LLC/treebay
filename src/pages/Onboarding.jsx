@@ -56,7 +56,7 @@ export default function Onboarding() {
         });
       }
       // Commit the selected role and legal consent only after the role profile is successfully created.
-      await base44.auth.updateMe({ account_type: role, terms_accepted_at: new Date().toISOString(), terms_version: "1" });
+      await base44.auth.updateMe({ account_type: role, terms_accepted_at: new Date().toISOString(), terms_version: "2" });
       await refresh();
       navigate("/home", { replace: true });
     } catch (e) {
