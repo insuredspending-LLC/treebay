@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ClipboardCheck, FileText, Package, Plus, Sparkles, Truck } from "lucide-react";
 import { formatNumber, shortDate } from "@/lib/treebay";
-import StripeConnectCard from "./StripeConnectCard";
 
 export default function SellerDashboard({ vendor }) {
   const [data, setData] = useState({ products: [], orders: [], rfqs: [] });
@@ -82,8 +81,6 @@ export default function SellerDashboard({ vendor }) {
         <Metric label="New RFQ opportunities" value={data.rfqs.length} icon={FileText} />
         <Metric label="Low inventory" value={summary.low.length} icon={AlertTriangle} />
       </section>
-
-      <StripeConnectCard vendor={vendor} />
 
       <section>
         <h2 className="font-heading font-bold text-lg mb-3">Needs your attention</h2>
