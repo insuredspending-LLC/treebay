@@ -9,6 +9,7 @@ import OnboardingGate from '@/components/OnboardingGate';
 import Layout from '@/components/Layout';
 import Onboarding from '@/pages/Onboarding';
 import Home from '@/pages/Home';
+import PublicLanding from '@/pages/PublicLanding';
 import Marketplace from '@/pages/Marketplace';
 import ProductDetail from '@/pages/ProductDetail';
 import Projects from '@/pages/Projects';
@@ -76,6 +77,10 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
+      {/* Public launch and tester recruitment */}
+      <Route path="/" element={<PublicLanding />} />
+      <Route path="/testers" element={<PublicLanding />} />
+
       {/* Auth routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -95,7 +100,7 @@ const AuthenticatedApp = () => {
           <Route path="/become-seller" element={<BecomeSeller />} />
           <Route path="/become-carrier" element={<BecomeCarrier />} />
           <Route element={<Layout />}>
-            <Route path="/" element={<Home />} />
+            <Route path="/home" element={<Home />} />
             <Route path="/marketplace" element={<Marketplace />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/vendor/:id" element={<VendorPublicProfile />} />
