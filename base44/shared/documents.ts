@@ -1,6 +1,6 @@
 // Tree Marketplace transaction document generation — print-friendly HTML stored in TransactionDocument.
-// All documents in TEST MODE prominently state: TEST TRANSACTION — NO REAL PAYMENT.
-import { fromCents } from "./transactions.ts";
+// Approved TEST documents prominently state that no real money moved. LIVE
+// documents never carry simulator language.
 
 function money(cents) {
   return "$" + (Math.round(cents || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -49,13 +49,19 @@ function itemsTable(items) {
   return `<table><thead><tr><th>Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Unit Price</th><th style="text-align:right;">Subtotal</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function totalsBlock(cq) {
+function totalsBlock(cq, isTest) {
+  const feePayer = cq?.fee_payer || "buyer";
+  const fee = cq?.marketplace_fee_cents || 0;
+  const feeRow = !fee ? "" : feePayer === "vendor"
+    ? `<tr><td class="muted">Seller commission (deducted from seller proceeds; not included in buyer total)</td><td style="text-align:right;">${money(fee)}</td></tr>`
+    : `<tr><td class="muted">Marketplace fee (buyer-paid historical rule)</td><td style="text-align:right;">${money(fee)}</td></tr>`;
+  const taxLabel = isTest ? "Sales Tax (APPROVED TEST / ESTIMATED)" : "Sales Tax";
   return `<table>
     <tr><td class="muted">Merchandise</td><td style="text-align:right;">${money(cq.merchandise_subtotal_cents)}</td></tr>
     ${cq.delivery_amount_cents ? `<tr><td class="muted">Delivery (${(cq.delivery_method || "").replace(/_/g, " ")})</td><td style="text-align:right;">${money(cq.delivery_amount_cents)}</td></tr>` : ""}
-    <tr><td class="muted">Tree Marketplace Marketplace Fee</td><td style="text-align:right;">${money(cq.marketplace_fee_cents)}</td></tr>
-    <tr><td class="muted">Sales Tax (TEST/ESTIMATED)</td><td style="text-align:right;">${money(cq.tax_amount_cents)}</td></tr>
-    <tr class="total-row"><td>Total</td><td style="text-align:right;">${money(cq.total_amount_cents)}</td></tr>
+    ${feeRow}
+    <tr><td class="muted">${taxLabel}</td><td style="text-align:right;">${money(cq.tax_amount_cents)}</td></tr>
+    <tr class="total-row"><td>Buyer Total</td><td style="text-align:right;">${money(cq.total_amount_cents)}</td></tr>
   </table>`;
 }
 
@@ -65,57 +71,56 @@ function addressBlock(label, name, street, city, state, zip, instructions) {
 }
 
 export function generateOrderConfirmation(order, cq, vendor) {
-  return baseHtml("Order Confirmation", order.order_number, true,
+  return baseHtml("Order Confirmation", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">Order Date</div><div class="value">${dateStr(order.created_date)}</div></div>
     <div class="section"><div class="label">Seller</div><div class="value">${vendor?.business_name || order.vendor_name || "—"}<br><span class="muted">${[vendor?.city, vendor?.state].filter(Boolean).join(", ") || ""}</span></div></div>
     ${itemsTable(cq?.items || order.items)}
-    ${cq ? totalsBlock(cq) : ""}
+    ${cq ? totalsBlock(cq, order.commerce_mode === "test") : ""}
     ${cq ? addressBlock("Delivery Destination", cq.destination_name, cq.destination_street, cq.destination_city, cq.destination_state, cq.destination_zip, cq.delivery_instructions) : ""}`);
 }
 
 export function generateInvoice(order, cq, vendor) {
-  return baseHtml("Invoice", order.order_number, true,
+  return baseHtml("Invoice", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">Invoice Date</div><div class="value">${dateStr(new Date())}</div></div>
     <div class="section"><div class="label">Billed From</div><div class="value">${vendor?.business_name || order.vendor_name || "—"}</div></div>
     ${itemsTable(cq?.items || order.items)}
-    ${cq ? totalsBlock(cq) : ""}`);
+    ${cq ? totalsBlock(cq, order.commerce_mode === "test") : ""}`);
 }
 
 export function generateReceipt(order, cq, vendor, payment) {
-  return baseHtml("Payment Receipt", order.order_number, true,
+  return baseHtml("Payment Receipt", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">Payment Date</div><div class="value">${dateStr(payment?.paid_at || new Date())}</div>
-    <div class="label" style="margin-top:6px;">Transaction Reference</div><div class="value">${payment?.transaction_ref || payment?.provider_payment_id || "TEST"}</div></div>
+    <div class="label" style="margin-top:6px;">Transaction Reference</div><div class="value">${payment?.transaction_ref || payment?.provider_payment_id || (order.commerce_mode === "test" ? "TEST" : "—")}</div></div>
     <div class="section"><div class="label">Seller</div><div class="value">${vendor?.business_name || order.vendor_name || "—"}</div></div>
     ${itemsTable(cq?.items || order.items)}
-    ${cq ? totalsBlock(cq) : ""}`);
+    ${cq ? totalsBlock(cq, order.commerce_mode === "test") : ""}`);
 }
 
 export function generatePurchaseOrder(order, cq, buyer) {
-  return baseHtml("Purchase Order", order.order_number, true,
+  return baseHtml("Purchase Order", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">PO Date</div><div class="value">${dateStr(order.created_date)}</div></div>
     <div class="section"><div class="label">Bill To</div><div class="value">${buyer?.full_name || buyer?.email || "—"}</div></div>
     ${itemsTable(cq?.items || order.items)}
-    ${cq ? totalsBlock(cq) : ""}`);
+    ${cq ? totalsBlock(cq, order.commerce_mode === "test") : ""}`);
 }
 
 export function generateSettlementStatement(order, cq, vendor) {
-  // TEST MODE fee model: the BUYER pays the Tree Marketplace marketplace fee, so it is NOT
-  // deducted from vendor proceeds. Only a vendor-borne fee portion is withheld.
+  // The immutable quote snapshot preserves historical fee arrangements.
   const feePayer = cq?.fee_payer || "buyer";
   const fee = cq?.marketplace_fee_cents || 0;
   const vendorFee = feePayer === "vendor" ? fee : feePayer === "split" ? fee - Math.round(fee / 2) : 0;
   const vendorDelivery = cq?.delivery_method === "vendor_delivery" ? (cq?.delivery_amount_cents || 0) : 0;
   const vendorPayable = (cq?.merchandise_subtotal_cents || 0) - vendorFee + vendorDelivery;
-  return baseHtml("Settlement Statement", order.order_number, true,
+  return baseHtml("Settlement Statement", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">Settlement Date</div><div class="value">${dateStr(new Date())}</div></div>
     <div class="section"><div class="label">Vendor</div><div class="value">${vendor?.business_name || order.vendor_name || "—"}</div></div>
     <table>
       <tr><td class="muted">Merchandise Subtotal</td><td style="text-align:right;">${money(cq?.merchandise_subtotal_cents || 0)}</td></tr>
-      ${vendorFee ? `<tr><td class="muted">Less Tree Marketplace Marketplace Fee (vendor portion)</td><td style="text-align:right;">-${money(vendorFee)}</td></tr>` : `<tr><td class="muted">Tree Marketplace Marketplace Fee</td><td style="text-align:right;">Paid by buyer — not deducted</td></tr>`}
+      ${vendorFee ? `<tr><td class="muted">Less Tree Marketplace seller commission</td><td style="text-align:right;">-${money(vendorFee)}</td></tr>` : `<tr><td class="muted">Marketplace fee</td><td style="text-align:right;">Buyer-paid historical rule — not deducted</td></tr>`}
       ${vendorDelivery ? `<tr><td class="muted">Vendor Delivery</td><td style="text-align:right;">${money(vendorDelivery)}</td></tr>` : ""}
       <tr class="total-row"><td>Net Vendor Payable</td><td style="text-align:right;">${money(vendorPayable)}</td></tr>
     </table>
-    <p class="muted">This is a TEST settlement statement. No real payout has been processed.</p>`);
+    <p class="muted">${order.commerce_mode === "test" ? "APPROVED TEST settlement — no real payout has been processed." : "Live settlement statement generated after financial reconciliation and provider transfer confirmation."}</p>`);
 }
 
 export function generateCarrierSettlementStatement(order, cq, freightQuote, carrier) {
@@ -123,7 +128,7 @@ export function generateCarrierSettlementStatement(order, cq, freightQuote, carr
   const fuel = freightQuote?.fuel_surcharge_cents || 0;
   const accessorial = freightQuote?.accessorial_cents || 0;
   const carrierPay = freightQuote?.carrier_pay_cents || cq?.delivery_amount_cents || 0;
-  return baseHtml("Carrier Settlement Statement", order.order_number, true,
+  return baseHtml("Carrier Settlement Statement", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">Settlement Date</div><div class="value">${dateStr(new Date())}</div></div>
     <div class="section"><div class="label">Carrier</div><div class="value">${carrier?.business_name || "—"}</div></div>
     <table>
@@ -133,31 +138,31 @@ export function generateCarrierSettlementStatement(order, cq, freightQuote, carr
       <tr><td class="muted">Accessorial</td><td style="text-align:right;">${money(accessorial)}</td></tr>
       <tr class="total-row"><td>Net Carrier Payout</td><td style="text-align:right;">${money(carrierPay)}</td></tr>
     </table>
-    <p class="muted">TEST FREIGHT SETTLEMENT — no real payout has been processed. Carrier is not actually booked.</p>`);
+    <p class="muted">${order.commerce_mode === "test" ? "APPROVED TEST freight settlement — no carrier is booked and no real payout has been processed." : "Live carrier settlement record."}</p>`);
 }
 
 export function generateRefundStatement(order, cq, extra) {
   const amount = extra?.refundAmountCents || order.total_cents || 0;
-  return baseHtml("Refund Statement", order.order_number, true,
+  return baseHtml("Refund Statement", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">Refund Date</div><div class="value">${dateStr(new Date())}</div>
     <div class="label" style="margin-top:6px;">Reason</div><div class="value">${extra?.refundReason || "Buyer refund request"}</div>
-    <div class="label" style="margin-top:6px;">Original Transaction Reference</div><div class="value">${extra?.payment?.transaction_ref || "TEST"}</div></div>
+    <div class="label" style="margin-top:6px;">Original Transaction Reference</div><div class="value">${extra?.payment?.transaction_ref || (order.commerce_mode === "test" ? "TEST" : "—")}</div></div>
     <table>
       <tr><td class="muted">Original Order Total</td><td style="text-align:right;">${money(order.total_cents || 0)}</td></tr>
       <tr class="total-row"><td>Refunded to Buyer</td><td style="text-align:right;">${money(amount)}</td></tr>
     </table>
-    ${cq ? totalsBlock(cq) : ""}
-    <p class="muted">TEST REFUND — no real money has been returned. Original ledger entries are preserved; this refund is recorded as explicit reversal entries.</p>`);
+    ${cq ? totalsBlock(cq, order.commerce_mode === "test") : ""}
+    <p class="muted">${order.commerce_mode === "test" ? "APPROVED TEST refund — no real money has been returned." : "Live refund record generated only after provider-confirmed reconciliation."} Original ledger entries are preserved; the refund is recorded as explicit reversal entries.</p>`);
 }
 
 export function generateDeliveryManifest(order, cq, shipment, vendor) {
-  return baseHtml("Delivery Manifest", order.order_number, true,
+  return baseHtml("Delivery Manifest", order.order_number, order.commerce_mode === "test",
     `<div class="section"><div class="label">Delivery Method</div><div class="value">${(cq?.delivery_method || order.fulfillment_method || "").replace(/_/g, " ")}</div></div>
     ${addressBlock("Pickup Location", vendor?.business_name, vendor?.address, vendor?.city, vendor?.state, vendor?.zip_code, null)}
     ${addressBlock("Delivery Destination", cq?.destination_name, cq?.destination_street, cq?.destination_city, cq?.destination_state, cq?.destination_zip, cq?.delivery_instructions)}
     ${itemsTable(cq?.items || order.items)}
     ${shipment ? `<div class="section"><div class="label">Shipment Status</div><div class="value">${shipment.shipment_status}</div></div>` : ""}
-    <p class="muted">TEST DELIVERY — CARRIER NOT ACTUALLY BOOKED. This manifest is for planning purposes only.</p>`);
+    <p class="muted">${order.commerce_mode === "test" ? "APPROVED TEST delivery — no carrier is actually booked; this manifest is for planning only." : "Live delivery manifest."}</p>`);
 }
 
 // Generate and store a document. Returns the TransactionDocument record.
