@@ -23,7 +23,7 @@ export default function AdminFinancials() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-semibold flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" /> TreEbay Financials</h2>
+          <h2 className="font-semibold flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" /> Tree Marketplace Financials</h2>
           <p className="text-xs text-muted-foreground">Live revenue only. Simulated/test transactions are excluded from every headline financial total.</p>
         </div>
         <Button variant="outline" size="sm" onClick={load}>Refresh</Button>
@@ -38,7 +38,7 @@ export default function AdminFinancials() {
         <Stat icon={TrendingUp} label="LIVE GMV" value={formatCents(data.totals.gmv_cents)} />
         <Stat icon={Receipt} label="Taxable Marketplace Sales" value={formatCents(data.totals.taxable_marketplace_sales_cents)} />
         <Stat icon={Receipt} label="Sales Tax Collected" value={formatCents(data.totals.sales_tax_collected_cents)} />
-        <Stat icon={DollarSign} label="TreEbay Fee Revenue" value={formatCents(data.totals.treebay_fee_revenue_cents)} />
+        <Stat icon={DollarSign} label="Tree Marketplace Fee Revenue" value={formatCents(data.totals.treebay_fee_revenue_cents)} />
         <Stat icon={AlertTriangle} label="Open Exceptions" value={data.totals.open_exceptions} />
       </div>
 
@@ -75,7 +75,7 @@ export default function AdminFinancials() {
       )}
 
       {data.partial && <p className="text-xs text-amber-600">Partial totals — more records exist beyond the scanned window.</p>}
-      <p className="text-xs text-muted-foreground">Note: "TreEbay Fee Revenue" is NOT profit — processor costs, operating expenses, taxes, refunds, and chargebacks may exist later.</p>
+      <p className="text-xs text-muted-foreground">Note: "Tree Marketplace Fee Revenue" is NOT profit — processor costs, operating expenses, taxes, refunds, and chargebacks may exist later.</p>
     </div>
   );
 }
