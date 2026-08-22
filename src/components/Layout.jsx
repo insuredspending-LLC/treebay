@@ -174,7 +174,7 @@ function TopBar() {
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Leaf className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-heading font-extrabold text-lg text-primary tracking-tight">TreEbay</span>
+              <span className="font-heading font-extrabold text-lg text-primary tracking-tight">Tree Marketplace</span>
             </button>
           )}
           {!isChild && (
@@ -206,7 +206,7 @@ function TopBar() {
           <Button variant="ghost" size="icon" asChild aria-label="Messages">
             <Link to="/messages"><MessageSquare className="w-5 h-5" /></Link>
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="TreEbay Assistant">
+          <Button variant="ghost" size="icon" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="Tree Marketplace Assistant">
             <Sparkles className="w-5 h-5 text-primary" />
           </Button>
           <Popover>
