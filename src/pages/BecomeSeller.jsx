@@ -48,7 +48,7 @@ export default function BecomeSeller() {
   const back = () => setStep((s) => Math.max(1, s - 1));
   const exitSetup = async () => {
     await switchAccountType("buyer");
-    navigate("/", { replace: true });
+    navigate("/home", { replace: true });
   };
 
   const finish = async () => {
