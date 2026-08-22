@@ -19,7 +19,8 @@ export default async function(req) {
     // Financial headline metrics are LIVE ONLY. Legacy orders without commerce_mode are
     // intentionally classified as test so simulated history can never masquerade as revenue.
     const orders = (allOrders || []).filter((o) => o.commerce_mode === "live");
-    const testOrders = (allOrders || []).filter((o) => o.commerce_mode !== "live");
+    const testOrders = (allOrders || []).filter((o) => o.commerce_mode === "test");
+    const disabledOrders = (allOrders || []).filter((o) => o.commerce_mode !== "live" && o.commerce_mode !== "test");
     const liveOrderIds = new Set(orders.map((o) => o.id));
     const ledgerEntries = (allLedgerEntries || []).filter((e) => liveOrderIds.has(e.order_id));
 
@@ -91,6 +92,7 @@ export default async function(req) {
       })),
       test_summary: {
         orders: testOrders.length,
+        disabled_or_legacy_orders: disabledOrders.length,
         paid_orders: testOrders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status)).length,
         simulated_gmv_cents: testOrders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status)).reduce((sum, o) => sum + (o.total_cents || 0), 0),
       },
