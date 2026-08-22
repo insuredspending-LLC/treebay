@@ -85,7 +85,7 @@ export default function SellerDashboard({ vendor }) {
       <section>
         <h2 className="font-heading font-bold text-lg mb-3">Needs your attention</h2>
         <Card className="divide-y">
-          <div className="p-4"><p className="text-sm font-medium">{attention.length ? "Actionable work, based on your current TreEbay records." : "No orders need your attention."}</p></div>
+          <div className="p-4"><p className="text-sm font-medium">{attention.length ? "Actionable work, based on your current Tree Marketplace records." : "No orders need your attention."}</p></div>
           {attention.map((item) => (
             <Link key={item.id} to={item.to} className="flex items-center gap-3 p-4 hover:bg-secondary/50">
               <item.icon className="w-5 h-5 text-primary" />
@@ -107,7 +107,7 @@ export default function SellerDashboard({ vendor }) {
 
       <Card className="p-4 flex flex-wrap items-center gap-3">
         <Sparkles className="w-5 h-5 text-primary" />
-        <p className="text-sm flex-1">Ask TreEbay Assistant about your seller work.</p>
+        <p className="text-sm flex-1">Ask Tree Marketplace Assistant about your seller work.</p>
         {["What needs my attention?", "Which RFQs match my inventory?", "Show low-stock products."].map((prompt) => (
           <Button key={prompt} variant="outline" size="sm" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open", { detail: { prompt } }))}>{prompt}</Button>
         ))}
