@@ -10,13 +10,12 @@ import { Card } from "@/components/ui/card";
 import { Leaf, Loader2, ArrowLeft, ArrowRight, Check, Store, MapPin, Truck, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { apiError } from "@/lib/treebay";
-import { getSellerPlan, SELLER_PLANS } from "@/lib/sellerPlans";
 
 const STEPS = [
   { num: 1, label: "Business", icon: Store },
   { num: 2, label: "Location", icon: MapPin },
   { num: 3, label: "Capabilities", icon: Truck },
-  { num: 4, label: "Plan & review", icon: Check },
+  { num: 4, label: "Review & fees", icon: Check },
 ];
 
 export default function BecomeSeller() {
@@ -29,9 +28,7 @@ export default function BecomeSeller() {
     pickup_available: true,
     delivery_available: true,
     wholesale_available: false,
-    requested_seller_plan: "free",
   });
-  const selectedPlan = getSellerPlan(f.requested_seller_plan);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
   const next = () => {
@@ -66,7 +63,6 @@ export default function BecomeSeller() {
         website: f.website, description: f.description, service_area: f.service_area,
         pickup_available: f.pickup_available !== false, delivery_available: f.delivery_available !== false,
         wholesale_available: !!f.wholesale_available,
-        requested_seller_plan: f.requested_seller_plan,
       });
       await refresh();
       toast({ title: "Seller account activated", description: "You can list and sell immediately. Tree Marketplace verification is a separate trust badge." });
@@ -168,30 +164,8 @@ export default function BecomeSeller() {
         {step === 4 && (
           <div className="space-y-4">
             <div>
-              <h2 className="font-semibold">Choose a founding plan</h2>
-              <p className="text-sm text-muted-foreground">Save your preferred launch plan. Paid billing is not active, so this creates no charge.</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {SELLER_PLANS.map((plan) => {
-                const selected = f.requested_seller_plan === plan.id;
-                return (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => set("requested_seller_plan", plan.id)}
-                    className={"rounded-2xl border p-4 text-left transition " + (selected ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "hover:border-primary/40")}
-                  >
-                    <span className="text-xs font-semibold uppercase tracking-wide text-primary">{plan.eyebrow}</span>
-                    <strong className="mt-1 block text-sm">{plan.name}</strong>
-                    <span className="mt-2 block font-heading text-2xl">{"$" + plan.price}<small className="font-sans text-xs font-normal text-muted-foreground">/mo</small></span>
-                    {selected && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary"><Check className="h-3.5 w-3.5" /> Selected</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <div>
               <h2 className="font-semibold">Review & submit</h2>
-              <p className="text-sm text-muted-foreground">Confirm your profile and founding-plan interest.</p>
+              <p className="text-sm text-muted-foreground">Tree Marketplace is free to join. A 4% marketplace fee is calculated only when a sale is made and is fully disclosed at checkout. No monthly seller plan is required.</p>
             </div>
             <Card className="p-4 space-y-3 text-sm">
               <div>
@@ -209,13 +183,8 @@ export default function BecomeSeller() {
                 <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Capabilities</p>
                 <p>{[f.pickup_available !== false && "Pickup", f.delivery_available !== false && "Delivery", f.wholesale_available && "Wholesale"].filter(Boolean).join(" · ") || "None selected"}</p>
               </div>
-              <div className="pt-3 border-t">
-                <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Founding plan preview</p>
-                <p>{selectedPlan.name} · {"$" + selectedPlan.price}/month at launch</p>
-                <p className="text-xs text-muted-foreground">No charge or paid entitlement is created today.</p>
-              </div>
             </Card>
-            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Your seller account activates automatically; Tree Marketplace verification begins as pending and only controls the trust badge. Plan billing remains disabled during preview.</p>
+            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Your seller account activates automatically; Tree Marketplace verification begins as pending and only controls the trust badge. There is no monthly seller subscription.</p>
           </div>
         )}
 
