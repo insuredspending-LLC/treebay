@@ -54,11 +54,19 @@ export default async function(req) {
 
     // Unresolved financial exceptions
     const openExceptions = (exceptions || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
-    const financialExceptionTypes = ["financial_reconciliation", "settlement_failed", "freight_assignment_failed", "notification_delivery_failed", "refund_reconciliation", "inventory_reconciliation_failed", "checkout_lock_recovery_failed"];
+    const financialExceptionTypes = [
+      "financial_reconciliation", "settlement_failed", "freight_assignment_failed",
+      "notification_delivery_failed", "refund_reconciliation", "inventory_reconciliation_failed",
+      "checkout_lock_recovery_failed", "stripe_account_restricted", "stripe_stale_attempt_paid",
+      "stripe_payment_integrity", "stripe_attempt_missing", "stripe_attempt_reconciliation",
+      "stripe_refund_reference_missing", "stripe_transfer_failed", "stripe_transfer_reversal_failed",
+      "stripe_refund_failed", "partial_refund_review", "stripe_dispute", "stripe_payout_failed",
+      "disabled_commerce_order", "disabled_commerce_refund",
+    ];
     const financialExceptions = openExceptions.filter((e) => financialExceptionTypes.includes(e.exception_type));
 
     // Active fee policy
-    const activeFeeRule = (feeRules || [])[0] || { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 0, maximum_fee_cents: 0, fee_payer: "buyer" };
+    const activeFeeRule = (feeRules || [])[0] || { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 0, maximum_fee_cents: 0, fee_payer: "vendor" };
 
     return Response.json({
       totals: {
