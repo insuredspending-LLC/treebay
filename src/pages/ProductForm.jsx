@@ -51,7 +51,7 @@ export default function ProductForm() {
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const exitToBuyer = async () => {
     await switchAccountType("buyer");
-    navigate("/", { replace: true });
+    navigate("/home", { replace: true });
   };
 
   useEffect(() => {
