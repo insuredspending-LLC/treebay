@@ -123,13 +123,8 @@ export default async function(req) {
     await notifySafely(svc, { user_id: order.buyer_id, type: notifType, eventType: "carrier_" + action, title: "Shipment update", body: order.order_number + " — " + description, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id });
     await notifySafely(svc, { user_id: order.vendor_owner_id, type: notifType, eventType: "carrier_" + action, title: "Shipment update", body: order.order_number + " — " + description, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id });
 
-    // Normal delivered orders finalize immediately. This service-role invocation reaches
-    // runTransactionMaintenance with admin context; any transient failure is recovered by
-    // the hourly maintenance safety net and never rolls back the carrier's delivery action.
-    if (newStatus === "delivered") {
-      try { await svc.functions.invoke("runTransactionMaintenance", { trigger: "carrier_delivery", order_id: order.id }); } catch { /* recovery scheduler handles it */ }
-    }
-
+    // Carrier delivery records proof of delivery only. The buyer must explicitly
+    // confirm receipt before completion and before the payout cooling hold starts.
     return Response.json({ ok: true, shipment_status: newStatus });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
