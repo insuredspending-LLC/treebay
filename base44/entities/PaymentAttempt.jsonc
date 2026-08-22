@@ -1,0 +1,110 @@
+{
+  "name": "PaymentAttempt",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "buyer_id": {
+      "type": "string"
+    },
+    "attempt_sequence": {
+      "type": "number"
+    },
+    "provider": {
+      "type": "string",
+      "default": "stripe"
+    },
+    "commerce_mode": {
+      "type": "string",
+      "enum": [
+        "live"
+      ],
+      "default": "live"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "creating",
+        "open",
+        "paid",
+        "failed",
+        "expired",
+        "canceled",
+        "superseded",
+        "quarantined"
+      ],
+      "default": "creating"
+    },
+    "is_current": {
+      "type": "boolean",
+      "default": true
+    },
+    "checkout_session_id": {
+      "type": "string"
+    },
+    "payment_intent_id": {
+      "type": "string"
+    },
+    "amount_cents": {
+      "type": "number"
+    },
+    "currency": {
+      "type": "string",
+      "default": "USD"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provider_status": {
+      "type": "string"
+    },
+    "failure_reason": {
+      "type": "string"
+    },
+    "last_provider_event_id": {
+      "type": "string"
+    },
+    "last_provider_event_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "order_id",
+    "attempt_sequence",
+    "provider",
+    "commerce_mode",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
