@@ -12,7 +12,7 @@ export default class AppErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("TreEbay app crash", error, info);
+    console.error("Tree Marketplace app crash", error, info);
     this.setState({ info }, () => {
       this.submitReport("automatic");
     });
@@ -46,9 +46,9 @@ export default class AppErrorBoundary extends React.Component {
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-5">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-destructive">TreEbay recovered from a page crash</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-destructive">Tree Marketplace recovered from a page crash</p>
             <h1 className="text-xl font-bold mt-1">This page could not open.</h1>
-            <p className="text-sm text-muted-foreground mt-2">You do not need to close the app. TreEbay is sending a private error report automatically so this can be reviewed.</p>
+            <p className="text-sm text-muted-foreground mt-2">You do not need to close the app. Tree Marketplace is sending a private error report automatically so this can be reviewed.</p>
           </div>
 
           <div className="rounded-xl bg-muted p-3 text-xs break-words">
