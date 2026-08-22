@@ -14,7 +14,7 @@ export default function LegalPage({ title, children }) {
       <div className="prose prose-sm max-w-none space-y-3 [&>h3]:font-semibold [&>h3]:text-foreground [&>h3]:text-base [&>h3]:mt-4 [&>p]:text-sm [&>p]:text-muted-foreground leading-relaxed">
         {children}
       </div>
-      <p className="text-xs text-muted-foreground pt-4">Last updated: {new Date().getFullYear()}. TreEbay.</p>
+      <p className="text-xs text-muted-foreground pt-4">Last updated: {new Date().getFullYear()}. Tree Marketplace.</p>
     </div>
   );
 }
