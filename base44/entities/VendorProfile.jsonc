@@ -135,6 +135,31 @@
     "review_count": {
       "type": "number",
       "default": 0
+    },
+    "stripe_account_id": {
+      "type": "string",
+      "description": "Stripe Connect Express account id (acct_...) the seller onboards to receive live payouts."
+    },
+    "stripe_payouts_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Stripe's determination that this connected account may receive payouts. Selling is automatic; only payouts require this."
+    },
+    "stripe_details_submitted": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the seller has completed Stripe Connect onboarding/KYC."
+    },
+    "stripe_onboarding_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "pending",
+        "restricted",
+        "enabled"
+      ],
+      "default": "not_started",
+      "description": "Derived snapshot of the connected account's ability to receive payouts, refreshed from Stripe."
     }
   },
   "required": [

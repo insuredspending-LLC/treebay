@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { transitionOrder, raiseExceptionOnce } from "../../shared/transactions.ts";
 import { resumePendingRefund } from "../../shared/refunds.ts";
+import { refundLivePayment } from "../../shared/stripe.ts";
 import { notifySafely } from "../../shared/notifications.ts";
 
 // Authoritative TEST refund. No real money moves, but every state change is
@@ -70,6 +71,23 @@ export default async function(req) {
       refund_status: "pending",
       metadata: { ...(payment.metadata || {}), refund_origin_status: order.order_status, refund_reason: reason },
     });
+
+    if (order.commerce_mode === "live") {
+      try {
+        const chargeId = payment.transaction_ref;
+        if (!chargeId) throw new Error("No Stripe charge id found for this live payment.");
+        await refundLivePayment(svc, orderId, chargeId);
+      } catch (e) {
+        await raiseExceptionOnce(svc, {
+          severity: "ACTION_REQUIRED", exception_type: "stripe_refund_failed", order_id: orderId,
+          buyer_id: order.buyer_id, vendor_id: order.vendor_id,
+          reason: "Stripe refund could not be issued: " + e.message,
+          technical_details_private: e.message,
+          recommended_action: "Retry the refund or issue it from the Stripe dashboard.", requires_admin: true,
+        });
+        return Response.json({ error: "Stripe refund failed: " + e.message, refundPending: true }, { status: 500 });
+      }
+    }
 
     try {
       const result = await resumePendingRefund(svc, orderId, { type: isAdmin ? "admin" : "buyer", id: user.id });

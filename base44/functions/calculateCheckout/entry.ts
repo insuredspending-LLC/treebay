@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { toCents, unitPriceCentsForQty, assembleCheckout, vendorCanSell } from "../../shared/transactions.ts";
+import { commerceModeForVendor } from "../../shared/stripe.ts";
 
 export default async function(req) {
   try {
@@ -34,6 +35,7 @@ export default async function(req) {
         source_type: "direct_listing", product, product_id: product.id, items, merchandise_cents: merchCents,
         destination: body.destination || { city: buyer.city, state: buyer.state, zip: buyer.zip_code },
         deliveryMethod: body.deliveryMethod || null,
+        commerce_mode: commerceModeForVendor(vendor),
       });
       return Response.json(result);
     }
@@ -70,6 +72,7 @@ export default async function(req) {
         vendor_delivery_cents: vendorDeliveryCents,
         vendor_delivery_available: vendorDeliveryOffered,
         deliveryMethod: body.deliveryMethod || null,
+        commerce_mode: commerceModeForVendor(quoteVendor),
       });
       return Response.json(result);
     }

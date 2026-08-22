@@ -180,6 +180,18 @@
     },
     "vendor_notes": {
       "type": "string"
+    },
+    "stripe_checkout_session_id": {
+      "type": "string",
+      "description": "Stripe Checkout Session id for the live buyer payment (live orders only)."
+    },
+    "stripe_payment_intent_id": {
+      "type": "string",
+      "description": "Stripe PaymentIntent id backing the live buyer payment."
+    },
+    "stripe_transfer_id": {
+      "type": "string",
+      "description": "Stripe Transfer id created at settlement to route seller proceeds to the connected account."
     }
   },
   "required": [

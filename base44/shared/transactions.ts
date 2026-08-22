@@ -83,7 +83,7 @@ export function calculateTestFreightQuote(buyerFreightChargeCents, equipmentType
 }
 
 // ---- Delivery options ----
-export function calculateDeliveryOptionsCents(product, vendorDeliveryCents, vendorDeliveryAvailable) {
+export function calculateDeliveryOptionsCents(product, vendorDeliveryCents, vendorDeliveryAvailable, commerceMode) {
   const options = [];
   if (!product || product.pickup_eligible !== false) {
     options.push({ provider_type: "buyer_pickup", delivery_price_cents: 0, service_type: "Customer Pickup", estimated_delivery_days: 0 });
@@ -95,7 +95,11 @@ export function calculateDeliveryOptionsCents(product, vendorDeliveryCents, vend
   if (vendorDeliveryOk) {
     options.push({ provider_type: "vendor_delivery", delivery_price_cents: vendorDeliveryCents ?? 50000, service_type: "Vendor Delivery", estimated_delivery_days: 3 });
   }
-  options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "TEST FREIGHT — Third Party Carrier", estimated_delivery_days: 2 });
+  // Third-party carrier is a TEST-only simulated freight service. Live orders use buyer
+  // pickup or vendor delivery only until a real carrier payment model exists.
+  if (commerceMode !== "live") {
+    options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "TEST FREIGHT — Third Party Carrier", estimated_delivery_days: 2 });
+  }
   return options;
 }
 
@@ -124,18 +128,24 @@ export async function assembleCheckout(svc, p) {
   const feePayer = feePayerOf(feeRule);
   const feeCents = calculateMarketplaceFeeCents(p.merchandise_cents, feeRule);
   const buyerFeeCents = buyerFeePortionCents(feeCents, feePayer);
-  const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true }, p.vendor_delivery_cents, p.vendor_delivery_available);
+  const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true }, p.vendor_delivery_cents, p.vendor_delivery_available, commerceMode);
   const selected = p.deliveryMethod ? deliveryOptions.find((o) => o.provider_type === p.deliveryMethod) : null;
   const deliveryCents = selected ? selected.delivery_price_cents : 0;
   const deliveryMethod = selected ? selected.provider_type : null;
   const taxableCents = p.merchandise_cents;
-  const tax = calculateTestTaxCents(taxableCents);
+  const commerceMode = p.commerce_mode || "test";
+  // Live orders do not charge the simulated test tax — a real tax engine is not
+  // configured yet. Tax is recorded as "not_configured" rather than charging a
+  // placeholder rate as if it were real.
+  const tax = commerceMode === "live"
+    ? { taxCents: 0, rate: 0, provider: null, status: "not_configured" }
+    : calculateTestTaxCents(taxableCents);
   const totalCents = p.merchandise_cents + deliveryCents + tax.taxCents + buyerFeeCents;
   const expiresAt = new Date(Date.now() + RESERVATION_TTL_MINUTES * 60000).toISOString();
   const dest = p.destination || {};
   const quote = await svc.entities.CheckoutQuote.create({
     buyer_id: p.buyer_id, vendor_id: p.vendor_id, vendor_owner_id: p.vendor_owner_id,
-    source_type: p.source_type, commerce_mode: "test", product_id: p.product_id || null, quote_id: p.quote_id || null, rfq_id: p.rfq_id || null,
+    source_type: p.source_type, commerce_mode: commerceMode, product_id: p.product_id || null, quote_id: p.quote_id || null, rfq_id: p.rfq_id || null,
     items: p.items, merchandise_subtotal_cents: p.merchandise_cents, bulk_discount_cents: 0,
     delivery_amount_cents: deliveryCents, taxable_amount_cents: taxableCents, tax_amount_cents: tax.taxCents,
     marketplace_fee_cents: feeCents, fee_payer: feePayer, other_fees_cents: 0, total_amount_cents: totalCents,
@@ -150,7 +160,7 @@ export async function assembleCheckout(svc, p) {
   const taxableDeliveryCents = 0; // TEST policy: delivery is not taxable
   const totalTaxableCents = taxableCents + taxableDeliveryCents;
   await svc.entities.TaxCalculation.create({
-    checkout_quote_id: quote.id, commerce_mode: "test", provider: tax.provider, jurisdiction: dest.state || null,
+    checkout_quote_id: quote.id, commerce_mode: commerceMode, provider: tax.provider, jurisdiction: dest.state || null,
     taxable_amount_cents: taxableCents, taxable_delivery_amount_cents: taxableDeliveryCents,
     total_taxable_amount_cents: totalTaxableCents, tax_amount_cents: tax.taxCents, rate: tax.rate,
     status: tax.status, collection_party: "trebay_test", remittance_responsibility: "trebay_test",
@@ -203,7 +213,10 @@ export async function applyDeliveryOption(svc, quoteId, optionId, address) {
   const buyerFeeCents = buyerFeePortionCents(quote.marketplace_fee_cents || 0, feePayer);
   const deliveryCents = option.delivery_price_cents;
   const taxableCents = quote.merchandise_subtotal_cents;
-  const tax = calculateTestTaxCents(taxableCents);
+  const isLive = quote.commerce_mode === "live";
+  const tax = isLive
+    ? { taxCents: 0, rate: 0, provider: null, status: "not_configured" }
+    : calculateTestTaxCents(taxableCents);
   const totalCents = quote.merchandise_subtotal_cents + deliveryCents + tax.taxCents + buyerFeeCents;
 
   // Lock the submitted destination onto the quote. The submitted checkout address
@@ -238,7 +251,9 @@ export async function applyDeliveryOption(svc, quoteId, optionId, address) {
   if (taxCalc) {
     const newTaxableDeliveryCents = 0; // TEST policy: delivery is not taxable
     const newTotalTaxableCents = quote.merchandise_subtotal_cents + newTaxableDeliveryCents;
-    const newTax = calculateTestTaxCents(quote.merchandise_subtotal_cents);
+    const newTax = isLive
+      ? { taxCents: 0, rate: 0, provider: null, status: "not_configured" }
+      : calculateTestTaxCents(quote.merchandise_subtotal_cents);
     await svc.entities.TaxCalculation.update(taxCalc.id, {
       taxable_delivery_amount_cents: newTaxableDeliveryCents,
       total_taxable_amount_cents: newTotalTaxableCents,

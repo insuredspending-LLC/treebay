@@ -85,6 +85,31 @@ export default function OrderDetail() {
   };
   useEffect(() => { load(); }, [id]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe_success") === "1") {
+      toast({ title: "Payment processing", description: "Confirming your payment with Stripe…" });
+      let attempts = 0;
+      const interval = setInterval(async () => {
+        attempts++;
+        try {
+          const o = await base44.entities.Order.get(id);
+          if (o.payment_status === "paid" || o.order_status !== "awaiting_payment") {
+            clearInterval(interval);
+            window.history.replaceState({}, "", window.location.pathname);
+            load();
+          }
+        } catch {}
+        if (attempts >= 12) clearInterval(interval);
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+    if (params.get("stripe_canceled") === "1") {
+      toast({ title: "Payment canceled", description: "You can pay again from this order.", variant: "destructive" });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [id]);
+
   if (loading) return (
     <div className="space-y-4">
       <div className="h-8 w-1/3 rounded-lg bg-muted skeleton-shimmer" />
@@ -130,6 +155,17 @@ export default function OrderDetail() {
   };
 
   const pay = async () => {
+    if (order.commerce_mode === "live") {
+      try {
+        const { data } = await base44.functions.invoke("createStripeCheckoutSession", { orderId: id });
+        if (window.self !== window.top) {
+          toast({ title: "Live checkout unavailable in preview", description: "Complete payment from the published app.", variant: "destructive" });
+          return;
+        }
+        window.location.href = data.url;
+      } catch (e) { toast({ title: "Could not start checkout", description: apiError(e), variant: "destructive" }); }
+      return;
+    }
     try {
       await base44.functions.invoke("confirmTestPayment", { orderId: id, outcome: "TEST_SUCCESS" });
       toast({ title: "Payment confirmed (Test)", description: "Inventory reserved. Vendor notified." });
@@ -180,6 +216,12 @@ export default function OrderDetail() {
         <Card className="p-4 border-amber-300 bg-amber-50">
           <p className="font-semibold text-sm text-amber-900">TEST transaction — no real money moved</p>
           <p className="text-xs text-amber-700 mt-0.5">Payment, tax, freight, payouts, and settlement on this order are simulated.</p>
+        </Card>
+      )}
+      {order.commerce_mode === "live" && (
+        <Card className="p-4 border-emerald-300 bg-emerald-50">
+          <p className="font-semibold text-sm text-emerald-900">Live transaction — real payment</p>
+          <p className="text-xs text-emerald-700 mt-0.5">Processed securely via Stripe. Tax is not configured and is not charged.</p>
         </Card>
       )}
 
@@ -343,7 +385,7 @@ export default function OrderDetail() {
       {/* Actions */}
       <div className="flex flex-wrap gap-2 pt-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
-        {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> Pay (Test)</Button>}
+        {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> {order.commerce_mode === "live" ? "Pay with Stripe" : "Pay (Test)"}</Button>}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>
 

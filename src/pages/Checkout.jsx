@@ -98,6 +98,16 @@ export default function Checkout() {
     setPlacing(true);
     try {
       const { data } = await base44.functions.invoke("createOrderFromCheckout", { checkoutQuoteId: quoteId });
+      if (data.order.commerce_mode === "live") {
+        const { data: session } = await base44.functions.invoke("createStripeCheckoutSession", { orderId: data.order.id });
+        if (window.self !== window.top) {
+          toast({ title: "Live checkout unavailable in preview", description: "Complete payment from the published app.", variant: "destructive" });
+          setPlacing(false);
+          return;
+        }
+        window.location.href = session.url;
+        return;
+      }
       toast({ title: "Order placed", description: data.order.order_number });
       navigate(`/orders/${data.order.id}`);
     } catch (e) { toast({ title: "Could not place order", description: apiError(e), variant: "destructive" }); }
@@ -121,9 +131,14 @@ export default function Checkout() {
         <p className="text-sm text-muted-foreground mt-1">Review your final delivered price — all fees disclosed upfront.</p>
       </div>
 
-      {TEST_MODE && (
+      {TEST_MODE && quote.commerce_mode !== "live" && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" /> Test mode — payments and tax are simulated. No real money is charged.
+        </div>
+      )}
+      {quote.commerce_mode === "live" && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+          <ShieldCheck className="w-4 h-4 shrink-0" /> Live order — real payment processed securely via Stripe. Tax is not configured and is not charged.
         </div>
       )}
       {expired && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">This quote has expired. Please go back and recalculate.</div>}

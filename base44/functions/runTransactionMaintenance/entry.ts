@@ -8,6 +8,7 @@ import { recoverStaleInventoryReservation } from "../../shared/inventoryRecovery
 import { generateAndStoreDocument } from "../../shared/documents.ts";
 import { resumePendingRefund } from "../../shared/refunds.ts";
 import { retryFreightAssignment } from "../../shared/freight.ts";
+import { createVendorTransfer } from "../../shared/stripe.ts";
 import { notifySafely } from "../../shared/notifications.ts";
 
 // Single source of truth for all recurring transaction maintenance.
@@ -251,6 +252,9 @@ export default async function(req) {
         // Verify settlement reconciliation before marking as settled.
         // Missing entries are created idempotently; wrong entries block with CRITICAL.
         await verifySettlementReconciliation(svc, order, cq);
+        if (order.commerce_mode === "live") {
+          await createVendorTransfer(svc, order, cq);
+        }
         await generateAndStoreDocument(svc, order, "vendor_settlement_statement", cq);
         // Carrier settlement statement + notification (only for third_party_carrier)
         if (cq.delivery_method === "third_party_carrier") {
