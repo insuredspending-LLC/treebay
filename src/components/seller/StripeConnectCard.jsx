@@ -2,7 +2,7 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, CreditCard, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
+import { Loader2, CreditCard, CheckCircle2, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { apiError } from "@/lib/treebay";
 
@@ -54,7 +54,7 @@ export default function StripeConnectCard({ vendor }) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">Payouts</p>
           {enabled ? (
-            <p className="text-xs text-emerald-700 mt-0.5">Stripe account connected and ready to receive payouts.</p>
+            <p className="text-xs text-emerald-700 mt-0.5">Stripe account connected. Connection alone does not enable live buyer charges.</p>
           ) : restricted ? (
             <p className="text-xs text-amber-700 mt-0.5">Onboarding incomplete — Stripe needs more details before you can receive payouts.</p>
           ) : pending ? (
