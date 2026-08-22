@@ -1,19 +1,19 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
   verifyWebhookSignature, stripeEventMatchesKeyMode, syncVendorFromAccount,
-  processLivePaymentSuccess, processLivePaymentFailure, handleChargeRefunded,
-  handleDisputeCreated, handleTransferFailed, handlePayoutEvent,
+  processLivePaymentSuccess, processLivePaymentFailure, reconcileStripeRefund,
+  handleChargeRefunded, handleDisputeEvent, handlePayoutEvent,
 } from "../../shared/stripe.ts";
 
-// Stripe webhook endpoint. Signature-verified and idempotent (StripeEvent records).
-// A StripeEvent is written only after successful handling. Handler failures return 500
-// so Stripe retries rather than permanently suppressing an incomplete payment event.
+// Signature-verified, idempotent Stripe webhook. An event is recorded only after its
+// handler succeeds so Stripe retries incomplete financial reconciliation.
 export default async function(req) {
   try {
     const rawBody = await req.text();
-    const sig = req.headers.get("stripe-signature");
-    const ok = await verifyWebhookSignature(rawBody, sig);
-    if (!ok) return Response.json({ error: "Invalid signature" }, { status: 400 });
+    const signature = req.headers.get("stripe-signature");
+    if (!(await verifyWebhookSignature(rawBody, signature))) {
+      return Response.json({ error: "Invalid signature" }, { status: 400 });
+    }
 
     const event = JSON.parse(rawBody);
     if (!stripeEventMatchesKeyMode(event)) {
@@ -23,43 +23,66 @@ export default async function(req) {
     const base44 = createClientFromRequest(req);
     const svc = base44.asServiceRole;
     const existing = await svc.entities.StripeEvent.filter({ event_id: event.id });
-    if (existing && existing.length) return Response.json({ received: true, duplicate: true });
+    if (existing?.length) return Response.json({ received: true, duplicate: true });
 
-    let orderId = null, accountId = event.account || null;
-    const obj = event.data && event.data.object;
+    const object = event.data?.object;
+    let orderId = object?.metadata?.order_id || null;
+    let accountId = event.account || null;
+    let summary = event.type;
+
     switch (event.type) {
       case "account.updated":
-        accountId = event.account || obj.id;
-        await syncVendorFromAccount(svc, obj.id, obj);
+        accountId = event.account || object.id;
+        await syncVendorFromAccount(svc, object.id, object);
         break;
-      case "checkout.session.completed":
-        orderId = obj.metadata?.order_id;
-        await processLivePaymentSuccess(svc, obj.id);
+      case "checkout.session.completed": {
+        const result = await processLivePaymentSuccess(svc, object.id, event.id);
+        orderId = result?.orderId || orderId;
+        summary = result?.quarantined ? "paid stale attempt quarantined" : "payment reconciled";
         break;
+      }
       case "checkout.session.expired":
-        if (obj.metadata?.order_id) {
-          orderId = obj.metadata.order_id;
-          await processLivePaymentFailure(svc, orderId, "Checkout session expired");
-        }
+        await processLivePaymentFailure(svc, {
+          orderId,
+          sessionId: object.id,
+          reason: "Checkout session expired",
+          providerStatus: object.status,
+          terminal: true,
+          eventId: event.id,
+        });
         break;
       case "payment_intent.payment_failed":
-        if (obj.metadata?.order_id) {
-          orderId = obj.metadata.order_id;
-          await processLivePaymentFailure(svc, orderId, obj.last_payment_error?.message || "Payment failed");
-        }
+        await processLivePaymentFailure(svc, {
+          orderId,
+          paymentIntentId: object.id,
+          reason: object.last_payment_error?.message || "PaymentIntent failed",
+          providerStatus: object.status,
+          terminal: false,
+          eventId: event.id,
+        });
         break;
-      case "charge.refunded":
-        await handleChargeRefunded(svc, obj);
-        orderId = obj.metadata?.order_id;
+      case "refund.created":
+      case "refund.updated":
+      case "refund.failed": {
+        const result = await reconcileStripeRefund(svc, object, event.type);
+        orderId = result?.order?.id || orderId;
         break;
+      }
+      case "charge.refunded": {
+        const result = await handleChargeRefunded(svc, object);
+        orderId = result?.order?.id || orderId || object.metadata?.order_id;
+        break;
+      }
       case "charge.dispute.created":
-        await handleDisputeCreated(svc, obj);
-        orderId = obj.metadata?.order_id;
+      case "charge.dispute.updated":
+      case "charge.dispute.closed":
+      case "charge.dispute.funds_withdrawn":
+      case "charge.dispute.funds_reinstated": {
+        const result = await handleDisputeEvent(svc, event.type, object);
+        orderId = result?.orderId || orderId;
+        summary = "dispute " + (result?.status || object.status || event.type);
         break;
-      case "transfer.failed":
-        await handleTransferFailed(svc, obj);
-        orderId = obj.metadata?.order_id;
-        break;
+      }
       case "payout.paid":
       case "payout.failed":
         await handlePayoutEvent(svc, event);
@@ -69,8 +92,12 @@ export default async function(req) {
     }
 
     await svc.entities.StripeEvent.create({
-      event_id: event.id, event_type: event.type, processed_at: new Date().toISOString(),
-      order_id: orderId, account_id: accountId, summary: event.type,
+      event_id: event.id,
+      event_type: event.type,
+      processed_at: new Date().toISOString(),
+      order_id: orderId,
+      account_id: accountId,
+      summary,
     });
     return Response.json({ received: true });
   } catch (error) {
