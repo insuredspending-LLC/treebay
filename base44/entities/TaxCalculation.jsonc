@@ -11,11 +11,12 @@
     "commerce_mode": {
       "type": "string",
       "enum": [
+        "payments_disabled",
         "test",
         "live"
       ],
-      "default": "test",
-      "description": "Test tax is an estimate only. Live tax must come from the configured production tax engine."
+      "default": "payments_disabled",
+      "description": "No tax is charged while payments are disabled. Test tax is an estimate only; live tax requires a production tax engine."
     },
     "provider": {
       "type": "string"
