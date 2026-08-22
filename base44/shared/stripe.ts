@@ -14,7 +14,7 @@
 import {
   transitionOrder, recordOrderEvent, createAllocationLedger, raiseExceptionOnce,
   resolvePaymentExceptions, assertVendorSellable, vendorPayableCents, settlementGroup,
-  VENDOR_CONFIRM_HOURS,
+  buyerFeePortionCents, VENDOR_CONFIRM_HOURS,
 } from "./transactions.ts";
 import {
   getActiveReservation, isReservationExpired, checkoutHoldsInventory, checkoutQuantity,
@@ -39,6 +39,32 @@ function secretKey() {
   return k;
 }
 function appId() { return env("BASE44_APP_ID") || ""; }
+
+// Real-money checkout is fail-closed. Connecting a seller account never enables
+// buyer charges by itself. An operator must set TREE_MARKETPLACE_LIVE_PAYMENTS=enabled
+// and the configured Stripe key must be a live key.
+export function livePaymentsEnabled() {
+  const enabled = String(env("TREE_MARKETPLACE_LIVE_PAYMENTS") || "").toLowerCase() === "enabled";
+  const key = env("STRIPE_SECRET_KEY") || "";
+  return enabled && key.startsWith("sk_live_");
+}
+
+export function stripeEventMatchesKeyMode(event) {
+  const key = env("STRIPE_SECRET_KEY") || "";
+  if (!key.startsWith("sk_test_") && !key.startsWith("sk_live_")) return false;
+  return Boolean(event?.livemode) === key.startsWith("sk_live_");
+}
+
+function publicAppOrigin() {
+  const configured = env("TREE_MARKETPLACE_PUBLIC_URL") || "https://insuredspending.base44.app";
+  try {
+    const url = new URL(configured);
+    if (url.protocol !== "https:") throw new Error("Public app URL must use HTTPS.");
+    return url.origin;
+  } catch {
+    return "https://insuredspending.base44.app";
+  }
+}
 
 // Flatten nested params into Stripe's x-www-form-urlencoded bracket notation.
 function flattenParams(params, prefix, out) {
@@ -85,7 +111,7 @@ export function vendorStripeReady(vendor) {
   return !!(vendor && vendor.stripe_account_id && vendor.stripe_payouts_enabled && vendor.stripe_details_submitted);
 }
 export function commerceModeForVendor(vendor) {
-  return vendorStripeReady(vendor) ? "live" : "test";
+  return livePaymentsEnabled() && vendorStripeReady(vendor) ? "live" : "test";
 }
 function onboardingStatus(account) {
   if (!account) return "not_started";
@@ -151,8 +177,9 @@ export async function syncVendorFromAccount(svc, accountId, account) {
   return vendor;
 }
 
-export async function createAccountLink(svc, vendor, type, origin) {
+export async function createAccountLink(svc, vendor, type) {
   if (!vendor.stripe_account_id) throw new Error("No Stripe account connected.");
+  const origin = publicAppOrigin();
   const link = await stripeFetch("/account_links", {
     method: "POST",
     idempotencyKey: "link-" + vendor.stripe_account_id + "-" + (type || "onboarding") + "-" + Date.now(),
