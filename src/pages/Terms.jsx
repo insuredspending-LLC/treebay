@@ -3,7 +3,7 @@ import LegalPage from "@/components/LegalPage";
 export default function Terms() {
   return (
     <LegalPage title="Terms of Service">
-      <p><strong>Effective date:</strong> August 15, 2026</p>
+      <p><strong>Effective date:</strong> August 21, 2026</p>
       <p>These Terms govern your use of Tree Marketplace. By creating an account, accessing Tree Marketplace, or using its marketplace features, you agree to these Terms and the Marketplace Rules.</p>
 
       <h3>1. Marketplace role</h3>
@@ -20,7 +20,7 @@ export default function Terms() {
       <p>Buyers are responsible for accurate quantities, project requirements, destination information, delivery instructions, and other information needed to quote and fulfill an order. Buyers should review product specifications, seller information, delivery terms, and final transaction amounts before accepting a quote or placing an order.</p>
 
       <h3>5. Quotes, pricing, fees, and taxes</h3>
-      <p>Displayed pricing may include merchandise, discounts, pickup or delivery charges, freight, taxes, accessorials, credits, refunds, and a Tree Marketplace marketplace fee. Tree Marketplace's current standard marketplace fee is 4% of merchandise subtotal and is buyer-paid unless a different fee is clearly disclosed before the transaction. Tree Marketplace may change fee rules prospectively; a transaction uses the fee disclosed in its authoritative checkout quote.</p>
+      <p>Displayed pricing may include merchandise, discounts, pickup or delivery charges, freight, taxes, accessorials, credits, refunds, and a Tree Marketplace marketplace fee. Tree Marketplace's current standard marketplace fee is 4% of merchandise subtotal and is buyer-paid unless a different fee is clearly disclosed before the transaction. There is no required download fee, account fee, or monthly seller subscription. Tree Marketplace may change fee rules prospectively; a transaction uses the fee disclosed in its authoritative checkout quote.</p>
       <p>Tax amounts may depend on product, destination, seller status, delivery treatment, exemption information, and applicable law. Users remain responsible for tax obligations that are legally theirs. Tree Marketplace will identify whether a displayed tax amount is a production calculation or a TEST/estimated amount.</p>
 
       <h3>6. TEST and simulated services</h3>
