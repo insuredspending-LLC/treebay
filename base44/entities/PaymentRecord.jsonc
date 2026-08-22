@@ -72,8 +72,48 @@
         "none",
         "pending",
         "partial",
-        "full"
+        "full",
+        "failed"
       ]
+    },
+    "provider_refund_id": {
+      "type": "string"
+    },
+    "provider_refund_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending",
+        "succeeded",
+        "failed",
+        "canceled"
+      ],
+      "default": "none"
+    },
+    "refunded_amount_cents": {
+      "type": "number",
+      "default": 0
+    },
+    "refund_failure_reason": {
+      "type": "string"
+    },
+    "refund_last_event_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "confirmation_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "reconciling",
+        "complete",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "confirmation_completed_at": {
+      "type": "string",
+      "format": "date-time"
     },
     "transaction_ref": {
       "type": "string"
