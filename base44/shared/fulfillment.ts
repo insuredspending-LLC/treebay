@@ -12,6 +12,7 @@ import { releaseForOrder, reverseCommitForOrder, commitForOrder, checkoutHoldsIn
 import { generateAndStoreDocument } from "./documents.ts";
 import { notifySafely } from "./notifications.ts";
 import { autoAssignFreight } from "./freight.ts";
+import { initiateRefundWorkflow } from "./stripe.ts";
 
 // buyer_pickup: inventory_reserved -> vendor_confirmed -> preparing -> ready_for_pickup -> picked_up -> delivered
 // delivery:     ... ready_for_pickup -> delivery_assigned -> picked_up -> in_transit -> delivered
@@ -38,7 +39,7 @@ export async function advanceFulfillment(svc, orderId, actor) {
   const order = await svc.entities.Order.get(orderId);
   if (!order) return err(404, "Order not found");
   if (order.order_status === "delivered") {
-    return err(400, "This order is delivered. Tree Marketplace completes and settles it automatically.");
+    return err(400, "This order is delivered and is waiting for buyer confirmation.");
   }
   const next = getNextStatus(order);
   if (!next) return err(400, "Order cannot advance from its current state.");
@@ -107,12 +108,8 @@ export async function advanceFulfillment(svc, orderId, actor) {
   const notifType = next === "ready_for_pickup" ? "order_ready" : next === "in_transit" ? "order_shipped" : next === "delivered" ? "order_delivered" : next === "vendor_confirmed" ? "order_accepted" : "general";
   await notifySafely(svc, { user_id: order.buyer_id, type: notifType, eventType: "fulfillment_" + next, title: "Order update", body: order.order_number + " -> " + next, reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
 
-  // Vendor-delivery completion is event-driven. The scheduled maintenance job remains
-  // a low-frequency recovery safety net rather than the normal settlement mechanism.
-  if (next === "delivered") {
-    try { await svc.functions.invoke("runTransactionMaintenance", { trigger: "vendor_delivery", order_id: orderId }); } catch { /* recovery scheduler handles it */ }
-  }
-
+  // Delivery alone never completes or settles an order. The buyer must explicitly
+  // confirm receipt; the payout cooling hold starts from that confirmation.
   return { ok: true, status: 200, body: { order_status: next } };
 }
 
@@ -123,15 +120,46 @@ export async function cancelOrder(svc, orderId, actor) {
     return err(400, "Order cannot be cancelled in its current state.");
   }
   const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
+  const payments = await svc.entities.PaymentRecord.filter({ order_id: orderId });
+  const payment = (payments || [])[0];
+
+  // A paid cancellation is a refund request. Never move a paid order directly to
+  // cancelled because that would claim completion without returning money.
+  if (["paid", "partially_refunded"].includes(order.payment_status) || ["paid", "partially_refunded"].includes(payment?.status)) {
+    const refund = await initiateRefundWorkflow(svc, orderId, actor, "Order cancellation");
+    const shipments = await svc.entities.Shipment.filter({ order_id: orderId });
+    for (const shipment of (shipments || [])) {
+      if (shipment.shipment_status !== "cancelled") {
+        try {
+          await updateShipmentStatus(svc, shipment.id, "cancelled", {
+            type: actor.type, id: actor.id, description: "Fulfillment stopped for refund",
+          });
+        } catch {
+          // Operational shipment state cannot override financial refund truth.
+        }
+      }
+    }
+    const refreshed = await svc.entities.Order.get(orderId);
+    return {
+      ok: true,
+      status: refreshed.order_status === "refunded" ? 200 : 202,
+      body: {
+        order_status: refreshed.order_status,
+        refund_pending: refreshed.order_status !== "refunded",
+        provider_status: refund?.providerStatus || null,
+      },
+    };
+  }
+
   const committed = ["vendor_confirmed", "preparing", "ready_for_pickup", "delivery_assigned", "fulfillment_exception"].includes(order.order_status);
   if (checkoutHoldsInventory(cq)) {
     if (committed) await reverseCommitForOrder(svc, orderId, "Order cancelled after vendor confirmation");
     else await releaseForOrder(svc, orderId, "Order cancelled before vendor confirmation");
   }
-  await transitionOrder(svc, orderId, "cancelled", { type: actor.type, id: actor.id, description: "Order cancelled" });
+  await transitionOrder(svc, orderId, "cancelled", { type: actor.type, id: actor.id, description: "Unpaid order cancelled" });
   const shipments = await svc.entities.Shipment.filter({ order_id: orderId });
-  for (const sh of (shipments || [])) {
-    await updateShipmentStatus(svc, sh.id, "cancelled", { type: actor.type, id: actor.id, description: "Order cancelled" });
+  for (const shipment of (shipments || [])) {
+    await updateShipmentStatus(svc, shipment.id, "cancelled", { type: actor.type, id: actor.id, description: "Order cancelled" });
   }
   return { ok: true, status: 200, body: { order_status: "cancelled" } };
 }
