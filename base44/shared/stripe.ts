@@ -277,22 +277,55 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
 // ---- Live payment confirmation (webhook-driven) ----
 export async function processLivePaymentSuccess(svc, sessionId) {
   const session = await stripeFetch("/checkout/sessions/" + sessionId);
-  if (session.payment_status !== "paid") return { skipped: true };
+  if (session.payment_status !== "paid") throw new Error("Stripe reported a completed checkout that is not paid.");
+  if (session.livemode !== true) throw new Error("A test-mode Stripe session cannot confirm a live order.");
+
   const orders = await svc.entities.Order.filter({ stripe_checkout_session_id: sessionId });
   const order = (orders || [])[0];
-  if (!order) return { skipped: true, reason: "no order for session" };
-  if (order.payment_status === "paid") return { alreadyPaid: true };
+  if (!order) throw new Error("No Tree Marketplace order matches the Stripe Checkout Session.");
+  const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
+  if (!cq) throw new Error("The order has no authoritative checkout snapshot.");
+
+  const expectedCurrency = (cq.currency || "usd").toLowerCase();
+  const expectedTotal = order.total_cents || Math.round((order.total || 0) * 100);
+  const integrityErrors = [];
+  if (order.commerce_mode !== "live") integrityErrors.push("order is not live");
+  if (session.metadata?.order_id !== order.id) integrityErrors.push("session order metadata mismatch");
+  if (session.metadata?.base44_app_id && session.metadata.base44_app_id !== appId()) integrityErrors.push("session app metadata mismatch");
+  if (session.amount_total !== expectedTotal || session.amount_total !== cq.total_amount_cents) integrityErrors.push("session amount mismatch");
+  if ((session.currency || "").toLowerCase() !== expectedCurrency) integrityErrors.push("session currency mismatch");
+
   const piId = session.payment_intent;
+  if (!piId) integrityErrors.push("missing PaymentIntent");
   let chargeId = piId;
   if (piId) {
     const pi = await stripeFetch("/payment_intents/" + piId);
+    if (pi.livemode !== true) integrityErrors.push("PaymentIntent is not live");
+    if (pi.status !== "succeeded") integrityErrors.push("PaymentIntent did not succeed");
+    if (pi.amount_received !== expectedTotal) integrityErrors.push("PaymentIntent amount mismatch");
+    if ((pi.currency || "").toLowerCase() !== expectedCurrency) integrityErrors.push("PaymentIntent currency mismatch");
+    if (pi.metadata?.order_id !== order.id) integrityErrors.push("PaymentIntent order metadata mismatch");
     chargeId = pi.latest_charge || (pi.charges && pi.charges.data && pi.charges.data[0] && pi.charges.data[0].id) || piId;
   }
+
+  if (integrityErrors.length) {
+    await raiseExceptionOnce(svc, {
+      severity: "CRITICAL", exception_type: "stripe_payment_integrity", order_id: order.id,
+      buyer_id: order.buyer_id, vendor_id: order.vendor_id,
+      reason: "Stripe payment confirmation failed integrity checks.",
+      technical_details_private: integrityErrors.join("; "),
+      recommended_action: "Do not fulfill this order. Reconcile it in Stripe and Tree Marketplace.",
+      requires_admin: true,
+    });
+    throw new Error("Stripe payment integrity validation failed.");
+  }
+
+  if (order.payment_status === "paid") return { alreadyPaid: true, orderId: order.id };
   await confirmOrderPayment(svc, order.id, {
     provider: "stripe", paymentRef: chargeId, providerPaymentId: piId,
     actor: { type: "payment_provider", id: "stripe" },
   });
-  await svc.entities.Order.update(order.id, { stripe_payment_intent_id: piId || null });
+  await svc.entities.Order.update(order.id, { stripe_payment_intent_id: piId });
   return { ok: true, orderId: order.id };
 }
 
