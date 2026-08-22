@@ -3,11 +3,12 @@ import LegalPage from "@/components/LegalPage";
 export default function PrivacyPolicy() {
   return (
     <LegalPage title="Privacy Policy">
-      <p><strong>Effective date:</strong> August 15, 2026</p>
+      <p><strong>Effective date:</strong> August 21, 2026</p>
       <p>Tree Marketplace is a marketplace for sourcing plants, trees, nursery stock, and related landscape materials. This Privacy Policy explains the information Tree Marketplace collects, how it is used and shared, and the choices available to users.</p>
 
       <h3>Information we collect</h3>
       <p><strong>Account information:</strong> email address, name, account type, and authentication information needed to create and secure your account.</p>
+      <p><strong>Closed-test requests:</strong> if you request Android testing access, we collect the Google email you use with Google Play, your testing consent, invitation status, and participation dates. We use this information only to administer the closed test and communicate testing instructions.</p>
       <p><strong>Buyer, seller, and carrier profiles:</strong> information you choose to provide such as business or contact name, phone number, business address, city, state, ZIP code, service area, operating regions, equipment information, and marketplace capabilities.</p>
       <p><strong>Approximate location:</strong> Tree Marketplace uses locations you enter, such as city, state, ZIP code, jobsite, pickup, and delivery locations, to support marketplace search and delivery workflows. The current app does not request precise device GPS or background location access.</p>
       <p><strong>Listings and uploads:</strong> product names, specifications, quantities, prices, availability, descriptions, and photos or other files you upload.</p>
@@ -19,7 +20,7 @@ export default function PrivacyPolicy() {
       <p><strong>Payment information:</strong> when production payments are enabled, payment-card details are handled by the payment provider rather than stored in Tree Marketplace's marketplace database. Tree Marketplace may retain provider references, payment status, amounts, refunds, and reconciliation records needed to operate the transaction.</p>
 
       <h3>How we use information</h3>
-      <p>We use information to provide and secure Tree Marketplace; authenticate accounts; display and manage listings; match buyers with sellers; support projects, RFQs, quotes, orders, pickup, delivery, and freight coordination; calculate and disclose transaction amounts; communicate transaction updates; provide messaging and support; operate the Tree Marketplace Assistant; prevent fraud and abuse; moderate marketplace content; diagnose errors; maintain financial and transaction records; and comply with applicable obligations.</p>
+      <p>We use information to provide and secure Tree Marketplace; administer closed-test invitations and participation; authenticate accounts; display and manage listings; match buyers with sellers; support projects, RFQs, quotes, orders, pickup, delivery, and freight coordination; calculate and disclose transaction amounts; communicate transaction updates; provide messaging and support; operate the Tree Marketplace Assistant; prevent fraud and abuse; moderate marketplace content; diagnose errors; maintain financial and transaction records; and comply with applicable obligations.</p>
 
       <h3>How information is shared</h3>
       <p><strong>Marketplace participants:</strong> information needed to complete a transaction may be shared with the relevant buyer, seller, and, when applicable, assigned carrier. Tree Marketplace does not expose unrelated private profile information merely because another user participates in the marketplace.</p>
