@@ -9,6 +9,11 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const svc = base44.asServiceRole;
+    const activeFeeRules = await svc.entities.MarketplaceFeeRule.filter({ active: true }, "-effective_date", 1);
+    const activeFeeRule = (activeFeeRules || [])[0] || {
+      percentage_fee: 4,
+      fee_payer: "vendor",
+    };
 
     const vendors = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     if (!vendors || !vendors.length) return Response.json({ vendors: [] });
@@ -44,7 +49,9 @@ export default async function(req) {
       const vendorDeliveryRevenue = quotes.filter((cq) => cq.delivery_method === "vendor_delivery").reduce((s, cq) => s + (cq.delivery_amount_cents || 0), 0);
       const marketplaceFee = quotes.reduce((s, cq) => s + (cq.marketplace_fee_cents || 0), 0);
       const feePayers = new Set(quotes.map((cq) => cq.fee_payer || "buyer"));
-      const feePayer = feePayers.size <= 1 ? ([...feePayers][0] || "buyer") : "mixed";
+      const feePayer = feePayers.size <= 1
+        ? ([...feePayers][0] || activeFeeRule.fee_payer || "vendor")
+        : "mixed";
       const vendorFeeDeduction = quotes.reduce((sum, cq) => {
         const payer = cq.fee_payer || "buyer";
         const fee = cq.marketplace_fee_cents || 0;
@@ -76,6 +83,8 @@ export default async function(req) {
           marketplace_fee_cents: marketplaceFee,
           fee_payer: feePayer,
           vendor_fee_deduction_cents: vendorFeeDeduction,
+          current_commission_rate_percent: activeFeeRule.percentage_fee ?? 4,
+          current_fee_payer: activeFeeRule.fee_payer || "vendor",
           refunds_cents: refunds,
           net_settled_proceeds_cents: netSettledProceeds,
           total_orders: orders.length,
