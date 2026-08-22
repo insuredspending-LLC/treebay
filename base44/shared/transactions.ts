@@ -823,6 +823,7 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
     destination_instructions: cq.delivery_instructions, contact_name: cq.contact_name, contact_phone: cq.contact_phone,
     payment_status: "pending", order_status: "awaiting_payment",
     reservation_expires_at: reservationExpiry,
+    payment_attempt_sequence: 0, financial_hold: false,
   });
 
     // Persist the created order id while the quote remains consuming. Concurrent callers
