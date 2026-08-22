@@ -7,6 +7,44 @@ export default async function(req) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const svc = base44.asServiceRole;
     const uid = user.id;
+
+    // Seller identity is part of the financial audit trail. Refuse deletion before
+    // changing anything when an order can still be paid, refunded, disputed, or settled.
+    const vendorProfiles = await svc.entities.VendorProfile.filter({ owner_id: uid });
+    const obligationOrders = [];
+    const financiallyOpenPaymentStatuses = new Set(["authorized", "paid", "partially_refunded", "disputed"]);
+    const financiallyOpenOrderStatuses = new Set([
+      "awaiting_payment", "inventory_reserved", "vendor_confirmed", "preparing",
+      "ready_for_pickup", "delivery_assigned", "picked_up", "in_transit", "delivered",
+      "completed", "settlement_pending", "refund_pending", "disputed",
+      "fulfillment_exception", "delivery_exception",
+    ]);
+    for (const vendor of (vendorProfiles || [])) {
+      const orders = await svc.entities.Order.filter({ vendor_id: vendor.id }, "-created_date", 500);
+      for (const order of (orders || [])) {
+        if (
+          financiallyOpenPaymentStatuses.has(order.payment_status) ||
+          financiallyOpenOrderStatuses.has(order.order_status) ||
+          order.financial_hold ||
+          order.stripe_transfer_id
+        ) {
+          obligationOrders.push(order);
+        }
+      }
+    }
+    if (obligationOrders.length) {
+      return Response.json({
+        error: "This seller account cannot be deleted while financial obligations exist.",
+        action: "Resolve or retain the related orders, refunds, disputes, transfers, and settlement records before requesting deletion.",
+        blocking_orders: obligationOrders.slice(0, 20).map((order) => ({
+          order_number: order.order_number,
+          order_status: order.order_status,
+          payment_status: order.payment_status,
+        })),
+        additional_blocking_orders: Math.max(0, obligationOrders.length - 20),
+      }, { status: 409 });
+    }
+
     const failures = [];
 
     const attempt = async (label, fn) => {
