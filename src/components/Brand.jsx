@@ -1,7 +1,7 @@
 import { Leaf } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const BRAND_NAME = "TreEbay";
+export const BRAND_NAME = "Tree Marketplace";
 export const BRAND_TAGLINE = "THE LANDSCAPE SUPPLY MARKETPLACE";
 export const BRAND_STATEMENT = "SOURCE BETTER • BUY SMARTER • GROW MORE";
 
