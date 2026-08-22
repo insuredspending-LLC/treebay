@@ -7,9 +7,6 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const body = await req.json();
-    const requestedPlan = ["free", "professional", "business"].includes(String(body.requested_seller_plan))
-      ? String(body.requested_seller_plan)
-      : "free";
     if (!body.business_name || !body.contact_name || !body.phone || !body.city || !body.state || !body.zip_code)
       return Response.json({ error: "Required fields missing" }, { status: 400 });
     const svc = base44.asServiceRole;
@@ -22,11 +19,10 @@ export default async function(req) {
       website: body.website || "", description: body.description || "", service_area: body.service_area || "",
       pickup_available: body.pickup_available !== false, delivery_available: body.delivery_available !== false,
       wholesale_available: !!body.wholesale_available,
-      seller_plan: "free", seller_plan_status: "preview", seller_billing_provider: "none",
-      requested_seller_plan: requestedPlan, requested_plan_at: new Date().toISOString(),
+      seller_plan: "free", seller_plan_status: "inactive", seller_billing_provider: "none",
       verification_status: "pending", selling_status: "active", rating: 0, review_count: 0,
     });
-    await base44.auth.updateMe({ account_type: "vendor", terms_accepted_at: new Date().toISOString(), terms_version: "1" });
+    await base44.auth.updateMe({ account_type: "vendor", terms_accepted_at: new Date().toISOString(), terms_version: "2" });
     return Response.json({ vendor });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
