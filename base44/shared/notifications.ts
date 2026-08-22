@@ -1,4 +1,4 @@
-// TreEbay reliable commercial notification helper.
+// Tree Marketplace reliable commercial notification helper.
 // A notification failure must NEVER make a commercial action appear to have failed
 // after the commercial state already changed.
 //

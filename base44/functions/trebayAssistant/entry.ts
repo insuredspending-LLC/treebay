@@ -10,7 +10,7 @@ const INTENT_SCHEMA = {
   },
 };
 
-const SYSTEM_PROMPT = `You are the TreEbay Assistant for a B2B nursery-stock marketplace. Never invent inventory, pricing, availability, vendors, RFQs, order states, or transaction data. Extract intent and search parameters only; a secure system query follows. Client mode is presentation only, not authorization. Seller-only intents are seller_attention, low_stock, match_rfqs, and list_draft. Use prior conversation only to resolve references. Keep replies concise.
+const SYSTEM_PROMPT = `You are the Tree Marketplace Assistant for a B2B nursery-stock marketplace. Never invent inventory, pricing, availability, vendors, RFQs, order states, or transaction data. Extract intent and search parameters only; a secure system query follows. Client mode is presentation only, not authorization. Seller-only intents are seller_attention, low_stock, match_rfqs, and list_draft. Use prior conversation only to resolve references. Keep replies concise.
 
 When Onboarding is yes, give plain-language setup guidance only and do not claim that a profile or marketplace permission already exists. Known setup fields:
 - Buyer: full name, optional business name, buyer type, phone, city, state, ZIP.
@@ -116,12 +116,12 @@ export default async function(req: Request): Promise<Response> {
     });
     const intent = classification.intent || "general";
     const params = classification.params || {};
-    let reply = classification.reply || "I can help you search inventory, review RFQs, and navigate TreEbay.";
+    let reply = classification.reply || "I can help you search inventory, review RFQs, and navigate Tree Marketplace.";
     const results = { cards: [], actions: [] };
     let queryData = null;
 
     if (onboardingContext) {
-      reply = classification.reply || "I can explain any setup field and help you choose the right TreEbay role.";
+      reply = classification.reply || "I can explain any setup field and help you choose the right Tree Marketplace role.";
     } else if (sellerIntents.has(intent) && !isSeller) {
       queryData = { type: "seller_access", seller_profile: false };
       reply = "Seller tools are available once you create a grower profile. You can still browse inventory, request quotes, and manage projects in buyer mode.";
@@ -224,12 +224,12 @@ export default async function(req: Request): Promise<Response> {
 
     if (queryData && !["seller_access", "listing_draft", "rfq_draft"].includes(queryData.type)) {
       const explanation = await base44.integrations.Core.InvokeLLM({
-        prompt: `Repeat only explicit fields in the verified TreEbay JSON data below. Do not infer plant compatibility, summarize statuses with new labels, calculate totals, or invent data. Describe an RFQ as open only if its explicit status is open. If count is zero and searchedExhaustively is true, say no matching results were found. If count is zero and searchedExhaustively is false, say the search is still limited and suggest Marketplace or an RFQ. Keep to 2-4 sentences.\n\nUser message: ${message}\nIntent: ${intent}\nData: ${JSON.stringify(queryData).slice(0, 3000)}`,
+        prompt: `Repeat only explicit fields in the verified Tree Marketplace JSON data below. Do not infer plant compatibility, summarize statuses with new labels, calculate totals, or invent data. Describe an RFQ as open only if its explicit status is open. If count is zero and searchedExhaustively is true, say no matching results were found. If count is zero and searchedExhaustively is false, say the search is still limited and suggest Marketplace or an RFQ. Keep to 2-4 sentences.\n\nUser message: ${message}\nIntent: ${intent}\nData: ${JSON.stringify(queryData).slice(0, 3000)}`,
       });
       if (explanation) reply = explanation;
     }
     return Response.json({ reply, intent, results, user: { id: user.id, isSeller, isVerifiedSeller, presentationRole } });
   } catch (error) {
-    return Response.json({ error: error.message, reply: "I’m having trouble connecting right now. You can still browse the marketplace and manage TreEbay normally." }, { status: 500 });
+    return Response.json({ error: error.message, reply: "I’m having trouble connecting right now. You can still browse the marketplace and manage Tree Marketplace normally." }, { status: 500 });
   }
 }

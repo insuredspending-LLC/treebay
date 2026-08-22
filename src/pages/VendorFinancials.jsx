@@ -38,7 +38,7 @@ export default function VendorFinancials() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <StatCard icon={TrendingUp} label="Gross Marketplace Sales" value={formatCents(v.totals.gross_merchandise_sales_cents)} />
         <StatCard icon={Receipt} label="Taxable Marketplace Sales" value={formatCents(v.totals.taxable_marketplace_sales_cents)} />
-        <StatCard icon={Receipt} label="Tax Collected by TreEbay" value={formatCents(v.totals.tax_collected_cents)} />
+        <StatCard icon={Receipt} label="Tax Collected by Tree Marketplace" value={formatCents(v.totals.tax_collected_cents)} />
         <StatCard icon={Truck} label="Delivery Revenue" value={formatCents(v.totals.vendor_delivery_revenue_cents)} />
         <StatCard icon={CheckCircle2} label="Net Settled Proceeds" value={formatCents(v.totals.net_settled_proceeds_cents)} />
         <StatCard icon={Receipt} label="Refunds" value={formatCents(v.totals.refunds_cents)} />
@@ -48,7 +48,7 @@ export default function VendorFinancials() {
       <Card className="p-4">
         <h2 className="font-semibold text-sm mb-2">Fee Policy</h2>
         <p className="text-sm text-muted-foreground">
-          TreEbay marketplace fee: <strong>{v.totals.fee_payer === "buyer" ? "Buyer-paid" : v.totals.fee_payer}</strong>.
+          Tree Marketplace marketplace fee: <strong>{v.totals.fee_payer === "buyer" ? "Buyer-paid" : v.totals.fee_payer}</strong>.
           {v.totals.fee_payer === "buyer" && " The fee is NOT deducted from your proceeds."}
         </p>
       </Card>

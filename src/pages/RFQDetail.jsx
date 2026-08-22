@@ -183,7 +183,7 @@ export default function RFQDetail() {
                     </Button>
                     <Button variant="outline" onClick={() => message(q)}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-2 text-center">Taxes and TreEbay fees are calculated at checkout.</p>
+                  <p className="text-[11px] text-muted-foreground mt-2 text-center">Taxes and Tree Marketplace fees are calculated at checkout.</p>
                 </Card>
               );
             })}

@@ -70,7 +70,7 @@ export default function AdminDashboard() {
     try {
       await base44.entities.CrashReport.update(id, {
         status,
-        resolution: status === "resolved" ? "Reviewed and resolved from the TreEbay admin issue inbox." : "Marked in progress from the TreEbay admin issue inbox.",
+        resolution: status === "resolved" ? "Reviewed and resolved from the Tree Marketplace admin issue inbox." : "Marked in progress from the Tree Marketplace admin issue inbox.",
       });
       load();
       toast({ title: status === "resolved" ? "Issue resolved" : "Issue marked in progress" });
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
             </Card>
             {pendingVendors.length > 0 && (
               <Card className="p-4">
-                <h2 className="font-semibold mb-1">Pending TreEbay trust verifications</h2>
+                <h2 className="font-semibold mb-1">Pending Tree Marketplace trust verifications</h2>
                 <p className="text-xs text-muted-foreground mb-2">Seller accounts activate automatically. Verification only controls the public trust badge; suspend selling only for an exception.</p>
                 <div className="space-y-2">{pendingVendors.map((v) => (
                   <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-50">

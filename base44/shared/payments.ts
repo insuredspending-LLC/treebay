@@ -1,4 +1,4 @@
-// TreEbay TEST payment engine — the ONE implementation.
+// Tree Marketplace TEST payment engine — the ONE implementation.
 // Backend functions supply authorization; this module owns the state machine.
 // Outcomes: TEST_SUCCESS | TEST_DECLINED | TEST_TIMEOUT.
 

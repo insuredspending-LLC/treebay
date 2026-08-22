@@ -214,7 +214,7 @@ export default function OrderDetail() {
       {isVendor && order.order_status === "delivered" && (
         <Card className="p-4 flex items-center gap-2">
           <Clock className="w-5 h-5 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">TreEbay will complete this order automatically.</p>
+          <p className="text-sm text-muted-foreground">Tree Marketplace will complete this order automatically.</p>
         </Card>
       )}
 
@@ -246,7 +246,7 @@ export default function OrderDetail() {
       {order.fulfillment_method === "third_party_carrier" && order.order_status === "ready_for_pickup" && (
         <Card className="p-4 flex items-center gap-2">
           <Truck className="w-5 h-5 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">TreEbay is automatically assigning a freight carrier. No action needed.</p>
+          <p className="text-sm text-muted-foreground">Tree Marketplace is automatically assigning a freight carrier. No action needed.</p>
         </Card>
       )}
 
@@ -293,7 +293,7 @@ export default function OrderDetail() {
             <Row label="Merchandise" value={formatCurrency(order.subtotal)} />
             <Row label="Delivery" value={formatCurrency(order.delivery_charges)} />
             <Row label="Taxes" value={formatCurrency(order.taxes)} />
-            <Row label="TreEbay fee" value={formatCurrency(order.platform_fees)} />
+            <Row label="Tree Marketplace fee" value={formatCurrency(order.platform_fees)} />
             <div className="flex justify-between font-bold text-base pt-1.5 border-t border-border"><span>Final delivered price</span><span className="text-primary">{formatCurrency(order.total)}</span></div>
           </div>
         </Card>

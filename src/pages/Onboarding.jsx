@@ -74,7 +74,7 @@ export default function Onboarding() {
             <div className="flex items-center justify-between gap-3 mb-7">
               <div className="flex items-center gap-2">
                 <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/15"><Leaf className="w-5 h-5 text-primary-foreground" /></div>
-                <span className="font-heading font-extrabold text-xl text-primary">TreEbay</span>
+                <span className="font-heading font-extrabold text-xl text-primary">Tree Marketplace</span>
               </div>
               <span className="rounded-full border border-primary/15 bg-card/80 px-3 py-1.5 text-xs font-semibold text-primary shadow-sm">Step 1 of 2</span>
             </div>
@@ -82,12 +82,12 @@ export default function Onboarding() {
               <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary mb-4">
                 <Sparkles className="w-3.5 h-3.5" /> AI-guided setup
               </div>
-        <h1 className="text-2xl font-bold">How will you use TreEbay?</h1>
-        <p className="text-muted-foreground mt-2 max-w-xl">Choose the closest match. TreEbay will personalize the app, and you can switch roles later.</p>
+        <h1 className="text-2xl font-bold">How will you use Tree Marketplace?</h1>
+        <p className="text-muted-foreground mt-2 max-w-xl">Choose the closest match. Tree Marketplace will personalize the app, and you can switch roles later.</p>
         <Button
           variant="outline"
           className="mt-5 h-11 border-primary/20 bg-secondary/40"
-          onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open", { detail: { prompt: "Help me choose the right TreEbay role." } }))}
+          onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open", { detail: { prompt: "Help me choose the right Tree Marketplace role." } }))}
         >
           <Sparkles className="w-4 h-4" /> Help me choose
         </Button>
@@ -104,7 +104,7 @@ export default function Onboarding() {
           ))}
         </div>
         <div className="mt-8 p-4 rounded-2xl bg-secondary/50 space-y-2">
-          <p className="text-sm font-medium">What you can do on TreEbay</p>
+          <p className="text-sm font-medium">What you can do on Tree Marketplace</p>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>• Find inventory from local growers</li>
             <li>• Request bulk quotes for projects</li>

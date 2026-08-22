@@ -1,4 +1,4 @@
-// TreEbay authoritative transaction engine — shared by all backend functions.
+// Tree Marketplace authoritative transaction engine — shared by all backend functions.
 // All monetary amounts are integer CENTS (minor units) for decimal safety.
 // The browser never computes authoritative totals; it only displays values from a CheckoutQuote.
 
@@ -11,7 +11,7 @@ export const VENDOR_CONFIRM_HOURS = 24;
 export { RESERVATION_TTL_MINUTES };
 
 // ---- Fee payer model ----
-// TEST MODE: the BUYER pays the displayed TreEbay marketplace fee.
+// TEST MODE: the BUYER pays the displayed Tree Marketplace marketplace fee.
 // Buyer total = merchandise + delivery + tax + marketplace fee.
 // The vendor therefore receives the FULL merchandise subtotal — the fee is never
 // deducted a second time from vendor proceeds.
@@ -371,7 +371,7 @@ export async function createAllocationLedger(svc, order, cq, paymentRef) {
   });
   await createLedgerEntry(svc, {
     order_id: order.id, transaction_id: group, entry_key: "marketplace_fee", entry_type: "marketplace_fee", party_type: "marketplace",
-    description: "TreEbay marketplace fee", credit_cents: feeCents, payment_reference: paymentRef || null,
+    description: "Tree Marketplace marketplace fee", credit_cents: feeCents, payment_reference: paymentRef || null,
   });
   return { created: true };
 }
@@ -540,7 +540,7 @@ export async function createRefundLedger(svc, order, cq, amountCents, reason) {
     });
     await createLedgerEntry(svc, {
       order_id: order.id, transaction_id: group, entry_key: "marketplace_fee_reversal", entry_type: "adjustment", party_type: "marketplace",
-      description: "Reversal of TreEbay marketplace fee (refund)", debit_cents: cq.marketplace_fee_cents || 0,
+      description: "Reversal of Tree Marketplace marketplace fee (refund)", debit_cents: cq.marketplace_fee_cents || 0,
     });
   }
   return { created: true };

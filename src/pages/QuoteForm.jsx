@@ -193,7 +193,7 @@ export default function QuoteForm() {
           ))}
           <div className="flex justify-between font-bold text-base pt-2 border-t border-border"><span>Quote total</span><span className="text-primary">{formatCurrency(total)}</span></div>
         </div>
-        <p className="text-xs text-muted-foreground">Taxes and TreEbay fees are calculated at checkout.</p>
+        <p className="text-xs text-muted-foreground">Taxes and Tree Marketplace fees are calculated at checkout.</p>
       </Card>
 
       <div className="flex gap-2 pb-4">

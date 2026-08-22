@@ -1,4 +1,4 @@
-// TreEbay fulfillment engine — the ONE implementation of vendor fulfillment steps.
+// Tree Marketplace fulfillment engine — the ONE implementation of vendor fulfillment steps.
 // Backend functions supply authorization; this module owns the state machine.
 //
 // Vendor responsibility ENDS at `delivered`. delivered -> completed belongs to the
@@ -38,7 +38,7 @@ export async function advanceFulfillment(svc, orderId, actor) {
   const order = await svc.entities.Order.get(orderId);
   if (!order) return err(404, "Order not found");
   if (order.order_status === "delivered") {
-    return err(400, "This order is delivered. TreEbay completes and settles it automatically.");
+    return err(400, "This order is delivered. Tree Marketplace completes and settles it automatically.");
   }
   const next = getNextStatus(order);
   if (!next) return err(400, "Order cannot advance from its current state.");

@@ -1,4 +1,4 @@
-// TreEbay order-level inventory authority.
+// Tree Marketplace order-level inventory authority.
 // One InventoryReservation row is reused for the full Order/Product lifecycle.
 // Product counter changes use guarded updateMany + $inc; lifecycle transitions use
 // conditional status claims so retries cannot move stock twice.

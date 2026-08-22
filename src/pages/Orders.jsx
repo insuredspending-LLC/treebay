@@ -128,7 +128,7 @@ export default function Orders() {
                     {isSeller && o.order_status === "delivered" && (
                       <div className="mt-3 pt-3 border-t border-border flex items-center gap-2">
                         <Clock className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">TreEbay will complete this order automatically.</span>
+                        <span className="text-sm text-muted-foreground">Tree Marketplace will complete this order automatically.</span>
                       </div>
                     )}
                   </Card>

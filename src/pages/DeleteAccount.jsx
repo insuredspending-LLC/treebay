@@ -43,7 +43,7 @@ export default function DeleteAccount() {
         <button onClick={() => (window.history.length > 1 ? window.history.back() : (window.location.href = "/"))} className="inline-flex items-center gap-1 text-sm text-muted-foreground mb-4"><ArrowLeft className="w-4 h-4" /> Back</button>
         <div className="flex items-center gap-2 mb-2">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center"><Leaf className="w-5 h-5 text-primary-foreground" /></div>
-          <h1 className="text-2xl font-bold">Delete your TreEbay account</h1>
+          <h1 className="text-2xl font-bold">Delete your Tree Marketplace account</h1>
         </div>
         <p className="text-muted-foreground mt-1">You can request account deletion without opening the app. If you're signed in, your marketplace data is removed immediately and your inventory is archived. If you're signed out, submit the form below and our team will process your request.</p>
 

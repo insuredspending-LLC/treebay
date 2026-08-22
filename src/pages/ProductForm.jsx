@@ -189,7 +189,7 @@ export default function ProductForm() {
               <InvStat label="Available" value={existing.quantity_available} highlight />
               <InvStat label="Sold" value={existing.quantity_sold} />
             </div>
-            <p className="text-xs text-muted-foreground">Reserved and sold quantities are managed by TreEbay as orders progress. Available stock is calculated automatically.</p>
+            <p className="text-xs text-muted-foreground">Reserved and sold quantities are managed by Tree Marketplace as orders progress. Available stock is calculated automatically.</p>
             <NumField label="Current unsold physical units" value={f.quantity_available} onChange={(v) => set("quantity_available", v)} />
           </>
         ) : (

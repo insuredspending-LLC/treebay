@@ -1,4 +1,4 @@
-// TreEbay TEST freight provider — deterministic, repeatable quotes.
+// Tree Marketplace TEST freight provider — deterministic, repeatable quotes.
 // NOT real market freight rates. Architecture testing only.
 // Every UI location must clearly label: TEST FREIGHT until a real freight integration exists.
 

@@ -188,7 +188,7 @@ export default function Home() {
             </div>
             <div className="flex-1">
               <h3 className="font-heading font-bold text-foreground">Need help sourcing?</h3>
-              <p className="text-sm text-muted-foreground mt-1">Ask the TreEbay Assistant to find plants, compare growers, or build an RFQ draft — just describe what you need.</p>
+              <p className="text-sm text-muted-foreground mt-1">Ask the Tree Marketplace Assistant to find plants, compare growers, or build an RFQ draft — just describe what you need.</p>
               <Button className="mt-3" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}>
                 <Sparkles className="w-4 h-4" /> Ask the Assistant
               </Button>

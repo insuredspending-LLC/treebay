@@ -229,7 +229,7 @@ export default function Checkout() {
             <PricingRow label="Merchandise" value={formatCents(quote.merchandise_subtotal_cents)} />
             {quote.bulk_discount_cents > 0 && <PricingRow label="Bulk discount" value={"-" + formatCents(quote.bulk_discount_cents)} />}
             <PricingRow label={"Delivery" + (quote.delivery_method ? ` (${quote.delivery_method.replace(/_/g, " ")})` : " (select option)")} value={formatCents(quote.delivery_amount_cents)} />
-            <PricingRow label="TreEbay marketplace fee" value={formatCents(quote.marketplace_fee_cents)} />
+            <PricingRow label="Tree Marketplace marketplace fee" value={formatCents(quote.marketplace_fee_cents)} />
             <PricingRow label={"Sales tax" + (quote.tax_status === "test_estimated" ? " (TEST/ESTIMATED)" : "")} value={formatCents(quote.tax_amount_cents)} />
           </div>
           <Separator className="my-4" />
