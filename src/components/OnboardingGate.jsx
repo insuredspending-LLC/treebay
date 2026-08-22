@@ -18,7 +18,7 @@ export default function OnboardingGate() {
     return <Navigate to="/onboarding" replace />;
   }
   if (hasOnboarded && location.pathname === "/onboarding") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/home" replace />;
   }
   return <Outlet />;
 }
