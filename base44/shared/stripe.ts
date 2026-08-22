@@ -199,11 +199,21 @@ export async function createLoginLink(svc, vendor) {
 }
 
 // ---- Live buyer checkout ----
-export async function createCheckoutSession(svc, order, cq, vendor, origin) {
+export async function createCheckoutSession(svc, order, cq, vendor) {
+  if (!livePaymentsEnabled()) throw new Error("Live payments are not enabled.");
   if (order.commerce_mode !== "live") throw new Error("A Stripe checkout session requires a live order.");
   if (!vendorStripeReady(vendor)) throw new Error("This seller is not yet ready to receive live payments.");
   if (order.fulfillment_method === "third_party_carrier") throw new Error("Third-party carrier is not available for live orders.");
+
+  let previousSession = null;
+  if (order.stripe_checkout_session_id) {
+    previousSession = await stripeFetch("/checkout/sessions/" + order.stripe_checkout_session_id);
+    if (previousSession.status === "open") return previousSession;
+    if (previousSession.payment_status === "paid") throw new Error("This Stripe payment is already complete and is awaiting confirmation.");
+  }
+
   const currency = (cq.currency || "usd").toLowerCase();
+  const buyerFeeCents = buyerFeePortionCents(cq.marketplace_fee_cents || 0, cq.fee_payer || "buyer");
   const lineItems = (cq.items || []).map((i) => ({
     price_data: { currency, unit_amount: i.unit_price_cents, product_data: { name: i.line_name } },
     quantity: i.quantity,
@@ -211,17 +221,41 @@ export async function createCheckoutSession(svc, order, cq, vendor, origin) {
   if ((cq.delivery_amount_cents || 0) > 0) {
     lineItems.push({ price_data: { currency, unit_amount: cq.delivery_amount_cents, product_data: { name: "Delivery" } }, quantity: 1 });
   }
-  if ((cq.marketplace_fee_cents || 0) > 0) {
-    lineItems.push({ price_data: { currency, unit_amount: cq.marketplace_fee_cents, product_data: { name: "Tree Marketplace fee" } }, quantity: 1 });
+  if (buyerFeeCents > 0) {
+    lineItems.push({ price_data: { currency, unit_amount: buyerFeeCents, product_data: { name: "Tree Marketplace fee" } }, quantity: 1 });
   }
+  const checkoutTotal = lineItems.reduce((sum, item) => sum + item.price_data.unit_amount * item.quantity, 0);
+  if (checkoutTotal !== order.total_cents || checkoutTotal !== cq.total_amount_cents) {
+    throw new Error("Authoritative checkout total does not match the Stripe line items.");
+  }
+
+  // Stripe Checkout remains open for 30 minutes. The inventory hold has a five-minute
+  // webhook buffer so a payment completed just before expiry can still reconcile.
+  const sessionExpiresAt = Math.floor(Date.now() / 1000) + 30 * 60;
+  const holdExpiresAt = new Date(Date.now() + 35 * 60000).toISOString();
+  if (checkoutHoldsInventory(cq)) {
+    const reservation = await getActiveReservation(svc, order.id, cq.product_id);
+    if (!reservation || isReservationExpired(reservation)) throw new Error("The inventory hold expired. Please restart checkout.");
+    await svc.entities.InventoryReservation.update(reservation.id, { expires_at: holdExpiresAt });
+  }
+  await svc.entities.Order.update(order.id, { reservation_expires_at: holdExpiresAt });
+
+  const origin = publicAppOrigin();
+  const idempotencyKey = previousSession
+    ? "checkout-" + order.id + "-after-" + previousSession.id
+    : "checkout-" + order.id;
   // Live tax is not configured — it is not charged (no simulated rate as real money).
   const session = await stripeFetch("/checkout/sessions", {
     method: "POST",
-    idempotencyKey: "checkout-" + order.id,
+    idempotencyKey,
     params: {
       mode: "payment",
       line_items: lineItems,
-      payment_intent_data: { metadata: { order_id: order.id, base44_app_id: appId() } },
+      expires_at: sessionExpiresAt,
+      payment_intent_data: {
+        transfer_group: order.id,
+        metadata: { order_id: order.id, base44_app_id: appId() },
+      },
       success_url: origin + "/orders/" + order.id + "?stripe_success=1",
       cancel_url: origin + "/orders/" + order.id + "?stripe_canceled=1",
       metadata: { order_id: order.id, vendor_id: vendor.id, base44_app_id: appId() },
