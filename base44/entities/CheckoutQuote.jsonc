@@ -21,11 +21,12 @@
     "commerce_mode": {
       "type": "string",
       "enum": [
+        "payments_disabled",
         "test",
         "live"
       ],
-      "default": "test",
-      "description": "Test quotes are simulated; live quotes may only be created by a production-ready commerce provider."
+      "default": "payments_disabled",
+      "description": "Public checkout fails closed while payments are disabled. Test is restricted to approved testers/admins; live requires the production payment gate and provider."
     },
     "product_id": {
       "type": "string"
