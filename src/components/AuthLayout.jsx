@@ -16,7 +16,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
               <Leaf className="w-6 h-6" />
             </div>
             <div>
-              <p className="font-heading font-extrabold text-2xl">TreEbay</p>
+              <p className="font-heading font-extrabold text-2xl">Tree Marketplace</p>
               <p className="text-xs text-white/65">The living marketplace</p>
             </div>
           </div>
@@ -26,7 +26,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
               <Sparkles className="w-3.5 h-3.5" /> Smarter plant sourcing
             </div>
             <h2 className="font-heading text-4xl font-extrabold leading-tight text-balance">Find the right plants, people, and prices in one place.</h2>
-            <p className="mt-5 text-white/75 text-lg">TreEbay connects buyers, growers, and carriers with guided sourcing, bulk quotes, and clear order tracking.</p>
+            <p className="mt-5 text-white/75 text-lg">Tree Marketplace connects buyers, growers, and carriers with guided sourcing, bulk quotes, and clear order tracking.</p>
           </div>
 
           <div className="relative flex items-center gap-2 text-sm text-white/70">
@@ -40,7 +40,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
               <Leaf className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <p className="font-heading font-extrabold text-xl text-primary leading-none">TreEbay</p>
+              <p className="font-heading font-extrabold text-xl text-primary leading-none">Tree Marketplace</p>
               <p className="text-[10px] text-muted-foreground mt-1">The living marketplace</p>
             </div>
           </div>
