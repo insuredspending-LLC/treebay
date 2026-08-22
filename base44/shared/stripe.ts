@@ -48,13 +48,13 @@ export function stripeEventMatchesKeyMode(event) {
 }
 
 function publicAppOrigin() {
-  const configured = env("TREE_MARKETPLACE_PUBLIC_URL") || "https://insuredspending.base44.app";
+  const configured = env("TREE_MARKETPLACE_PUBLIC_URL") || "https://treebay.insuredspending.org";
   try {
     const url = new URL(configured);
     if (url.protocol !== "https:") throw new Error("Public app URL must use HTTPS.");
     return url.origin;
   } catch {
-    return "https://insuredspending.base44.app";
+    return "https://treebay.insuredspending.org";
   }
 }
 
