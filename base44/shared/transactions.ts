@@ -128,12 +128,12 @@ export async function assembleCheckout(svc, p) {
   const feePayer = feePayerOf(feeRule);
   const feeCents = calculateMarketplaceFeeCents(p.merchandise_cents, feeRule);
   const buyerFeeCents = buyerFeePortionCents(feeCents, feePayer);
+  const commerceMode = p.commerce_mode || "test";
   const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true }, p.vendor_delivery_cents, p.vendor_delivery_available, commerceMode);
   const selected = p.deliveryMethod ? deliveryOptions.find((o) => o.provider_type === p.deliveryMethod) : null;
   const deliveryCents = selected ? selected.delivery_price_cents : 0;
   const deliveryMethod = selected ? selected.provider_type : null;
   const taxableCents = p.merchandise_cents;
-  const commerceMode = p.commerce_mode || "test";
   // Live orders do not charge the simulated test tax — a real tax engine is not
   // configured yet. Tax is recorded as "not_configured" rather than charging a
   // placeholder rate as if it were real.
