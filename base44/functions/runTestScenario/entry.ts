@@ -5,6 +5,7 @@ import { getActiveReservation, getReservation } from "../../shared/inventory.ts"
 import { allocationGroup, settlementGroup, refundGroup, createLedgerEntry, updateShipmentStatus, transitionOrder, vendorPayableCents } from "../../shared/transactions.ts";
 import { retryFreightAssignment } from "../../shared/freight.ts";
 import { notifySafely } from "../../shared/notifications.ts";
+import { confirmBuyerDelivery } from "../../shared/deliveryConfirmation.ts";
 
 // ADMIN TEST SIMULATOR.
 // Every scenario below runs through the SAME authoritative engines used in
@@ -135,7 +136,9 @@ export default async function(req) {
           results.push({ step: "buyer_confirm_pickup", result: { order_status: "picked_up" } });
           await transitionOrder(svc, orderId, "delivered", { type: "buyer", id: pickupOrder.buyer_id, description: "Buyer confirmed receipt (simulator)" });
           await svc.entities.Order.update(orderId, { delivered_at: new Date().toISOString() });
-          results.push({ step: "buyer_confirm_received", result: { order_status: "delivered" } });
+          await confirmBuyerDelivery(svc, orderId, { type: "buyer", id: pickupOrder.buyer_id }, { receiver_name: "TEST Buyer" });
+          await svc.entities.Order.update(orderId, { payout_eligible_at: new Date(Date.now() - 1000).toISOString() });
+          results.push({ step: "buyer_confirm_received", result: { order_status: "completed", cooling_hold_simulated_elapsed: true } });
         }
         const maintenance = await base44.functions.invoke("runTransactionMaintenance", {});
         results.push({ step: "system_complete_settle", result: maintenance.data });
@@ -144,13 +147,20 @@ export default async function(req) {
       }
       case "SCENARIO_B": {
         // Direct listing, vendor delivery: pay -> confirm -> prepare -> ready -> assign -> pickup -> transit -> deliver -> settle
-        const steps = ["TEST_SUCCESS", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "MAINTENANCE"];
+        const steps = ["TEST_SUCCESS", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM", "VENDOR_CONFIRM"];
         const results = [];
         for (const step of steps) {
-          if (step === "MAINTENANCE") { const res = await base44.functions.invoke("runTransactionMaintenance", {}); results.push({ step, result: res.data }); }
-          else if (step === "TEST_SUCCESS") { results.push({ step, result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body }); }
-          else { results.push({ step, result: (await advanceFulfillment(svc, orderId, actor)).body }); }
+          if (step === "TEST_SUCCESS") results.push({ step, result: (await processTestPayment(svc, orderId, "TEST_SUCCESS", actor)).body });
+          else results.push({ step, result: (await advanceFulfillment(svc, orderId, actor)).body });
         }
+        const deliveredOrder = await svc.entities.Order.get(orderId);
+        if (deliveredOrder.order_status === "delivered") {
+          await confirmBuyerDelivery(svc, orderId, { type: "buyer", id: deliveredOrder.buyer_id }, { receiver_name: "TEST Buyer" });
+          await svc.entities.Order.update(orderId, { payout_eligible_at: new Date(Date.now() - 1000).toISOString() });
+          results.push({ step: "buyer_confirm_delivery", result: { cooling_hold_simulated_elapsed: true } });
+        }
+        const maintenance = await base44.functions.invoke("runTransactionMaintenance", {});
+        results.push({ step: "MAINTENANCE", result: maintenance.data });
         result = { composite: true, steps: results };
         break;
       }
