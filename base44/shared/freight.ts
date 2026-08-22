@@ -56,6 +56,7 @@ export async function resolveFreightExceptions(svc, orderId, reason) {
 //   7. Resolve any open freight_assignment_failed exceptions
 // On failure: raise WARNING/AUTO_RETRYING exception (NOT immediate admin escalation)
 export async function autoAssignFreight(svc, order, cq, shipment) {
+  if (order?.commerce_mode !== "test") throw new Error("The internal freight simulator is restricted to approved TEST orders.");
   if (!shipment) throw new Error("Shipment required for freight assignment");
   if (order.fulfillment_method !== "third_party_carrier") return { skipped: true };
 
@@ -110,7 +111,7 @@ export async function autoAssignFreight(svc, order, cq, shipment) {
     const quoteRef = genFreightQuoteReference();
     const expiresAt = new Date(Date.now() + FREIGHT_QUOTE_TTL_HOURS * 3600000).toISOString();
     freightQuote = await svc.entities.FreightQuote.create({
-      order_id: order.id, checkout_quote_id: cq.id, commerce_mode: order.commerce_mode || "test",
+      order_id: order.id, checkout_quote_id: cq.id, commerce_mode: order.commerce_mode,
       carrier_id: carrier.id, carrier_owner_id: carrier.owner_id,
       buyer_id: order.buyer_id, vendor_owner_id: order.vendor_owner_id,
       provider: TEST_FREIGHT_PROVIDER, quote_reference: quoteRef,
@@ -195,7 +196,7 @@ export async function retryFreightAssignment(svc) {
   // Find orders at ready_for_pickup with third_party_carrier that need freight assignment
   const readyOrders = await svc.entities.Order.filter({ order_status: "ready_for_pickup" }, "-created_date", 200);
   for (const order of (readyOrders || [])) {
-    if (order.fulfillment_method !== "third_party_carrier") continue;
+    if (order.commerce_mode !== "test" || order.fulfillment_method !== "third_party_carrier") continue;
     const shipments = await svc.entities.Shipment.filter({ order_id: order.id });
     const shipment = (shipments || [])[0];
     if (!shipment) continue;
@@ -246,7 +247,7 @@ export async function retryFreightAssignment(svc) {
   // (for example after a carrier decline). Use the SAME retry/escalation lifecycle.
   const assignedOrders = await svc.entities.Order.filter({ order_status: "delivery_assigned" }, "-created_date", 100);
   for (const order of (assignedOrders || [])) {
-    if (order.fulfillment_method !== "third_party_carrier") continue;
+    if (order.commerce_mode !== "test" || order.fulfillment_method !== "third_party_carrier") continue;
     const shipments = await svc.entities.Shipment.filter({ order_id: order.id });
     const shipment = (shipments || [])[0];
     if (!shipment || (shipment.carrier_id && shipment.freight_quote_id)) continue;
