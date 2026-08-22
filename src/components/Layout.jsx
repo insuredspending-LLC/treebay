@@ -96,7 +96,7 @@ function getHeaderState(pathname) {
 }
 
 const BUYER_NAV = [
-  { to: "/", label: "Home", icon: HomeIcon, match: ["/"] },
+  { to: "/home", label: "Home", icon: HomeIcon, match: ["/home"] },
   { to: "/marketplace", label: "Marketplace", icon: Store, match: ["/marketplace", "/product", "/vendor"] },
   { to: "/projects", label: "Projects", icon: FolderKanban, match: ["/projects", "/rfqs"] },
   { to: "/orders", label: "Orders", icon: ShoppingCart, match: ["/orders"] },
@@ -156,7 +156,7 @@ function TopBar() {
   const switchMode = async (type) => {
     const ok = await switchAccountType(type);
     if (!ok) return;
-    navigate(type === "vendor" ? "/vendor" : type === "carrier" ? "/carrier" : "/");
+    navigate(type === "vendor" ? "/vendor" : type === "carrier" ? "/carrier" : "/home");
   };
 
   return (
@@ -170,7 +170,7 @@ function TopBar() {
               <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
             </div>
           ) : (
-            <button onClick={() => navigate("/")} className="flex items-center gap-2 no-tap-highlight shrink-0">
+            <button onClick={() => navigate("/home")} className="flex items-center gap-2 no-tap-highlight shrink-0">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Leaf className="w-5 h-5 text-primary-foreground" />
               </div>
