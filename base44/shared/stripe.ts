@@ -726,6 +726,28 @@ export async function reconcileLiveAwaitingPayment(svc, order) {
   }
 }
 
+export async function reconcilePendingLiveRefund(svc, order) {
+  if (!order || order.commerce_mode !== "live") return { ignored: true };
+  const payments = await svc.entities.PaymentRecord.filter({ order_id: order.id });
+  const payment = (payments || [])[0];
+  if (!payment?.provider_refund_id) {
+    await raiseExceptionOnce(svc, {
+      severity: "CRITICAL",
+      exception_type: "stripe_refund_reference_missing",
+      order_id: order.id,
+      buyer_id: order.buyer_id,
+      vendor_id: order.vendor_id,
+      payment_id: payment?.id,
+      reason: "Live refund is pending without a Stripe refund id.",
+      recommended_action: "Keep the order quarantined and reconcile it in Stripe.",
+      requires_admin: true,
+    });
+    return { refundPending: true, missingReference: true };
+  }
+  const refund = await stripeFetch("/refunds/" + payment.provider_refund_id);
+  return reconcileStripeRefund(svc, refund, "maintenance-reconciliation");
+}
+
 // ---- Settlement transfer ----
 export async function createVendorTransfer(svc, order, cq) {
   if (order.commerce_mode !== "live") return null;
