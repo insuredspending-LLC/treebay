@@ -1,14 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
   transitionOrder, createSettlementLedgerEntry, verifyAllocationForSettlement, verifySettlementReconciliation, rollbackExpiredRFQCheckout,
-  hasBlockingException, closeDeliveryOptions, raiseExceptionOnce, updateShipmentStatus,
+  hasBlockingException, closeDeliveryOptions, raiseExceptionOnce,
 } from "../../shared/transactions.ts";
 import { releaseForOrder, checkoutHoldsInventory } from "../../shared/inventory.ts";
 import { recoverStaleInventoryReservation } from "../../shared/inventoryRecovery.ts";
 import { generateAndStoreDocument } from "../../shared/documents.ts";
 import { resumePendingRefund } from "../../shared/refunds.ts";
 import { retryFreightAssignment } from "../../shared/freight.ts";
-import { createVendorTransfer } from "../../shared/stripe.ts";
+import {
+  createVendorTransfer,
+  reconcileLiveAwaitingPayment,
+  reconcilePendingLiveRefund,
+} from "../../shared/stripe.ts";
 import { notifySafely } from "../../shared/notifications.ts";
 
 // Single source of truth for all recurring transaction maintenance.
@@ -98,17 +102,38 @@ export default async function(req) {
     const awaiting = await svc.entities.Order.filter({ order_status: "awaiting_payment" }, "-created_date", 200);
     for (const order of (awaiting || [])) {
       if (!order.reservation_expires_at || new Date(order.reservation_expires_at) > now) continue;
+
+      // Never trust the local clock to close a live attempt. Stripe is authoritative,
+      // and the reconciliation helper refuses stale attempts.
+      if (order.commerce_mode === "live") {
+        await reconcileLiveAwaitingPayment(svc, order);
+        continue;
+      }
+      if (order.commerce_mode !== "test") {
+        await svc.entities.Order.update(order.id, {
+          financial_hold: true,
+          financial_hold_reason: "Disabled-commerce order requires administrator review.",
+        });
+        await raiseExceptionOnce(svc, {
+          severity: "CRITICAL", exception_type: "disabled_commerce_order", order_id: order.id,
+          buyer_id: order.buyer_id, vendor_id: order.vendor_id,
+          reason: "An awaiting-payment order exists while payments are disabled.",
+          recommended_action: "Do not release inventory or accept payment; inspect how the order was created.", requires_admin: true,
+        });
+        continue;
+      }
+
       const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
-      // Idempotent: only reservations still in `reserved` move.
+      // Approved TEST transactions may use local reservation expiry.
       if (checkoutHoldsInventory(cq)) {
-        const qty = await releaseForOrder(svc, order.id, "Reservation expired — payment not received", true);
+        const qty = await releaseForOrder(svc, order.id, "TEST reservation expired — payment not received", true);
         if (qty > 0) released++;
       }
       if (cq && cq.source_type === "accepted_quote") {
         await rollbackExpiredRFQCheckout(svc, cq);
         rolledBack++;
       }
-      await transitionOrder(svc, order.id, "cancelled", { type: "system", id: actorId, description: "Reservation expired - payment not received" });
+      await transitionOrder(svc, order.id, "cancelled", { type: "system", id: actorId, description: "TEST reservation expired - payment not received" });
     }
 
     // ---- 2. Roll back expired CheckoutQuotes that never produced an order ----
@@ -191,32 +216,47 @@ export default async function(req) {
         const payment = (payments || [])[0];
         // Skip a completely reconciled transaction — nothing to recover.
         if (order.order_status === "refunded" && payment && payment.status === "refunded" && payment.refund_status === "full") continue;
-        await resumePendingRefund(svc, order.id, { type: "system", id: actorId });
-        refundsRecovered++;
+        if (order.commerce_mode === "live") {
+          await reconcilePendingLiveRefund(svc, order);
+          refundsRecovered++;
+        } else if (order.commerce_mode === "test") {
+          await resumePendingRefund(svc, order.id, { type: "system", id: actorId });
+          refundsRecovered++;
+        } else {
+          await svc.entities.Order.update(order.id, {
+            financial_hold: true,
+            financial_hold_reason: "Refund state exists for a disabled-commerce order.",
+          });
+          await raiseExceptionOnce(svc, {
+            severity: "CRITICAL", exception_type: "disabled_commerce_refund", order_id: order.id,
+            buyer_id: order.buyer_id, vendor_id: order.vendor_id,
+            reason: "A refund is pending for an order whose commerce mode is disabled.",
+            recommended_action: "Keep the order quarantined and reconcile its provenance manually.", requires_admin: true,
+          });
+        }
       } catch {
         // resumePendingRefund records the CRITICAL reconciliation exception.
       }
     }
 
-    // ---- 5. THE SYSTEM owns completion: delivered -> completed ----
+    // ---- 5. Recover completion only after durable buyer confirmation ----
+    // Carrier/seller delivery is proof of delivery, not buyer acceptance. Maintenance
+    // may resume a partially-written confirmation, but must never invent one.
     const delivered = await svc.entities.Order.filter({ order_status: "delivered" }, "-created_date", 100);
     for (const order of (delivered || [])) {
-      if (order.payment_status !== "paid") continue;
+      if (order.payment_status !== "paid" || !order.buyer_confirmed_at) continue;
       if (await hasBlockingException(svc, order.id)) continue;
-      // Delivery must actually be recorded (shipment delivered/confirmed, or pickup).
       const shipments = await svc.entities.Shipment.filter({ order_id: order.id });
       const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
-      const shipmentOk = isPickup || ((shipments || []).length > 0 &&
-        (shipments || []).every((s) => ["delivered", "confirmed"].includes(s.shipment_status)));
-      if (!shipmentOk) continue;
-      await transitionOrder(svc, order.id, "completed", { type: "system", id: actorId, description: "Auto-completed after delivery" });
-      await svc.entities.Order.update(order.id, { completed_at: new Date().toISOString() });
-      for (const s of (shipments || [])) {
-        if (s.shipment_status === "delivered") {
-          await updateShipmentStatus(svc, s.id, "confirmed", { type: "system", id: actorId, description: "Shipment confirmed during automatic completion" });
-          await svc.entities.Shipment.update(s.id, { buyer_confirmed: true });
-        }
-      }
+      const buyerConfirmed = isPickup || ((shipments || []).length > 0 &&
+        (shipments || []).every((s) => s.buyer_confirmed === true));
+      if (!buyerConfirmed) continue;
+      await transitionOrder(svc, order.id, "completed", {
+        type: "system", id: actorId, description: "Recovered completion after recorded buyer confirmation",
+      });
+      await svc.entities.Order.update(order.id, {
+        completed_at: order.completed_at || order.buyer_confirmed_at,
+      });
       completed++;
     }
 
@@ -225,14 +265,18 @@ export default async function(req) {
     freightAssigned = freightResult.assigned;
     freightFailed = freightResult.failed;
 
-    // ---- 5. Settlement (TEST) — process `completed` AND `settlement_pending` so a
-    //         partially-failed settlement resumes instead of getting stuck. ----
+    // ---- 5. Settlement — process `completed` AND `settlement_pending` so a
+    //         partially-failed settlement resumes instead of getting stuck. Both
+    //         LIVE and approved TEST orders require buyer confirmation and cooling hold. ----
     const settleable = [
       ...(await svc.entities.Order.filter({ order_status: "completed" }, "-created_date", 100) || []),
       ...(await svc.entities.Order.filter({ order_status: "settlement_pending" }, "-created_date", 100) || []),
     ];
     for (const order of settleable) {
       try {
+        if (order.commerce_mode !== "live" && order.commerce_mode !== "test") continue;
+        if (order.financial_hold || !order.buyer_confirmed_at || !order.payout_eligible_at) continue;
+        if (new Date(order.payout_eligible_at) > now) continue;
         const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
         if (!cq) {
           await raiseExceptionOnce(svc, {
@@ -268,7 +312,10 @@ export default async function(req) {
           }
         }
         await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "vendor_settlement", title: "Settlement statement ready", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
-        await transitionOrder(svc, order.id, "settled", { type: "system", id: actorId, description: "Settled (TEST)" });
+        await transitionOrder(svc, order.id, "settled", {
+          type: "system", id: actorId,
+          description: order.commerce_mode === "live" ? "Settled after Stripe transfer confirmation" : "Settled (APPROVED TEST)",
+        });
         settled++;
       } catch (err) {
         await raiseExceptionOnce(svc, {
