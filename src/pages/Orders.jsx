@@ -97,7 +97,7 @@ export default function Orders() {
                   <Card className="p-4 hover:shadow-sm hover:border-primary/40 transition">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2"><p className="font-semibold">{o.order_number}</p><Badge variant={(o.commerce_mode || "test") === "live" ? "default" : "outline"}>{(o.commerce_mode || "test") === "live" ? "LIVE" : "TEST"}</Badge></div>
+                        <div className="flex items-center gap-2"><p className="font-semibold">{o.order_number}</p><Badge variant={o.commerce_mode === "live" ? "default" : "outline"}>{o.commerce_mode === "live" ? "LIVE" : o.commerce_mode === "test" ? "APPROVED TEST" : "PAYMENTS OFF"}</Badge></div>
                         {isSeller ? (
                           <p className="text-xs text-muted-foreground mt-0.5 truncate">{jobsiteDisplay(o)}</p>
                         ) : (
@@ -128,7 +128,7 @@ export default function Orders() {
                     {isSeller && o.order_status === "delivered" && (
                       <div className="mt-3 pt-3 border-t border-border flex items-center gap-2">
                         <Clock className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Tree Marketplace will complete this order automatically.</span>
+                        <span className="text-sm text-muted-foreground">Waiting for buyer receipt confirmation; payout remains on hold afterward.</span>
                       </div>
                     )}
                   </Card>
