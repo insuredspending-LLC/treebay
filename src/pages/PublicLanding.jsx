@@ -176,6 +176,16 @@ export default function PublicLanding() {
                   </p>
                 </>
               )}
+              <div className="mt-6 pt-5 border-t text-center">
+                <a
+                  href="https://play.google.com/apps/testing/com.insuredspending.treebay"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-semibold text-primary underline underline-offset-4"
+                >
+                  Already invited? Join the closed test
+                </a>
+              </div>
             </Card>
           </div>
         </section>
