@@ -57,7 +57,7 @@ export default function AdminDashboard() {
   };
   useEffect(() => { load(); }, []);
 
-  if (user && user.role !== "admin") return <Navigate to="/" replace />;
+  if (user && user.role !== "admin") return <Navigate to="/home" replace />;
   if (!user) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
   const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
