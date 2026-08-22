@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { toCents, unitPriceCentsForQty, assembleCheckout, vendorCanSell } from "../../shared/transactions.ts";
 import { commerceModeForVendor } from "../../shared/stripe.ts";
+import { canUseInternalSimulator } from "../../shared/commerceAccess.ts";
 
 export default async function(req) {
   try {
@@ -9,6 +10,7 @@ export default async function(req) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const body = await req.json();
     const svc = base44.asServiceRole;
+    const testAuthorized = await canUseInternalSimulator(svc, user);
 
     // ---- Direct listing checkout ----
     if (body.productId) {
@@ -35,7 +37,7 @@ export default async function(req) {
         source_type: "direct_listing", product, product_id: product.id, items, merchandise_cents: merchCents,
         destination: body.destination || { city: buyer.city, state: buyer.state, zip: buyer.zip_code },
         deliveryMethod: body.deliveryMethod || null,
-        commerce_mode: commerceModeForVendor(vendor),
+        commerce_mode: commerceModeForVendor(vendor, testAuthorized),
       });
       return Response.json(result);
     }
@@ -72,7 +74,7 @@ export default async function(req) {
         vendor_delivery_cents: vendorDeliveryCents,
         vendor_delivery_available: vendorDeliveryOffered,
         deliveryMethod: body.deliveryMethod || null,
-        commerce_mode: commerceModeForVendor(quoteVendor),
+        commerce_mode: commerceModeForVendor(quoteVendor, testAuthorized),
       });
       return Response.json(result);
     }
