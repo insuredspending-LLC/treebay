@@ -88,6 +88,9 @@ export async function confirmOrderPayment(svc, orderId, p) {
 export async function processTestPayment(svc, orderId, outcome, actor) {
   let order = await svc.entities.Order.get(orderId);
   if (!order) return err(404, "Order not found");
+  if ((order.commerce_mode || "test") !== "test") {
+    return err(400, "The test payment engine cannot process a Stripe order.");
+  }
 
   // Idempotency: already paid.
   if (order.payment_status === "paid") {
