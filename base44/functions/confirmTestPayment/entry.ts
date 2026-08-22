@@ -17,6 +17,9 @@ export default async function(req) {
     const order = await svc.entities.Order.get(orderId);
     if (!order) return Response.json({ error: "Order not found" }, { status: 404 });
     if (order.buyer_id !== user.id) return Response.json({ error: "Only the buyer can pay for this order." }, { status: 403 });
+    if ((order.commerce_mode || "test") !== "test") {
+      return Response.json({ error: "Test payment is not permitted for a Stripe order." }, { status: 400 });
+    }
 
     const result = await processTestPayment(svc, orderId, outcome, { type: "buyer", id: user.id });
     return Response.json(result.body, { status: result.status });
