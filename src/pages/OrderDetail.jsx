@@ -66,6 +66,7 @@ export default function OrderDetail() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [review, setReview] = useState({ rating: 5, text: "" });
   const [documents, setDocuments] = useState([]);
+  const [checkoutQuote, setCheckoutQuote] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -73,6 +74,10 @@ export default function OrderDetail() {
       const o = await base44.entities.Order.get(id);
       setOrder(o);
       if (o) {
+        try {
+          const cq = o.checkout_quote_id ? await base44.entities.CheckoutQuote.get(o.checkout_quote_id) : null;
+          setCheckoutQuote(cq);
+        } catch { setCheckoutQuote(null); }
         try { const s = await base44.entities.Shipment.filter({ order_id: id }); setShipment(s?.[0] || null); } catch {}
         try { const ex = await base44.entities.SystemException.filter({ order_id: id, status: "OPEN" }); setExceptions(ex || []); } catch {}
         try {
@@ -127,6 +132,7 @@ export default function OrderDetail() {
   const canAdvance = isVendor && !!nextStatus;
   const hasException = EXCEPTION_STATUSES.includes(order.order_status) || exceptions.length > 0;
   const isPickup = order.fulfillment_method === "buyer_pickup" || order.fulfillment_method === "pickup";
+  const feePayer = checkoutQuote?.fee_payer || "buyer";
   const sellerActionLabel = nextStatus ? (SELLER_ACTION_LABELS[nextStatus] || `Advance to ${ORDER_STATUS_LABELS[nextStatus]}`) : null;
   const jobsite = [order.contact_name || order.destination_name, [order.destination_city, order.destination_state].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "—";
 
@@ -155,6 +161,10 @@ export default function OrderDetail() {
   };
 
   const pay = async () => {
+    if (order.commerce_mode !== "live" && order.commerce_mode !== "test") {
+      toast({ title: "Purchases are not open yet", description: "No payment can be submitted for this order.", variant: "destructive" });
+      return;
+    }
     if (order.commerce_mode === "live") {
       try {
         const { data } = await base44.functions.invoke("createStripeCheckoutSession", { orderId: id });
@@ -189,6 +199,17 @@ export default function OrderDetail() {
     } catch (e) { toast({ title: "Could not confirm receipt", description: apiError(e), variant: "destructive" }); }
   };
 
+  const confirmDeliveredOrder = async () => {
+    try {
+      const { data } = await base44.functions.invoke("confirmDelivery", { orderId: id });
+      toast({
+        title: "Delivery confirmed",
+        description: `The seller payout cooling hold is now ${data.payout_hold_hours || 72} hours.`,
+      });
+      load();
+    } catch (e) { toast({ title: "Could not confirm delivery", description: apiError(e), variant: "destructive" }); }
+  };
+
   const openDocument = (doc) => {
     const blob = new Blob([doc.html_content || "<p>No content</p>"], { type: "text/html" });
     const url = URL.createObjectURL(blob);
@@ -212,10 +233,16 @@ export default function OrderDetail() {
         </div>
       </div>
 
-      {(order.commerce_mode || "test") !== "live" && (
+      {order.commerce_mode === "test" && (
         <Card className="p-4 border-amber-300 bg-amber-50">
-          <p className="font-semibold text-sm text-amber-900">TEST transaction — no real money moved</p>
+          <p className="font-semibold text-sm text-amber-900">APPROVED TEST transaction — no real money moved</p>
           <p className="text-xs text-amber-700 mt-0.5">Payment, tax, freight, payouts, and settlement on this order are simulated.</p>
+        </Card>
+      )}
+      {order.commerce_mode === "payments_disabled" && (
+        <Card className="p-4 border-slate-300 bg-slate-50">
+          <p className="font-semibold text-sm text-slate-900">Payments disabled</p>
+          <p className="text-xs text-slate-700 mt-0.5">This order cannot accept a payment. Contact support if it should not exist.</p>
         </Card>
       )}
       {order.commerce_mode === "live" && (
@@ -256,7 +283,7 @@ export default function OrderDetail() {
       {isVendor && order.order_status === "delivered" && (
         <Card className="p-4 flex items-center gap-2">
           <Clock className="w-5 h-5 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Tree Marketplace will complete this order automatically.</p>
+          <p className="text-sm text-muted-foreground">Waiting for the buyer to confirm receipt. Settlement starts only after confirmation and the payout cooling hold.</p>
         </Card>
       )}
 
@@ -280,6 +307,18 @@ export default function OrderDetail() {
               <p className="text-sm font-medium mt-0.5">Confirm receipt</p>
             </div>
             <Button onClick={confirmReceived}>Confirm Receipt</Button>
+          </div>
+        </Card>
+      )}
+
+      {isBuyer && !isPickup && order.order_status === "delivered" && !order.buyer_confirmed_at && (
+        <Card className="p-4 border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your delivery action</p>
+              <p className="text-sm font-medium mt-0.5">Confirm that you received the order</p>
+            </div>
+            <Button onClick={confirmDeliveredOrder}>Confirm Delivery</Button>
           </div>
         </Card>
       )}
@@ -335,7 +374,14 @@ export default function OrderDetail() {
             <Row label="Merchandise" value={formatCurrency(order.subtotal)} />
             <Row label="Delivery" value={formatCurrency(order.delivery_charges)} />
             <Row label="Taxes" value={formatCurrency(order.taxes)} />
-            <Row label="Tree Marketplace fee" value={formatCurrency(order.platform_fees)} />
+            {Number(order.platform_fees || 0) > 0 && (
+              <Row
+                label={feePayer === "vendor"
+                  ? "Seller commission (deducted from seller proceeds; not in buyer total)"
+                  : "Marketplace fee (charged to buyer on this historical order)"}
+                value={formatCurrency(order.platform_fees)}
+              />
+            )}
             <div className="flex justify-between font-bold text-base pt-1.5 border-t border-border"><span>Final delivered price</span><span className="text-primary">{formatCurrency(order.total)}</span></div>
           </div>
         </Card>
@@ -385,7 +431,9 @@ export default function OrderDetail() {
       {/* Actions */}
       <div className="flex flex-wrap gap-2 pt-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
-        {isBuyer && order.order_status === "awaiting_payment" && <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> {order.commerce_mode === "live" ? "Pay with Stripe" : "Pay (Test)"}</Button>}
+        {isBuyer && order.order_status === "awaiting_payment" && ["live", "test"].includes(order.commerce_mode) && (
+          <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> {order.commerce_mode === "live" ? "Pay with Stripe" : "Pay (Approved Test)"}</Button>
+        )}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>
 
