@@ -231,8 +231,8 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
 
   // Stripe Checkout remains open for 30 minutes. The inventory hold has a five-minute
   // webhook buffer so a payment completed just before expiry can still reconcile.
-  const sessionExpiresAt = Math.floor(Date.now() / 1000) + 30 * 60;
-  const holdExpiresAt = new Date(Date.now() + 35 * 60000).toISOString();
+  const sessionExpiresAt = Math.floor(Date.now() / 1000) + 31 * 60;
+  const holdExpiresAt = new Date(Date.now() + 36 * 60000).toISOString();
   if (checkoutHoldsInventory(cq)) {
     const reservation = await getActiveReservation(svc, order.id, cq.product_id);
     if (!reservation || isReservationExpired(reservation)) throw new Error("The inventory hold expired. Please restart checkout.");
@@ -250,6 +250,7 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
     idempotencyKey,
     params: {
       mode: "payment",
+      payment_method_types: { 0: "card" },
       line_items: lineItems,
       expires_at: sessionExpiresAt,
       payment_intent_data: {
