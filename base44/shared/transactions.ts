@@ -5,20 +5,20 @@
 import { genOrderNumber } from "./marketplace.ts";
 import { reserveForCheckout, checkoutQuantity, RESERVATION_TTL_MINUTES } from "./inventory.ts";
 import { notifySafely } from "./notifications.ts";
+import { canUseInternalSimulator } from "./commerceAccess.ts";
 
 export const TEST_TAX_RATE = 0.0825; // 8.25% placeholder — TEST / ESTIMATED MODE, not production.
 export const VENDOR_CONFIRM_HOURS = 24;
 export { RESERVATION_TTL_MINUTES };
 
 // ---- Fee payer model ----
-// TEST MODE: the BUYER pays the displayed Tree Marketplace marketplace fee.
-// Buyer total = merchandise + delivery + tax + marketplace fee.
-// The vendor therefore receives the FULL merchandise subtotal — the fee is never
-// deducted a second time from vendor proceeds.
+// Standard model: a 4% seller commission on merchandise subtotal.
+// Buyer total excludes the seller commission; seller proceeds are reduced by the
+// commission exactly once. Historical CheckoutQuote snapshots retain their fee_payer.
 export const FEE_PAYER_BUYER = "buyer";
 export const FEE_PAYER_VENDOR = "vendor";
 export const FEE_PAYER_SPLIT = "split";
-export const DEFAULT_FEE_PAYER = FEE_PAYER_BUYER;
+export const DEFAULT_FEE_PAYER = FEE_PAYER_VENDOR;
 
 export function feePayerOf(rule) {
   return (rule && rule.fee_payer) || DEFAULT_FEE_PAYER;
@@ -35,7 +35,7 @@ export function fromCents(cents) {
 export async function getActiveFeeRule(svc) {
   const rules = await svc.entities.MarketplaceFeeRule.filter({ active: true }, "-effective_date", 10);
   if (rules && rules.length) return rules[0];
-  return { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 0, maximum_fee_cents: 0, fee_payer: DEFAULT_FEE_PAYER };
+  return { rule_name: "standard_seller_commission", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 0, maximum_fee_cents: 0, fee_payer: DEFAULT_FEE_PAYER };
 }
 
 export function calculateMarketplaceFeeCents(merchandiseCents, rule) {
@@ -97,7 +97,7 @@ export function calculateDeliveryOptionsCents(product, vendorDeliveryCents, vend
   }
   // Third-party carrier is a TEST-only simulated freight service. Live orders use buyer
   // pickup or vendor delivery only until a real carrier payment model exists.
-  if (commerceMode !== "live") {
+  if (commerceMode === "test") {
     options.push({ provider_type: "third_party_carrier", delivery_price_cents: 90000, service_type: "TEST FREIGHT — Third Party Carrier", estimated_delivery_days: 2 });
   }
   return options;
@@ -128,7 +128,7 @@ export async function assembleCheckout(svc, p) {
   const feePayer = feePayerOf(feeRule);
   const feeCents = calculateMarketplaceFeeCents(p.merchandise_cents, feeRule);
   const buyerFeeCents = buyerFeePortionCents(feeCents, feePayer);
-  const commerceMode = p.commerce_mode || "test";
+  const commerceMode = p.commerce_mode || "payments_disabled";
   const deliveryOptions = calculateDeliveryOptionsCents(p.product || { pickup_eligible: true, delivery_eligible: true }, p.vendor_delivery_cents, p.vendor_delivery_available, commerceMode);
   const selected = p.deliveryMethod ? deliveryOptions.find((o) => o.provider_type === p.deliveryMethod) : null;
   const deliveryCents = selected ? selected.delivery_price_cents : 0;
@@ -137,9 +137,9 @@ export async function assembleCheckout(svc, p) {
   // Live orders do not charge the simulated test tax — a real tax engine is not
   // configured yet. Tax is recorded as "not_configured" rather than charging a
   // placeholder rate as if it were real.
-  const tax = commerceMode === "live"
-    ? { taxCents: 0, rate: 0, provider: null, status: "not_configured" }
-    : calculateTestTaxCents(taxableCents);
+  const tax = commerceMode === "test"
+    ? calculateTestTaxCents(taxableCents)
+    : { taxCents: 0, rate: 0, provider: null, status: "not_configured" };
   const totalCents = p.merchandise_cents + deliveryCents + tax.taxCents + buyerFeeCents;
   const expiresAt = new Date(Date.now() + RESERVATION_TTL_MINUTES * 60000).toISOString();
   const dest = p.destination || {};
@@ -163,7 +163,7 @@ export async function assembleCheckout(svc, p) {
     checkout_quote_id: quote.id, commerce_mode: commerceMode, provider: tax.provider, jurisdiction: dest.state || null,
     taxable_amount_cents: taxableCents, taxable_delivery_amount_cents: taxableDeliveryCents,
     total_taxable_amount_cents: totalTaxableCents, tax_amount_cents: tax.taxCents, rate: tax.rate,
-    status: tax.status, collection_party: "trebay_test", remittance_responsibility: "trebay_test",
+    status: tax.status, collection_party: tax.provider || "not_configured", remittance_responsibility: tax.provider || "not_configured",
   });
   const destLabel = [dest.city, dest.state].filter(Boolean).join(", ");
   // Return the PERSISTED options (with ids) — the buyer selects one by id.
@@ -213,10 +213,10 @@ export async function applyDeliveryOption(svc, quoteId, optionId, address) {
   const buyerFeeCents = buyerFeePortionCents(quote.marketplace_fee_cents || 0, feePayer);
   const deliveryCents = option.delivery_price_cents;
   const taxableCents = quote.merchandise_subtotal_cents;
-  const isLive = quote.commerce_mode === "live";
-  const tax = isLive
-    ? { taxCents: 0, rate: 0, provider: null, status: "not_configured" }
-    : calculateTestTaxCents(taxableCents);
+  const isTest = quote.commerce_mode === "test";
+  const tax = isTest
+    ? calculateTestTaxCents(taxableCents)
+    : { taxCents: 0, rate: 0, provider: null, status: "not_configured" };
   const totalCents = quote.merchandise_subtotal_cents + deliveryCents + tax.taxCents + buyerFeeCents;
 
   // Lock the submitted destination onto the quote. The submitted checkout address
@@ -357,7 +357,7 @@ export async function createAllocationLedger(svc, order, cq, paymentRef) {
   // Money in.
   await createLedgerEntry(svc, {
     order_id: order.id, transaction_id: group, entry_key: "payment", entry_type: "payment", party_type: "buyer", party_id: order.buyer_id,
-    description: "Buyer payment (TEST MODE)", debit_cents: order.total_cents || cq.total_amount_cents, payment_reference: paymentRef || null,
+    description: order.commerce_mode === "live" ? "Buyer payment (Stripe)" : "Buyer payment (APPROVED TEST SIMULATION)", debit_cents: order.total_cents || cq.total_amount_cents, payment_reference: paymentRef || null,
   });
   // Money out (payables).
   await createLedgerEntry(svc, {
@@ -531,7 +531,7 @@ export async function createRefundLedger(svc, order, cq, amountCents, reason) {
   const group = refundGroup(order.id);
   await createLedgerEntry(svc, {
     order_id: order.id, transaction_id: group, entry_key: "buyer_refund", entry_type: "refund", party_type: "buyer", party_id: order.buyer_id,
-    description: "Refund to buyer (TEST) — " + (reason || "buyer refund"), credit_cents: amountCents,
+    description: (order.commerce_mode === "live" ? "Provider-confirmed refund to buyer — " : "Approved test refund to buyer — ") + (reason || "buyer refund"), credit_cents: amountCents,
   });
   if (cq) {
     // Reverse the payables that were allocated at payment.
@@ -778,6 +778,12 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
   }
   if (cq.processing_status === "consuming") throw new Error("Checkout is processing. Please retry shortly.");
   if (cq.expiration_at && new Date(cq.expiration_at) < new Date()) throw new Error("This checkout quote has expired. Please recalculate.");
+  if (cq.commerce_mode === "payments_disabled") {
+    throw new Error("Purchases are not available yet. Join the approved closed test or return when live payments launch.");
+  }
+  if (cq.commerce_mode === "test" && !(await canUseInternalSimulator(svc, user))) {
+    throw new Error("Simulated purchases are restricted to approved closed-test participants.");
+  }
   if (!cq.delivery_method) throw new Error("Please select a delivery option before placing your order.");
   if (cq.delivery_method !== "buyer_pickup") {
     if (!cq.destination_street || !cq.destination_city || !cq.destination_state || !cq.destination_zip) {
@@ -805,7 +811,7 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
   let order = null;
   try {
     order = await svc.entities.Order.create({
-    order_number: orderNumber, commerce_mode: cq.commerce_mode || "test", buyer_id: cq.buyer_id, vendor_id: cq.vendor_id, vendor_owner_id: cq.vendor_owner_id,
+    order_number: orderNumber, commerce_mode: cq.commerce_mode || "payments_disabled", buyer_id: cq.buyer_id, vendor_id: cq.vendor_id, vendor_owner_id: cq.vendor_owner_id,
     vendor_name: vendor?.business_name || "", quote_id: cq.quote_id || "", rfq_id: cq.rfq_id || "", checkout_quote_id: cq.id,
     items: (cq.items || []).map((i) => ({ line_name: i.line_name, quantity: i.quantity, unit_price: fromCents(i.unit_price_cents), subtotal: fromCents(i.subtotal_cents) })),
     subtotal: fromCents(cq.merchandise_subtotal_cents), delivery_charges: fromCents(cq.delivery_amount_cents),
