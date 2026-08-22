@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, ArrowLeft, ShieldCheck, AlertTriangle, MapPin, Truck, Package, Store, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { formatCents, apiError, TEST_MODE } from "@/lib/treebay";
+import { formatCents, apiError } from "@/lib/treebay";
 import VerifiedBadge from "@/components/VerifiedBadge";
 
 export default function Checkout() {
@@ -121,7 +121,8 @@ export default function Checkout() {
   const visibleOption = options.find((o) => o.id === selectedOption);
   const isPickup = visibleOption?.provider_type === "buyer_pickup";
   const deliveryReady = !!quote.delivery_method && visibleOption?.provider_type === quote.delivery_method;
-  const confirmDisabled = placing || expired || !deliveryReady || (!isPickup && addressDirty);
+  const paymentsDisabled = quote.commerce_mode === "payments_disabled";
+  const confirmDisabled = placing || paymentsDisabled || expired || !deliveryReady || (!isPickup && addressDirty);
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -131,9 +132,14 @@ export default function Checkout() {
         <p className="text-sm text-muted-foreground mt-1">Review your final delivered price — all fees disclosed upfront.</p>
       </div>
 
-      {TEST_MODE && quote.commerce_mode !== "live" && (
+      {quote.commerce_mode === "test" && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-          <AlertTriangle className="w-4 h-4 shrink-0" /> Test mode — payments and tax are simulated. No real money is charged.
+          <AlertTriangle className="w-4 h-4 shrink-0" /> Approved tester mode — payment, tax, freight, and payouts are simulated. No real money is charged.
+        </div>
+      )}
+      {paymentsDisabled && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-300 text-slate-800 text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" /> Purchases are not open yet. You can browse and join the closed test, but no order or payment can be submitted.
         </div>
       )}
       {quote.commerce_mode === "live" && (
@@ -184,7 +190,7 @@ export default function Checkout() {
                   <p className="text-xs text-muted-foreground">{formatCents(opt.delivery_price_cents)}{opt.estimated_delivery_days ? ` · ${opt.estimated_delivery_days} day(s)` : ""}</p>
                   {opt.provider_type === "third_party_carrier" && freightQuotes[opt.freight_quote_id] && (() => {
                     const fq = freightQuotes[opt.freight_quote_id];
-                    return <p className="text-[11px] text-amber-700 mt-0.5">TEST FREIGHT · {fq.quote_reference} · {fq.equipment_type || "equipment TBD"}{fq.estimated_transit_days ? ` · ~${fq.estimated_transit_days} day transit` : ""}{fq.expires_at ? ` · expires ${new Date(fq.expires_at).toLocaleString()}` : ""}</p>;
+                    return <p className="text-[11px] text-amber-700 mt-0.5">{quote.commerce_mode === "test" ? "APPROVED TEST FREIGHT" : "FREIGHT"} · {fq.quote_reference} · {fq.equipment_type || "equipment TBD"}{fq.estimated_transit_days ? ` · ~${fq.estimated_transit_days} day transit` : ""}{fq.expires_at ? ` · expires ${new Date(fq.expires_at).toLocaleString()}` : ""}</p>;
                   })()}
                 </div>
               </label>
@@ -244,7 +250,14 @@ export default function Checkout() {
             <PricingRow label="Merchandise" value={formatCents(quote.merchandise_subtotal_cents)} />
             {quote.bulk_discount_cents > 0 && <PricingRow label="Bulk discount" value={"-" + formatCents(quote.bulk_discount_cents)} />}
             <PricingRow label={"Delivery" + (quote.delivery_method ? ` (${quote.delivery_method.replace(/_/g, " ")})` : " (select option)")} value={formatCents(quote.delivery_amount_cents)} />
-            <PricingRow label="Tree Marketplace marketplace fee" value={formatCents(quote.marketplace_fee_cents)} />
+            {quote.marketplace_fee_cents > 0 && (
+              <PricingRow
+                label={quote.fee_payer === "vendor"
+                  ? "Seller commission (deducted from seller proceeds; not charged to you)"
+                  : "Marketplace fee (charged to buyer on this historical quote)"}
+                value={formatCents(quote.marketplace_fee_cents)}
+              />
+            )}
             <PricingRow label={"Sales tax" + (quote.tax_status === "test_estimated" ? " (TEST/ESTIMATED)" : "")} value={formatCents(quote.tax_amount_cents)} />
           </div>
           <Separator className="my-4" />
@@ -259,9 +272,9 @@ export default function Checkout() {
       </div>
 
       <Button onClick={placeOrder} disabled={confirmDisabled} className="w-full h-12 text-base font-medium">
-        {placing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />} Confirm & Place Order
+        {placing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />} {paymentsDisabled ? "Purchases Not Open Yet" : "Confirm & Place Order"}
       </Button>
-      {!deliveryReady && <p className="text-xs text-center text-muted-foreground">Apply the selected delivery option to continue.</p>}
+      {!paymentsDisabled && !deliveryReady && <p className="text-xs text-center text-muted-foreground">Apply the selected delivery option to continue.</p>}
       {deliveryReady && !isPickup && addressDirty && <p className="text-xs text-center text-amber-600 font-medium">Apply your updated delivery information before confirming the order.</p>}
     </div>
   );
