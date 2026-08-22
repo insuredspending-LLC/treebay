@@ -353,6 +353,7 @@ export async function processLivePaymentFailure(svc, orderId, reason) {
 // ---- Settlement transfer to the connected account ----
 export async function createVendorTransfer(svc, order, cq) {
   if (order.commerce_mode !== "live") return null;
+  if (!livePaymentsEnabled()) throw new Error("Live settlement transfers are paused.");
   if (order.stripe_transfer_id) return { alreadyTransferred: true, transferId: order.stripe_transfer_id };
   const vendor = await svc.entities.VendorProfile.get(order.vendor_id);
   if (!vendor || !vendor.stripe_account_id) throw new Error("Seller has no connected Stripe account for payout.");
@@ -454,7 +455,8 @@ export async function handleTransferFailed(svc, transfer) {
 
 export async function handlePayoutEvent(svc, event) {
   const payout = event.data.object;
-  const accountId = payout.destination;
+  const accountId = event.account;
+  if (!accountId) return;
   const vendors = await svc.entities.VendorProfile.filter({ stripe_account_id: accountId });
   const vendor = (vendors || [])[0];
   if (!vendor) return;
@@ -473,15 +475,17 @@ export async function handlePayoutEvent(svc, event) {
 // ---- Webhook signature verification (Web Crypto, available in Deno) ----
 export async function verifyWebhookSignature(rawBody, sigHeader) {
   if (!sigHeader) return false;
-  const parts = {};
+  let timestamp = null;
+  const signatures = [];
   for (const part of sigHeader.split(",")) {
-    const [k, v] = part.split("=");
-    if (k && v) parts[k.trim()] = v.trim();
+    const [key, value] = part.split("=");
+    if (key?.trim() === "t") timestamp = value?.trim();
+    if (key?.trim() === "v1" && value) signatures.push(value.trim());
   }
-  const timestamp = parts.t;
-  const signature = parts.v1;
-  if (!timestamp || !signature) return false;
-  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (!timestamp || !signatures.length) return false;
+  const timestampNumber = Number(timestamp);
+  if (!Number.isFinite(timestampNumber)) return false;
+  const age = Math.abs(Date.now() / 1000 - timestampNumber);
   if (age > 300) return false;
   const secret = env("STRIPE_WEBHOOK_SECRET");
   if (!secret) return false;
@@ -489,8 +493,10 @@ export async function verifyWebhookSignature(rawBody, sigHeader) {
   const data = new TextEncoder().encode(timestamp + "." + rawBody);
   const sigBuf = await crypto.subtle.sign("HMAC", key, data);
   const expected = [...new Uint8Array(sigBuf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  if (expected.length !== signature.length) return false;
-  let match = true;
-  for (let i = 0; i < expected.length; i++) { if (expected[i] !== signature[i]) match = false; }
-  return match;
+  return signatures.some((signature) => {
+    if (expected.length !== signature.length) return false;
+    let mismatch = 0;
+    for (let i = 0; i < expected.length; i++) mismatch |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+    return mismatch === 0;
+  });
 }
