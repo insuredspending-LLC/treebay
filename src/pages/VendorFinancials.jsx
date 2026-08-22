@@ -40,6 +40,7 @@ export default function VendorFinancials() {
         <StatCard icon={Receipt} label="Taxable Marketplace Sales" value={formatCents(v.totals.taxable_marketplace_sales_cents)} />
         <StatCard icon={Receipt} label="Tax Collected by Tree Marketplace" value={formatCents(v.totals.tax_collected_cents)} />
         <StatCard icon={Truck} label="Delivery Revenue" value={formatCents(v.totals.vendor_delivery_revenue_cents)} />
+        <StatCard icon={Receipt} label="Seller Commissions Deducted" value={formatCents(v.totals.vendor_fee_deduction_cents)} />
         <StatCard icon={CheckCircle2} label="Net Settled Proceeds" value={formatCents(v.totals.net_settled_proceeds_cents)} />
         <StatCard icon={Receipt} label="Refunds" value={formatCents(v.totals.refunds_cents)} />
       </div>
@@ -48,8 +49,9 @@ export default function VendorFinancials() {
       <Card className="p-4">
         <h2 className="font-semibold text-sm mb-2">Fee Policy</h2>
         <p className="text-sm text-muted-foreground">
-          Tree Marketplace marketplace fee: <strong>{v.totals.fee_payer === "buyer" ? "Buyer-paid" : v.totals.fee_payer}</strong>.
-          {v.totals.fee_payer === "buyer" && " The fee is NOT deducted from your proceeds."}
+          Current standard: <strong>{v.totals.current_commission_rate_percent ?? 4}% seller commission</strong> on merchandise subtotal,
+          retained from seller product-sale proceeds. It is not a buyer surcharge, download fee, account fee, or subscription.
+          {v.totals.fee_payer === "mixed" && " Historical orders with earlier fee rules remain reported under their original snapshots."}
         </p>
       </Card>
 
