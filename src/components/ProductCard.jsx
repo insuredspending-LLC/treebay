@@ -9,8 +9,8 @@ export default function ProductCard({ product, favorite, onToggleFavorite }) {
   const img = product.images?.[0];
   const status = product.listing_status || "active";
   return (
-    <Link to={`/product/${product.id}`} className="group block rounded-2xl border border-border bg-card overflow-hidden card-shadow card-shadow-hover hover:border-primary/30 no-tap-highlight">
-      <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+    <Link to={`/product/${product.id}`} className="group block rounded-3xl border border-border/80 bg-card overflow-hidden card-shadow card-shadow-hover hover:border-primary/30 no-tap-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+      <div className="relative aspect-[5/4] bg-muted overflow-hidden">
         {img ? (
           <Image src={img} alt={product.common_name} fittingType="fill" className="w-full h-full transition-transform duration-300 group-hover:scale-105" />
         ) : (
@@ -38,7 +38,7 @@ export default function ProductCard({ product, favorite, onToggleFavorite }) {
           </button>
         )}
       </div>
-      <div className="p-3 space-y-1.5">
+      <div className="p-3.5 space-y-1.5">
         <div>
           <h3 className="font-heading font-semibold text-sm text-foreground leading-snug line-clamp-1">{product.common_name}</h3>
           {product.botanical_name && <p className="text-xs text-muted-foreground italic line-clamp-1">{product.botanical_name}</p>}
