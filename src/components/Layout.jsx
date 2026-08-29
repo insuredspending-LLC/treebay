@@ -160,8 +160,8 @@ function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border pt-[env(safe-area-inset-top)]">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-30 bg-background/88 backdrop-blur-xl border-b border-border/70 shadow-[0_1px_0_hsl(var(--foreground)/0.02)] pt-[env(safe-area-inset-top)]">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
         {/* Left: brand + desktop nav */}
         <div className="flex items-center gap-6 min-w-0">
           {isChild ? (
@@ -171,7 +171,7 @@ function TopBar() {
             </div>
           ) : (
             <button onClick={() => navigate("/home")} className="flex items-center gap-2 no-tap-highlight shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
                 <Leaf className="w-5 h-5 text-primary-foreground" />
               </div>
               <span className="font-heading font-extrabold text-lg text-primary tracking-tight">Tree Marketplace</span>
@@ -182,7 +182,7 @@ function TopBar() {
               {desktopNav.map((item) => {
                 const active = isItemActive(location.pathname, item);
                 return (
-                  <Link key={item.to} to={item.to} className={cn("px-3 py-1.5 rounded-lg text-sm font-medium no-tap-highlight transition", active ? "bg-secondary text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
+                  <Link key={item.to} to={item.to} className={cn("px-3.5 py-2 rounded-xl text-sm font-medium no-tap-highlight transition-colors", active ? "bg-secondary text-primary shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary/60")}>
                     {item.label}
                   </Link>
                 );
@@ -285,10 +285,10 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar />
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-5 pb-24 md:pb-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 py-6 md:py-8 pb-24 md:pb-10">
         <Outlet />
       </main>
-      <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/92 backdrop-blur-xl border-t border-border/70 shadow-[0_-8px_30px_hsl(var(--foreground)/0.05)] md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className={nav.length === 4 ? "max-w-md mx-auto grid grid-cols-4" : "max-w-md mx-auto grid grid-cols-5"}>
           {nav.map((item) => {
             const active = isItemActive(location.pathname, item);
@@ -296,8 +296,8 @@ export default function Layout() {
               <Link
                 key={item.to}
                 to={item.to}
-                className={cn("flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium no-tap-highlight",
-                  active ? "text-primary" : "text-muted-foreground")}
+                className={cn("relative mx-0.5 my-1 flex flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium no-tap-highlight transition-colors",
+                  active ? "bg-secondary/80 text-primary" : "text-muted-foreground hover:bg-muted/70")}
               >
                 <item.icon className="w-5 h-5" />
                 {item.label}
