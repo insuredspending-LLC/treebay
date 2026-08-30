@@ -50,7 +50,7 @@ export default function ProductDetail() {
 
   if (loading) return (
     <div className="space-y-4">
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-[1.08fr_.92fr] gap-7 lg:gap-12">
         <div className="aspect-square rounded-2xl bg-muted skeleton-shimmer" />
         <div className="space-y-4">
           <div className="h-8 w-2/3 rounded-lg bg-muted skeleton-shimmer" />
@@ -135,15 +135,16 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => setReport(true)} className="text-muted-foreground">Report listing</Button>
+    <div className="space-y-8 md:space-y-10">
+      <div className="flex items-center justify-between border-b border-border/60 pb-4">
+        <Link to="/marketplace" className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-primary"><ChevronLeft className="h-4 w-4" /> Back to marketplace</Link>
+        <Button variant="ghost" size="sm" onClick={() => setReport(true)} className="rounded-full text-muted-foreground">Report listing</Button>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-[1.08fr_.92fr] gap-7 lg:gap-12">
         {/* Image gallery */}
-        <div className="space-y-3">
-          <div className="rounded-2xl overflow-hidden border border-border bg-muted aspect-square relative">
+        <div className="space-y-4 md:sticky md:top-28 md:self-start">
+          <div className="rounded-[2rem] overflow-hidden border border-border/60 bg-muted aspect-[4/5] relative">
             {imgs.length ? (
               <Image src={imgs[imgIdx]} alt={product.common_name} fittingType="fill" className="w-full h-full" />
             ) : (
@@ -163,7 +164,7 @@ export default function ProductDetail() {
           {imgs.length > 1 && (
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {imgs.map((src, i) => (
-                <button key={i} onClick={() => setImgIdx(i)} className={"w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 no-tap-highlight " + (i === imgIdx ? "border-primary" : "border-border")}>
+                <button key={i} onClick={() => setImgIdx(i)} className={"w-20 h-20 rounded-xl overflow-hidden border-2 shrink-0 no-tap-highlight " + (i === imgIdx ? "border-primary" : "border-border")}>
                   <Image src={src} alt="" fittingType="fill" className="w-full h-full" />
                 </button>
               ))}
@@ -172,12 +173,12 @@ export default function ProductDetail() {
         </div>
 
         {/* Product info */}
-        <div className="space-y-5">
+        <div className="space-y-6">
           <div>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h1 className="text-2xl font-heading font-bold text-foreground">{product.common_name}</h1>
-                {product.botanical_name && <p className="italic text-muted-foreground mt-0.5">{product.botanical_name}</p>}
+                <h1 className="font-display text-4xl md:text-5xl font-semibold leading-none text-foreground">{product.common_name}</h1>
+                {product.botanical_name && <p className="font-display text-xl italic text-muted-foreground mt-3">{product.botanical_name}</p>}
                 {product.cultivar && <p className="text-sm text-muted-foreground mt-0.5">Cultivar: {product.cultivar}</p>}
               </div>
               <Button variant="outline" size="icon" onClick={toggleFav} aria-label="Save" className="shrink-0">
@@ -194,10 +195,10 @@ export default function ProductDetail() {
           </div>
 
           {/* Pricing card */}
-          <Card className="p-5 card-shadow">
+          <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-heading font-bold text-primary">{showReqQuote ? "Request Quote" : formatCurrency(product.unit_price)}<span className="text-sm font-normal text-muted-foreground"> /ea</span></p>
+                <p className="text-4xl font-heading font-bold tracking-tight text-primary">{showReqQuote ? "Request Quote" : formatCurrency(product.unit_price)}<span className="text-sm font-normal text-muted-foreground"> /ea</span></p>
                 <p className="text-sm text-muted-foreground mt-1">{formatNumber(product.quantity_available)} available · min order {product.minimum_order_quantity || 1}</p>
               </div>
               {sellerVerified && <VerifiedBadge status="verified" />}
@@ -222,7 +223,7 @@ export default function ProductDetail() {
             <div className="flex items-end gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground font-medium">Quantity</label>
-                <Input type="number" min={product.minimum_order_quantity || 1} max={product.quantity_available} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} className="w-28 h-11" />
+                <Input type="number" min={product.minimum_order_quantity || 1} max={product.quantity_available} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} className="w-28 h-12 rounded-xl bg-card" />
               </div>
               <div className="flex-1 text-right">
                 {!showReqQuote && <p className="text-xs text-muted-foreground">Subtotal</p>}
@@ -233,7 +234,7 @@ export default function ProductDetail() {
               <p className="text-xs text-rose-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Only {product.quantity_available} available. Reduce quantity or request a quote.</p>
             )}
 
-            <Button onClick={buyNow} disabled={!canOrder || submitting} size="lg" className="w-full h-12 text-base">
+            <Button onClick={buyNow} disabled={!canOrder || submitting} size="lg" className="w-full h-14 rounded-full text-base">
               {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
               {!sellerActive ? "Seller unavailable" : showReqQuote ? "Request quote to buy" : "Start Order"}
             </Button>
@@ -249,7 +250,7 @@ export default function ProductDetail() {
           </div>
 
           {/* Add to project */}
-          <Card className="p-4 space-y-2">
+          <Card className="rounded-[1.5rem] border-border/65 bg-secondary/25 p-5 space-y-3">
             <label className="text-xs text-muted-foreground font-medium">Add to a project</label>
             <div className="flex gap-2">
               <Select value={addProject} onValueChange={setAddProject}>
@@ -265,10 +266,10 @@ export default function ProductDetail() {
 
       {/* Grower card */}
       {vendor && (
-        <Card className="p-5 card-shadow">
+        <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <Link to={`/vendor/${vendor.id}`} className="flex items-center gap-3 no-tap-highlight">
-              <div className="w-14 h-14 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
                 {vendor.logo_url ? <Image src={vendor.logo_url} alt={vendor.business_name} fittingType="fill" className="w-full h-full rounded-xl" /> : <Store className="w-7 h-7 text-primary" />}
               </div>
               <div>
@@ -286,7 +287,7 @@ export default function ProductDetail() {
       )}
 
       {/* Specifications */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-6">
         <SpecBlock title="Specifications" specs={[
           ["Container", product.container_size], ["Box", product.box_size], ["Caliper", product.caliper],
           ["Current height", product.current_height], ["Approx. spread", product.approximate_spread], ["SKU", product.sku],
@@ -299,7 +300,7 @@ export default function ProductDetail() {
       </div>
 
       {product.description && (
-        <Card className="p-5 card-shadow">
+        <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
           <h2 className="font-heading font-semibold mb-2">Description</h2>
           <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{product.description}</p>
         </Card>
@@ -328,9 +329,9 @@ function SpecBlock({ title, specs }) {
   const rows = specs.filter(([, v]) => v !== undefined && v !== null && v !== "");
   if (!rows.length) return null;
   return (
-    <Card className="p-5 card-shadow">
-      <h2 className="font-heading font-semibold mb-3">{title}</h2>
-      <dl className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+    <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
+      <h2 className="font-display text-2xl font-semibold mb-5">{title}</h2>
+      <dl className="grid grid-cols-2 gap-y-5 gap-x-6 text-sm">
         {rows.map(([k, v]) => <div key={k}><dt className="text-muted-foreground text-xs">{k}</dt><dd className="font-medium mt-0.5">{v}</dd></div>)}
       </dl>
     </Card>
