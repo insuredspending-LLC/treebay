@@ -4,7 +4,7 @@ import { BrandMark, BrandWordmark } from "@/components/Brand";
 
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
-    <div className="min-h-screen bg-[#f7f4ed]">
+    <div className="marketing-surface min-h-screen bg-[#f7f4ed] text-[#152119]">
       <div className="grid min-h-screen lg:grid-cols-[.95fr_1.05fr]">
         <aside className="relative hidden min-h-screen overflow-hidden bg-[#10251a] text-white lg:flex">
           <img src="/marketplace/tree-marketplace-nursery-hero.webp" alt="A professional nursery at morning light" className="absolute inset-0 h-full w-full object-cover object-[67%_50%]" />
