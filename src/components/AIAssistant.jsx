@@ -95,11 +95,11 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed z-40 bottom-20 right-4 md:bottom-6 md:right-6 h-12 px-4 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center gap-2 no-tap-highlight hover:bg-primary/90 transition card-shadow"
+          className="fixed z-40 bottom-20 right-4 lg:bottom-6 lg:right-6 h-12 w-12 lg:w-auto lg:px-4 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center gap-2 no-tap-highlight hover:bg-primary/90 transition card-shadow"
           aria-label="Open Tree Marketplace Assistant"
         >
           <Sparkles className="w-5 h-5" />
-          <span className="text-sm font-semibold">{onboarding ? "Setup help" : "Ask Tree Marketplace"}</span>
+          <span className="hidden lg:inline text-sm font-semibold">{onboarding ? "Setup help" : "Ask Tree Marketplace"}</span>
         </button>
       )}
 
