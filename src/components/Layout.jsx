@@ -161,7 +161,7 @@ function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-card/92 backdrop-blur-xl border-b border-border/65 pt-[env(safe-area-inset-top)]">
+    <header className="sticky top-0 z-30 bg-card/[0.92] backdrop-blur-xl border-b border-border/65 pt-[env(safe-area-inset-top)]">
       <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
         {/* Left: brand + desktop nav */}
         <div className="flex items-center gap-6 min-w-0">
