@@ -11,7 +11,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,28,18,.65),rgba(9,28,18,.3)_35%,rgba(9,28,18,.94))]" />
           <div className="relative flex w-full flex-col justify-between p-10 xl:p-14">
             <Link to="/" className="flex items-center gap-2.5">
-              <BrandMark className="h-10 w-10 rounded-full bg-white/12 ring-1 ring-white/20" />
+              <BrandMark className="h-10 w-10 rounded-full bg-white/[0.12] ring-1 ring-white/20" />
               <BrandWordmark className="text-xl text-white" />
             </Link>
             <div className="max-w-xl pb-6">
