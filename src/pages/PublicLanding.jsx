@@ -115,7 +115,7 @@ export default function PublicLanding() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f4ed] text-[#152119]">
+    <div className="marketing-surface min-h-screen bg-[#f7f4ed] text-[#152119]">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#10251a]/80 text-white backdrop-blur-xl">
         <div className="page-shell flex h-[4.5rem] items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2.5 no-tap-highlight" aria-label="Tree Marketplace home">
@@ -151,13 +151,13 @@ export default function PublicLanding() {
           <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(9,28,18,.68)_0%,transparent_45%)]" />
 
           <div className="page-shell relative flex min-h-[760px] items-center pt-24 lg:min-h-[820px]">
-            <div className="max-w-3xl py-16">
+            <div className="max-w-3xl pb-32 pt-12 sm:pt-16">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold tracking-wide text-[#e6efd8] backdrop-blur">
                 <Sprout className="h-4 w-4" />
                 The landscape supply marketplace
               </div>
 
-              <h1 className="mt-7 max-w-[13ch] font-display text-[3.65rem] font-semibold leading-[0.94] tracking-[-0.045em] text-white sm:text-[4.8rem] md:text-[6.4rem]">
+              <h1 className="mt-7 max-w-[13ch] font-display text-[3.15rem] font-semibold leading-[0.94] tracking-[-0.045em] text-white sm:text-[4.8rem] md:text-[6.4rem]">
                 Source plants. Compare suppliers. Move projects forward.
               </h1>
 
