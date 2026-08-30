@@ -83,6 +83,10 @@
     background-attachment: fixed;
   }
 
+  .dark body {
+    background-image: none;
+  }
+
   ::selection {
     background: hsl(var(--primary) / 0.18);
     color: hsl(var(--foreground));
