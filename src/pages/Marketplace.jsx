@@ -216,7 +216,7 @@ export default function Marketplace() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4"><SkeletonCard count={8} /></div>
+            <div className="grid grid-cols-1 gap-4 min-[440px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"><SkeletonCard count={8} /></div>
           ) : displayProducts.length === 0 ? (
             <div className="grid overflow-hidden rounded-[2rem] border border-border/70 bg-card md:grid-cols-[.7fr_1.3fr]">
               <div className="relative hidden min-h-[340px] bg-[#dce3d3] md:block">
@@ -243,7 +243,7 @@ export default function Marketplace() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 min-[440px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                 {displayProducts.map((product) => <ProductCard key={product.id} product={product} favorite={!!favs[product.id]} onToggleFavorite={() => toggleFav(product)} />)}
               </div>
               {hasMore && (
@@ -288,15 +288,15 @@ function FilterControls({ filters, setF, category, setCategory, states, reset, o
           <Select value={filters.state} onValueChange={(value) => setF("state", value)}><SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All states</SelectItem>{states.map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}</SelectContent></Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2"><Label>Container size</Label><Input value={filters.container} onChange={(event) => setF("container", event.target.value)} placeholder="5 gallon" className="h-11 rounded-xl" /></div>
-          <div className="space-y-2"><Label>Caliper</Label><Input value={filters.caliper} onChange={(event) => setF("caliper", event.target.value)} placeholder="4 inch" className="h-11 rounded-xl" /></div>
+          <div className="space-y-2"><Label>Container size</Label><Input aria-label="Container size" value={filters.container} onChange={(event) => setF("container", event.target.value)} placeholder="5 gallon" className="h-11 rounded-xl" /></div>
+          <div className="space-y-2"><Label>Caliper</Label><Input aria-label="Caliper" value={filters.caliper} onChange={(event) => setF("caliper", event.target.value)} placeholder="4 inch" className="h-11 rounded-xl" /></div>
         </div>
       </section>
 
       <section className="space-y-5 border-t border-border/70 pt-6">
         <p className="editorial-kicker">Price & quantity</p>
-        <div className="space-y-3"><Label>Maximum unit price <span className="float-right font-semibold text-primary">{filters.priceMax > 0 ? "$" + filters.priceMax : "Any"}</span></Label><Slider value={[filters.priceMax]} max={2000} step={25} onValueChange={(value) => setF("priceMax", value[0])} /></div>
-        <div className="space-y-3"><Label>Minimum available <span className="float-right font-semibold text-primary">{filters.minQty || "Any"}</span></Label><Slider value={[filters.minQty]} max={500} step={5} onValueChange={(value) => setF("minQty", value[0])} /></div>
+        <div className="space-y-3"><Label>Maximum unit price <span className="float-right font-semibold text-primary">{filters.priceMax > 0 ? "$" + filters.priceMax : "Any"}</span></Label><Slider aria-label="Maximum unit price" value={[filters.priceMax]} max={2000} step={25} onValueChange={(value) => setF("priceMax", value[0])} /></div>
+        <div className="space-y-3"><Label>Minimum available <span className="float-right font-semibold text-primary">{filters.minQty || "Any"}</span></Label><Slider aria-label="Minimum available quantity" value={[filters.minQty]} max={500} step={5} onValueChange={(value) => setF("minQty", value[0])} /></div>
       </section>
 
       <section className="space-y-4 border-t border-border/70 pt-6">
@@ -317,5 +317,5 @@ function FilterControls({ filters, setF, category, setCategory, states, reset, o
 }
 
 function ToggleRow({ label, checked, onChange, icon: Icon }) {
-  return <div className="flex items-center justify-between gap-4"><Label className="flex items-center gap-2 font-normal">{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}{label}</Label><Switch checked={checked} onCheckedChange={onChange} /></div>;
+  return <div className="flex items-center justify-between gap-4"><Label className="flex items-center gap-2 font-normal">{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}{label}</Label><Switch aria-label={label} checked={checked} onCheckedChange={onChange} /></div>;
 }
