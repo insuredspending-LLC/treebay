@@ -1,62 +1,49 @@
-import React from "react";
-import { Leaf, ShieldCheck, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, Leaf, ShieldCheck } from "lucide-react";
+import { BrandMark, BrandWordmark } from "@/components/Brand";
 
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-secondary via-background to-amber-50/50">
-      <div className="absolute -top-28 -left-24 w-72 h-72 rounded-full bg-primary/10 blur-3xl" />
-      <div className="absolute -bottom-32 -right-24 w-80 h-80 rounded-full bg-amber-300/20 blur-3xl" />
-
-      <div className="relative min-h-screen max-w-6xl mx-auto grid lg:grid-cols-[1fr_460px] gap-10 items-center px-4 sm:px-8 py-8">
-        <aside className="hidden lg:flex flex-col justify-between min-h-[620px] rounded-[36px] bg-primary text-primary-foreground p-10 shadow-2xl shadow-primary/20 overflow-hidden relative">
-          <div className="absolute -right-20 top-16 w-64 h-64 rounded-full border border-white/10" />
-          <div className="absolute -right-6 top-28 w-44 h-44 rounded-full border border-white/10" />
-          <div className="relative flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/12 border border-white/15 flex items-center justify-center">
-              <Leaf className="w-6 h-6" />
+    <div className="min-h-screen bg-[#f7f4ed]">
+      <div className="grid min-h-screen lg:grid-cols-[.95fr_1.05fr]">
+        <aside className="relative hidden min-h-screen overflow-hidden bg-[#10251a] text-white lg:flex">
+          <img src="/marketplace/tree-marketplace-nursery-hero.webp" alt="A professional nursery at morning light" className="absolute inset-0 h-full w-full object-cover object-[67%_50%]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,28,18,.65),rgba(9,28,18,.3)_35%,rgba(9,28,18,.94))]" />
+          <div className="relative flex w-full flex-col justify-between p-10 xl:p-14">
+            <Link to="/" className="flex items-center gap-2.5">
+              <BrandMark className="h-10 w-10 rounded-full bg-white/12 ring-1 ring-white/20" />
+              <BrandWordmark className="text-xl text-white" />
+            </Link>
+            <div className="max-w-xl pb-6">
+              <p className="text-[10px] font-bold uppercase tracking-[.24em] text-[#c6d9b4]">The landscape supply marketplace</p>
+              <h2 className="mt-6 font-display text-5xl font-semibold leading-[.98] tracking-tight xl:text-6xl">Great landscapes begin with better connections.</h2>
+              <p className="mt-6 max-w-lg text-base leading-7 text-white/65">Plants, growers, project pricing, and fulfillment—all in one considered workspace.</p>
+              <div className="mt-10 flex items-center gap-2 border-t border-white/15 pt-6 text-xs text-white/55">
+                <ShieldCheck className="h-4 w-4" /> Secure accounts · Test commerce clearly labeled
+              </div>
             </div>
-            <div>
-              <p className="font-heading font-extrabold text-2xl">Tree Marketplace</p>
-              <p className="text-xs text-white/65">The living marketplace</p>
-            </div>
-          </div>
-
-          <div className="relative max-w-lg">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/10 px-3 py-1.5 text-xs font-semibold mb-5">
-              <Sparkles className="w-3.5 h-3.5" /> Smarter plant sourcing
-            </div>
-            <h2 className="font-heading text-4xl font-extrabold leading-tight text-balance">Find the right plants, people, and prices in one place.</h2>
-            <p className="mt-5 text-white/75 text-lg">Tree Marketplace connects buyers, growers, and carriers with guided sourcing, bulk quotes, and clear order tracking.</p>
-          </div>
-
-          <div className="relative flex items-center gap-2 text-sm text-white/70">
-            <ShieldCheck className="w-4 h-4" /> Secure accounts · TEST commerce clearly labeled
           </div>
         </aside>
 
-        <main className="w-full max-w-md mx-auto">
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/15">
-              <Leaf className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <div>
-              <p className="font-heading font-extrabold text-xl text-primary leading-none">Tree Marketplace</p>
-              <p className="text-[10px] text-muted-foreground mt-1">The living marketplace</p>
-            </div>
+        <main className="flex min-h-screen flex-col px-5 py-7 sm:px-10 lg:px-14">
+          <div className="flex items-center justify-between">
+            <Link to="/" className="inline-flex items-center gap-2 text-xs font-semibold text-[#5b675e] transition hover:text-primary"><ArrowLeft className="h-4 w-4" /> Back to marketplace</Link>
+            <div className="flex items-center gap-2 lg:hidden"><Leaf className="h-5 w-5 text-primary" /><span className="text-sm font-bold text-primary">Tree Marketplace</span></div>
           </div>
 
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-secondary text-primary mb-4 ring-1 ring-primary/10">
-              <Icon className="w-6 h-6" aria-hidden="true" />
+          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-12 lg:py-16">
+            <div className="mb-8">
+              {Icon && <span className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#e5ebdc] text-primary"><Icon className="h-5 w-5" aria-hidden="true" /></span>}
+              <h1 className="font-display text-4xl font-semibold leading-none text-[#152119] sm:text-5xl">{title}</h1>
+              {subtitle && <p className="mt-4 text-sm leading-6 text-[#69736b]">{subtitle}</p>}
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">{title}</h1>
-            {subtitle && <p className="text-muted-foreground mt-2">{subtitle}</p>}
-          </div>
 
-          <div className="bg-card/95 backdrop-blur rounded-[28px] shadow-xl shadow-primary/5 border border-primary/10 p-6 sm:p-8">
-            {children}
+            <div className="rounded-[1.75rem] border border-[#152119]/10 bg-white p-6 shadow-[0_20px_70px_rgba(21,33,25,.055)] sm:p-8">
+              {children}
+            </div>
+            {footer && <p className="mt-6 text-center text-sm text-[#69736b]">{footer}</p>}
           </div>
-          {footer && <p className="text-center text-sm text-muted-foreground mt-6">{footer}</p>}
+          <p className="text-center text-[11px] text-[#8a938d]">Tree Marketplace · Trees, plants & delivery, connected.</p>
         </main>
       </div>
     </div>
