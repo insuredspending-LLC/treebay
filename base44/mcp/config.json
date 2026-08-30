@@ -1,3 +1,250 @@
 {
-  "auth": "oauth"
+  "auth": "oauth",
+  "login_path": null,
+  "consent_path": null,
+  "tools": {
+    "excluded_agents": [],
+    "entity_overrides": {
+      "BuyerProfile": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "CarrierProfile": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "Category": {
+        "operations": [
+          "read"
+        ],
+        "description": null
+      },
+      "CheckoutQuote": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "ContentReport": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "Conversation": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "CrashReport": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "DeletionRequest": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "DeliveryOption": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "Favorite": {
+        "operations": [
+          "read"
+        ],
+        "description": null
+      },
+      "FreightQuote": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "InventoryReservation": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "MarketplaceFeeRule": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "Message": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "Notification": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "Order": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "OrderEvent": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "PaymentAttempt": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "PaymentRecord": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "Project": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "RFQ": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "Review": {
+        "operations": [
+          "read"
+        ],
+        "description": null
+      },
+      "Shipment": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "ShipmentEvent": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "StripeEvent": {
+        "operations": [
+          "read",
+          "update"
+        ],
+        "description": null
+      },
+      "SystemException": {
+        "operations": [
+          "read"
+        ],
+        "description": null
+      },
+      "TaxCalculation": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "TesterSignup": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "TransactionDocument": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "TransactionLedgerEntry": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "UserBlock": {
+        "operations": [
+          "read",
+          "create"
+        ],
+        "description": null
+      },
+      "VendorProfile": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      },
+      "VendorQuote": {
+        "operations": [
+          "read",
+          "create",
+          "update"
+        ],
+        "description": null
+      }
+    },
+    "functions": []
+  }
 }
