@@ -171,7 +171,7 @@ function TopBar() {
               <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
             </div>
           ) : (
-            <button onClick={() => navigate("/home")} className="flex items-center gap-2 no-tap-highlight shrink-0">
+            <button onClick={() => navigate(accountType === "vendor" ? "/vendor" : accountType === "carrier" ? "/carrier" : "/home")} className="flex items-center gap-2 no-tap-highlight shrink-0">
               <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shadow-sm">
                 <Leaf className="w-5 h-5 text-primary-foreground" />
               </div>
@@ -179,7 +179,7 @@ function TopBar() {
             </button>
           )}
           {!isChild && (
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1">
               {desktopNav.map((item) => {
                 const active = isItemActive(location.pathname, item);
                 return (
@@ -210,7 +210,7 @@ function TopBar() {
               </PopoverContent>
             </Popover>
           )}
-          <Button variant="ghost" size="icon" className="md:hidden" asChild aria-label="Messages">
+          <Button variant="ghost" size="icon" className="hidden sm:inline-flex lg:hidden" asChild aria-label="Messages">
             <Link to="/messages"><MessageSquare className="w-5 h-5" /></Link>
           </Button>
           <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="Tree Marketplace Assistant">
@@ -275,7 +275,7 @@ function TopBar() {
               <Link to="/admin"><Shield className="w-5 h-5 text-primary" /></Link>
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="hidden md:inline-flex" asChild aria-label="Profile and account">
+          <Button variant="ghost" size="icon" className="hidden lg:inline-flex" asChild aria-label="Profile and account">
             <Link to="/account"><User className="w-5 h-5" /></Link>
           </Button>
         </div>
@@ -292,10 +292,10 @@ export default function Layout() {
   return (
     <div className="app-shell min-h-screen bg-background flex flex-col" data-workspace={accountType || "buyer"}>
       <TopBar />
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 py-6 md:py-9 pb-24 md:pb-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 py-6 md:py-9 pb-24 lg:pb-12">
         <Outlet />
       </main>
-      <nav className="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur-xl border-t border-border/60 shadow-[0_-8px_35px_hsl(var(--foreground)/0.035)] md:hidden pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur-xl border-t border-border/60 shadow-[0_-8px_35px_hsl(var(--foreground)/0.035)] lg:hidden pb-[env(safe-area-inset-bottom)]">
         <div className={nav.length === 4 ? "max-w-md mx-auto grid grid-cols-4" : "max-w-md mx-auto grid grid-cols-5"}>
           {nav.map((item) => {
             const active = isItemActive(location.pathname, item);
