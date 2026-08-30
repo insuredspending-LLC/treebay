@@ -289,6 +289,10 @@ export default function Layout() {
   const nav = accountType === "vendor" ? VENDOR_NAV : accountType === "carrier" ? CARRIER_NAV : BUYER_NAV;
   const location = useLocation();
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location.pathname]);
+
   return (
     <div className="app-shell min-h-screen bg-background flex flex-col" data-workspace={accountType || "buyer"}>
       <TopBar />
