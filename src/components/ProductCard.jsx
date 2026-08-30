@@ -30,7 +30,7 @@ export default function ProductCard({ product, favorite, onToggleFavorite }) {
           </div>
         )}
 
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#10251a]/38 via-transparent to-transparent opacity-70" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#10251a]/[0.38] via-transparent to-transparent opacity-70" />
 
         {status !== "active" && (
           <span className="absolute left-3 top-3 rounded-full bg-[#7f3029] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
@@ -39,7 +39,7 @@ export default function ProductCard({ product, favorite, onToggleFavorite }) {
         )}
 
         {product.verified_vendor && status === "active" && (
-          <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-[#173522]/88 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur">
+          <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-[#173522]/[0.88] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur">
             <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M20 6L9 17l-5-5" /></svg>
             Verified grower
           </span>
