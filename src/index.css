@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root, .marketing-surface {
     --background: 43 31% 97%;
     --foreground: 146 20% 11%;
     --card: 42 36% 99%;
