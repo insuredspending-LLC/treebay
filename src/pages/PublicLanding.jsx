@@ -404,6 +404,7 @@ export default function PublicLanding() {
                       Request access
                     </Button>
                   </form>
+                  <p className="mt-5 text-center"><a href="https://play.google.com/apps/testing/com.insuredspending.treebay" target="_blank" rel="noreferrer" className="text-sm font-semibold text-primary underline underline-offset-4">Already invited? Join the closed test</a></p>
                   <p className="mt-4 text-xs text-muted-foreground">We use this email only to manage testing participation. See our <Link to="/privacy" className="underline underline-offset-2">Privacy Policy</Link>.</p>
                 </>
               )}
