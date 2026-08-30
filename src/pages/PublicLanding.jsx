@@ -36,6 +36,7 @@ const TESTER_REQUIREMENTS = [
 const CATEGORY_TILES = [
   {
     name: "Specimen trees",
+    category: "Trees",
     detail: "Shade, ornamental & evergreen",
     image: "/marketplace/category-trees.webp",
     icon: TreePine,
@@ -43,6 +44,7 @@ const CATEGORY_TILES = [
   },
   {
     name: "Native plants",
+    category: "Native Plants",
     detail: "Resilient regional selections",
     image: "/marketplace/category-native.webp",
     icon: Flower2,
@@ -50,6 +52,7 @@ const CATEGORY_TILES = [
   },
   {
     name: "Palms",
+    category: "Palms",
     detail: "Architectural & tropical",
     image: "/marketplace/category-palms.webp",
     icon: Leaf,
@@ -94,7 +97,7 @@ export default function PublicLanding() {
   const beginSearch = (event) => {
     event.preventDefault();
     const query = search.trim();
-    navigate(query ? "/register?search=" + encodeURIComponent(query) : "/register");
+    navigate("/register?returnTo=" + encodeURIComponent("/marketplace" + (query ? "?q=" + encodeURIComponent(query) : "")));
   };
 
   const submitTesterRequest = async (event) => {
@@ -212,7 +215,7 @@ export default function PublicLanding() {
               return (
                 <Link
                   key={item.name}
-                  to={"/register?category=" + encodeURIComponent(item.name)}
+                  to={"/register?returnTo=" + encodeURIComponent("/marketplace?category=" + encodeURIComponent(item.category))}
                   className={"group relative min-h-[320px] overflow-hidden rounded-[2rem] bg-[#1c2c22] " + item.className}
                 >
                   <img src={item.image} alt="" className="image-zoom absolute inset-0 h-full w-full object-cover" />
@@ -236,8 +239,8 @@ export default function PublicLanding() {
               <div>
                 <p className="text-xs font-bold uppercase tracking-[.18em] text-[#295438]">More to source</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {["Shrubs", "Groundcover", "Perennials", "Materials", "Evergreens"].map((name) => (
-                    <Link key={name} to={"/register?category=" + name} className="rounded-full border border-[#295438]/15 bg-white/45 px-3 py-2 text-sm font-semibold text-[#173522] transition hover:bg-white">
+                  {["Shrubs", "Groundcover", "Flowers", "Ornamental Grasses"].map((name) => (
+                    <Link key={name} to={"/register?returnTo=" + encodeURIComponent("/marketplace?category=" + encodeURIComponent(name))} className="rounded-full border border-[#295438]/15 bg-white/45 px-3 py-2 text-sm font-semibold text-[#173522] transition hover:bg-white">
                       {name}
                     </Link>
                   ))}
@@ -327,7 +330,7 @@ export default function PublicLanding() {
               </div>
               <div>
                 <p className="max-w-xl text-base leading-7 text-[#5c675f]">
-                  Publish availability, respond to qualified project requests, manage orders, and prepare your payout account—all without turning your nursery into a software company.
+                  Publish availability, respond to qualified project requests, manage orders, and view payout readiness—all without turning your nursery into a software company.
                 </p>
                 <div className="mt-7 flex flex-wrap gap-3">
                   <Button className="rounded-full" asChild><Link to="/register">Join as a grower <ArrowRight className="h-4 w-4" /></Link></Button>
