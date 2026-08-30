@@ -170,10 +170,10 @@ export default function PublicLanding() {
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search trees, plants & materials"
                     aria-label="Search plants"
-                    className="h-13 border-0 bg-transparent pl-12 text-base text-[#152119] shadow-none focus-visible:ring-0"
+                    className="h-14 border-0 bg-transparent pl-12 text-base text-[#152119] shadow-none focus-visible:ring-0"
                   />
                 </div>
-                <Button type="submit" size="lg" className="h-13 rounded-xl px-7">Search marketplace</Button>
+                <Button type="submit" size="lg" className="h-14 rounded-xl px-7">Search marketplace</Button>
               </form>
 
               <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/62">
