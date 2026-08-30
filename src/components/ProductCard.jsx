@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Heart, MapPin, Package } from "lucide-react";
+import { ArrowUpRight, Heart, MapPin, TreePine } from "lucide-react";
 import { Image } from "@/components/ui/image";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/treebay";
@@ -13,7 +13,7 @@ export default function ProductCard({ product, favorite, onToggleFavorite }) {
   return (
     <Link
       to={"/product/" + product.id}
-      className="group block overflow-hidden rounded-[1.6rem] border border-border/65 bg-card card-shadow card-shadow-hover no-tap-highlight focus-visible:outline-none"
+      className="group block overflow-hidden rounded-[1.6rem] border border-border/65 bg-card card-shadow card-shadow-hover no-tap-highlight"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-[#e7e8df]">
         {image ? (
@@ -24,8 +24,9 @@ export default function ProductCard({ product, favorite, onToggleFavorite }) {
             className="image-zoom h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(145deg,#e7eadf,#d8dfd2)] text-[#6f7a72]">
-            <Package className="h-10 w-10 opacity-45" />
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(145deg,#e7eadf,#d8dfd2)] text-[#526455]">
+            <TreePine className="h-12 w-12 opacity-55" strokeWidth={1.25} />
+            <span className="text-[10px] uppercase tracking-[.18em]">Photo not supplied</span>
           </div>
         )}
 
@@ -71,7 +72,7 @@ export default function ProductCard({ product, favorite, onToggleFavorite }) {
         </div>
 
         {(product.caliper || product.container_size) && (
-          <p className="mt-3 text-xs font-medium text-[#59645c]">
+          <p className="mt-3 text-xs font-medium text-muted-foreground">
             {[product.caliper && product.caliper + " cal", product.container_size].filter(Boolean).join(" · ")}
           </p>
         )}
