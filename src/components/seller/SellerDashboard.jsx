@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, FileText, Package, Plus, Sparkles, Truck } from "lucide-react";
 import { formatNumber, shortDate } from "@/lib/treebay";
+import StripeConnectCard from "@/components/seller/StripeConnectCard";
 
 export default function SellerDashboard({ vendor }) {
   const [data, setData] = useState({ products: [], orders: [], rfqs: [] });
@@ -99,6 +100,8 @@ export default function SellerDashboard({ vendor }) {
           </div>
         </div>
       </section>
+
+      <StripeConnectCard vendor={vendor} />
 
       <section className="grid gap-6 lg:grid-cols-2">
         <List title="Recent orders" link="/vendor/orders" items={data.orders.slice(0, 4)} render={(order) => (<><b>{order.order_number}</b><span>{shortDate(order.created_date)} · {order.order_status.replaceAll("_", " ")}</span></>)} empty="Your next order will appear here." />
