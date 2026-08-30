@@ -119,7 +119,7 @@ export default function PublicLanding() {
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#10251a]/80 text-white backdrop-blur-xl">
         <div className="page-shell flex h-[4.5rem] items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2.5 no-tap-highlight" aria-label="Tree Marketplace home">
-            <BrandMark className="h-9 w-9 rounded-full bg-white/12 ring-1 ring-white/20" />
+            <BrandMark className="h-9 w-9 rounded-full bg-white/[0.12] ring-1 ring-white/20" />
             <BrandWordmark className="text-lg text-white sm:text-xl" />
           </Link>
 
@@ -161,7 +161,7 @@ export default function PublicLanding() {
                 Source plants. Compare suppliers. Move projects forward.
               </h1>
 
-              <p className="mt-7 max-w-2xl text-base leading-7 text-white/72 sm:text-lg md:text-xl">
+              <p className="mt-7 max-w-2xl text-base leading-7 text-white/[0.72] sm:text-lg md:text-xl">
                 Discover nursery inventory, request project pricing, and coordinate fulfillment with growers built for professional landscape work.
               </p>
 
@@ -179,7 +179,7 @@ export default function PublicLanding() {
                 <Button type="submit" size="lg" className="h-14 rounded-xl px-7">Search marketplace</Button>
               </form>
 
-              <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/62">
+              <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/[0.62]">
                 <span className="inline-flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-[#dce9c9]" /> Qualified growers</span>
                 <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4 text-[#dce9c9]" /> Location-aware sourcing</span>
                 <span className="inline-flex items-center gap-2"><Truck className="h-4 w-4 text-[#dce9c9]" /> Pickup and delivery options</span>
@@ -219,12 +219,12 @@ export default function PublicLanding() {
                   className={"group relative min-h-[320px] overflow-hidden rounded-[2rem] bg-[#1c2c22] " + item.className}
                 >
                   <img src={item.image} alt="" className="image-zoom absolute inset-0 h-full w-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/8 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/[0.08] to-transparent" />
                   <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-6 text-white md:p-8">
                     <div>
                       <Icon className="mb-3 h-5 w-5 text-[#dce9c9]" />
                       <h3 className="text-2xl font-bold">{item.name}</h3>
-                      <p className="mt-1 text-sm text-white/68">{item.detail}</p>
+                      <p className="mt-1 text-sm text-white/[0.68]">{item.detail}</p>
                     </div>
                     <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur transition group-hover:bg-white group-hover:text-[#173522]">
                       <ArrowRight className="h-5 w-5" />
@@ -266,7 +266,7 @@ export default function PublicLanding() {
                 </Button>
               </div>
 
-              <div className="divide-y divide-[#152119]/12 border-y border-[#152119]/12">
+              <div className="divide-y divide-[#152119]/[0.12] border-y border-[#152119]/[0.12]">
                 {WORKFLOW.map((step) => {
                   const Icon = step.icon;
                   return (
@@ -295,7 +295,7 @@ export default function PublicLanding() {
                 <h2 className="mt-5 max-w-2xl font-display text-4xl font-semibold leading-[.98] md:text-6xl">
                   Need 20, 200, or 2,000 plants?
                 </h2>
-                <p className="mt-6 max-w-xl text-base leading-7 text-white/66">
+                <p className="mt-6 max-w-xl text-base leading-7 text-white/[0.66]">
                   Build one request, invite qualified growers, compare complete pricing, and keep every response attached to the project.
                 </p>
                 <Button size="lg" className="mt-8 rounded-full bg-[#dce9c9] text-[#173522] hover:bg-white" asChild>
@@ -339,7 +339,7 @@ export default function PublicLanding() {
               </div>
             </div>
 
-            <div className="mt-14 grid gap-8 border-t border-[#152119]/12 pt-10 md:grid-cols-3">
+            <div className="mt-14 grid gap-8 border-t border-[#152119]/[0.12] pt-10 md:grid-cols-3">
               {[
                 [Store, "A storefront built for inventory", "Show buyers what is available now, including sizes, quantities, bulk tiers, and fulfillment options."],
                 [FileText, "RFQs worth responding to", "Review project requirements in a consistent format and keep quotes connected to buyer decisions."],
@@ -418,7 +418,7 @@ export default function PublicLanding() {
           <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="flex items-center gap-2.5"><BrandMark className="h-9 w-9 rounded-full bg-white/10" /><BrandWordmark className="text-white" /></div>
-              <p className="mt-3 max-w-md text-sm text-white/52">Trees, plants, suppliers, and fulfillment—connected for professional landscape work.</p>
+              <p className="mt-3 max-w-md text-sm text-white/[0.52]">Trees, plants, suppliers, and fulfillment—connected for professional landscape work.</p>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/60">
               <Link to="/privacy" className="hover:text-white">Privacy</Link>
