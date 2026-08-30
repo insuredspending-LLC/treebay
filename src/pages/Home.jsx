@@ -71,7 +71,7 @@ export default function Home() {
             <h1 className="mt-5 max-w-[13ch] font-display text-[2.65rem] font-semibold leading-[.97] tracking-tight sm:text-6xl md:text-7xl">
               Good projects start with great plants.
             </h1>
-            <p className="mt-5 max-w-lg text-sm leading-6 text-white/68 md:text-base">Source inventory, compare growers, and keep the work moving.</p>
+            <p className="mt-5 max-w-lg text-sm leading-6 text-white/[0.68] md:text-base">Source inventory, compare growers, and keep the work moving.</p>
 
             <form onSubmit={search} className="mt-7 flex max-w-xl gap-2 rounded-[1.15rem] bg-white p-2 shadow-xl shadow-black/20">
               <div className="relative min-w-0 flex-1">
