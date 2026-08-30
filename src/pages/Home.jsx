@@ -68,7 +68,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,28,18,.94),rgba(9,28,18,.70)_52%,rgba(9,28,18,.15))]" />
           <div className="relative max-w-3xl p-7 py-12 sm:p-10 md:p-14">
             <p className="text-[10px] font-bold uppercase tracking-[.24em] text-[#ccddbb]">Your next project starts here</p>
-            <h1 className="mt-5 max-w-[13ch] font-display text-[3.1rem] font-semibold leading-[.97] tracking-tight sm:text-6xl md:text-7xl">
+            <h1 className="mt-5 max-w-[13ch] font-display text-[2.65rem] font-semibold leading-[.97] tracking-tight sm:text-6xl md:text-7xl">
               Good projects start with great plants.
             </h1>
             <p className="mt-5 max-w-lg text-sm leading-6 text-white/68 md:text-base">Source inventory, compare growers, and keep the work moving.</p>
@@ -97,9 +97,9 @@ export default function Home() {
             <Link to="/marketplace" className="inline-flex items-center gap-2 text-sm font-semibold text-primary">All inventory <ArrowRight className="h-4 w-4" /></Link>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="mt-6 flex gap-4 overflow-x-auto pb-2 scrollbar-hide sm:grid sm:grid-cols-3">
             {COLLECTIONS.map((collection) => (
-              <Link key={collection.name} to={"/marketplace?category=" + encodeURIComponent(collection.name)} className="group relative h-64 overflow-hidden rounded-[1.75rem] bg-[#263c2c] sm:h-72">
+              <Link key={collection.name} to={"/marketplace?category=" + encodeURIComponent(collection.name)} className="group relative h-64 w-[82%] shrink-0 overflow-hidden sm:w-auto rounded-[1.75rem] bg-[#263c2c] sm:h-72">
                 <img src={collection.image} alt="" className="image-zoom absolute inset-0 h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#07170d]/85 via-[#07170d]/5 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-6 text-white">
@@ -135,7 +135,7 @@ export default function Home() {
           )}
         </section>
 
-        <section className="grid overflow-hidden rounded-[2rem] bg-[#ede8dd] lg:grid-cols-[1fr_1fr]">
+        <section className="grid overflow-hidden rounded-[2rem] bg-[#ede8dd] text-[#152119] lg:grid-cols-[1fr_1fr]">
           <div className="p-7 sm:p-10 md:p-12">
             <p className="editorial-kicker">Built for bigger plant lists</p>
             <h2 className="mt-4 max-w-lg font-display text-4xl font-semibold leading-none md:text-5xl">One request.<br />Better options.</h2>
