@@ -40,7 +40,7 @@ export default function Marketplace() {
   const sortConfig = filters.sort === "price_asc" ? { field: "unit_price", sort: "unit_price", direction: 1 } : filters.sort === "price_desc" ? { field: "unit_price", sort: "-unit_price", direction: -1 } : filters.sort === "qty" ? { field: "quantity_available", sort: "-quantity_available", direction: -1 } : { field: "created_date", sort: "-created_date", direction: -1 };
 
   const serverFilters = useMemo(() => {
-    const next = { listing_status: "active" };
+    const next = { listing_status: "active", is_test_fixture: false };
     if (vendorId) next.vendor_id = vendorId;
     if (category !== "all") next.category = category;
     if (filters.state !== "all") next.vendor_state = filters.state;
