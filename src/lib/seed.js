@@ -39,16 +39,18 @@ export async function seedDemoData() {
 
   const createdVendors = [];
   for (const v of VENDORS) {
-    const created = await base44.entities.VendorProfile.create({ ...v });
+    const created = await base44.entities.VendorProfile.create({ ...v, is_test_fixture: true, selling_status: "active" });
     createdVendors.push(created);
   }
 
   const productsToCreate = PRODUCTS.map((p) => {
     const vendor = createdVendors[p.vendor];
     return {
+      is_test_fixture: true,
       common_name: p.common_name, botanical_name: p.botanical_name, category: p.category,
       description: p.description, caliper: p.caliper, container_size: p.container_size,
-      current_height: p.current_height, quantity_available: p.quantity_available,
+      current_height: p.current_height, physical_quantity: p.quantity_available,
+      quantity_available: p.quantity_available, quantity_reserved: 0, quantity_sold: 0,
       unit_price: p.unit_price, minimum_order_quantity: p.minimum_order_quantity || 1,
       wholesale_eligible: !!p.wholesale_eligible, pickup_eligible: true, delivery_eligible: vendor.delivery_available,
       native_status: !!p.native_status, foliage_type: p.foliage_type || "",
