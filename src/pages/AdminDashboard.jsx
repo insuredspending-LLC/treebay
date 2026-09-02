@@ -79,7 +79,12 @@ export default function AdminDashboard() {
     }
   };
 
-  const pendingVendors = vendors.filter((v) => v.verification_status === "pending");
+  const productionVendors = vendors.filter((vendor) => vendor.is_test_fixture !== true);
+  const productionProducts = products.filter((product) => product.is_test_fixture !== true);
+  const publishedProducts = productionProducts.filter((product) => product.listing_status === "active");
+  const activeListingsMissingPhotos = publishedProducts.filter((product) => !product.images?.length);
+  const testFixtureCount = products.filter((product) => product.is_test_fixture === true).length + vendors.filter((vendor) => vendor.is_test_fixture === true).length;
+  const pendingVendors = productionVendors.filter((vendor) => vendor.verification_status === "pending");
 
   return (
     <div className="space-y-4">
@@ -88,10 +93,7 @@ export default function AdminDashboard() {
           <ShieldAlert className="w-6 h-6 text-primary" />
           <div><h1 className="text-xl font-bold">Admin console</h1><p className="text-sm text-muted-foreground">Marketplace oversight & moderation.</p></div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={runMaintenance} disabled={runningMaint}>{runningMaint ? "Running…" : "Run maintenance"}</Button>
-          <Button variant="outline" size="sm" onClick={seed} disabled={seeding}>{seeding ? "Loading…" : "Seed demo data"}</Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={runMaintenance} disabled={runningMaint}>{runningMaint ? "Running…" : "Run maintenance"}</Button>
       </div>
 
       {loading ? <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div> : (
@@ -128,11 +130,28 @@ export default function AdminDashboard() {
                 </div>
               </Card>
             )}
+            <Card className="overflow-hidden border-border/70">
+              <div className="flex flex-col gap-3 border-b border-border/70 bg-secondary/35 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Production readiness</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">A concise view of what buyers can safely see and use.</p>
+                </div>
+                <Badge variant={activeListingsMissingPhotos.length || exceptions.length ? "destructive" : "secondary"}>
+                  {activeListingsMissingPhotos.length || exceptions.length ? "Attention needed" : "Controls healthy"}
+                </Badge>
+              </div>
+              <div className="grid gap-px bg-border/60 sm:grid-cols-2 lg:grid-cols-4">
+                <ReadinessItem label="Test records" value={testFixtureCount ? testFixtureCount + " isolated" : "None found"} ok />
+                <ReadinessItem label="Published inventory" value={publishedProducts.length + " buyer-visible"} ok={publishedProducts.length > 0} />
+                <ReadinessItem label="Missing listing photos" value={activeListingsMissingPhotos.length + " published"} ok={activeListingsMissingPhotos.length === 0} />
+                <ReadinessItem label="Open exceptions" value={String(exceptions.length)} ok={exceptions.length === 0} />
+              </div>
+            </Card>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Stat icon={ShoppingCart} label="LIVE orders today" value={orders.filter((o) => o.commerce_mode === "live" && shortDate(o.created_date) === shortDate(new Date())).length} />
               <Stat icon={BarChart3} label="LIVE gross volume" value={formatCurrency(orders.filter((o) => o.commerce_mode === "live").reduce((s, o) => s + (o.total || 0), 0))} />
-              <Stat icon={Store} label="Vendors" value={vendors.length} />
-              <Stat icon={Package} label="Listings" value={products.length} />
+              <Stat icon={Store} label="Production growers" value={productionVendors.length} />
+              <Stat icon={Package} label="Published listings" value={publishedProducts.length} />
             </div>
             <Card className="p-4">
               <h2 className="font-semibold mb-2">System health</h2>
@@ -312,7 +331,14 @@ export default function AdminDashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="simulator">
+          <TabsContent value="simulator" className="space-y-4">
+            <Card className="flex flex-col gap-4 border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-amber-950">Internal test fixtures</p>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-amber-900">Simulator records are tagged and excluded from the buyer marketplace. Never use them as real inventory.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={seed} disabled={seeding}>{seeding ? "Preparing…" : "Create isolated fixtures"}</Button>
+            </Card>
             <TestSimulator orders={orders} onChanged={load} />
           </TabsContent>
         </Tabs>
@@ -323,6 +349,18 @@ export default function AdminDashboard() {
 
 function Stat({ icon: Icon, label, value }) {
   return <Card className="p-4"><Icon className="w-5 h-5 text-primary" /><p className="text-2xl font-bold mt-2">{value}</p><p className="text-xs text-muted-foreground">{label}</p></Card>;
+}
+
+function ReadinessItem({ label, value, ok }) {
+  return (
+    <div className="bg-card p-4">
+      <div className="flex items-center gap-2">
+        {ok ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <ShieldAlert className="h-4 w-4 text-amber-600" />}
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      </div>
+      <p className="mt-2 text-sm font-semibold">{value}</p>
+    </div>
+  );
 }
 
 function HealthRow({ label, status }) {
