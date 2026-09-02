@@ -108,6 +108,14 @@
 }
 
 @layer components {
+  .skip-link {
+    @apply fixed left-4 top-3 z-[100] -translate-y-24 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform;
+  }
+
+  .skip-link:focus {
+    @apply translate-y-0;
+  }
+
   .page-shell {
     @apply mx-auto w-full max-w-7xl px-4 md:px-6;
   }
