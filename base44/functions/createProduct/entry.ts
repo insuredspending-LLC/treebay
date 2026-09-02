@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { isPositiveNumber, isNonNegativeNumber } from "../../shared/marketplace.ts";
+import { isPositiveNumber, isNonNegativeNumber, listingReadinessErrors } from "../../shared/marketplace.ts";
 import { vendorCanSell } from "../../shared/transactions.ts";
 
 const ALLOWED = ["common_name","botanical_name","cultivar","category","description","sku","container_size","box_size","caliper","current_height","approximate_spread","quantity_available","unit_price","minimum_order_quantity","wholesale_eligible","pickup_eligible","delivery_eligible","native_status","foliage_type","usda_zones","sun_requirement","water_requirement","mature_height","mature_spread","listing_status","bulk_price_tiers","images"];
@@ -40,7 +40,13 @@ export default async function(req) {
     payload.quantity_sold = 0;
     payload.unit_price = price;
     payload.minimum_order_quantity = moq;
-    payload.listing_status = qty <= 0 ? "sold_out" : (payload.listing_status || "active");
+    payload.listing_status = qty <= 0 ? "sold_out" : (payload.listing_status || "paused");
+    if (payload.listing_status === "active") {
+      const readinessErrors = listingReadinessErrors(payload);
+      if (readinessErrors.length) {
+        return Response.json({ error: "Complete this listing before publishing: " + readinessErrors.join(" ") }, { status: 400 });
+      }
+    }
 
     const product = await svc.entities.Product.create(payload);
     return Response.json({ product });
