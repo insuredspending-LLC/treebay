@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Trash2, Loader2, Upload, X, Save, Package, Check, Truck, DollarSign, Image as ImageIcon, ClipboardList, Leaf } from "lucide-react";
 import { Image } from "@/components/ui/image";
-import { CATEGORIES, formatNumber, formatCurrency, apiError } from "@/lib/treebay";
+import { CATEGORIES, formatNumber, formatCurrency, apiError, listingReadiness } from "@/lib/treebay";
 
 const EMPTY = {
   common_name: "", botanical_name: "", cultivar: "", category: "Trees", description: "", sku: "",
@@ -20,7 +20,7 @@ const EMPTY = {
   quantity_available: 1, unit_price: 0, minimum_order_quantity: 1,
   wholesale_eligible: false, pickup_eligible: true, delivery_eligible: true,
   native_status: false, foliage_type: "", usda_zones: "", sun_requirement: "", water_requirement: "",
-  mature_height: "", mature_spread: "", featured: false, listing_status: "active",
+  mature_height: "", mature_spread: "", featured: false, listing_status: "paused",
   bulk_price_tiers: [], images: [],
 };
 
@@ -49,6 +49,9 @@ export default function ProductForm() {
   const [loading, setLoading] = useState(!!id);
   const [searchParams] = useSearchParams();
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const readiness = listingReadiness(f);
+  const readyToPublish = readiness.length === 0;
+  const visibleStatus = f.listing_status === "active" ? "active" : "paused";
   const exitToBuyer = async () => {
     await switchAccountType("buyer");
     navigate("/home", { replace: true });
@@ -101,6 +104,10 @@ export default function ProductForm() {
   const save = async () => {
     if (!vendor) { toast({ title: "No vendor profile", variant: "destructive" }); return; }
     if (!f.common_name || !f.category || f.unit_price <= 0) { toast({ title: "Name, category, and price are required", variant: "destructive" }); return; }
+    if (f.listing_status === "active" && !readyToPublish) {
+      toast({ title: "This listing is not ready to publish", description: "Complete: " + readiness.join(", ") + ".", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -150,7 +157,8 @@ export default function ProductForm() {
 
       {/* Photos */}
       <Card className="p-4 space-y-3">
-        <SectionTitle icon={ImageIcon} title="Photos" />
+        <SectionTitle icon={ImageIcon} title="Photos * to publish" />
+        <p className="text-xs leading-5 text-muted-foreground">Use a current photo of the exact plant or inventory being offered. A listing can be saved privately without a photo, but it cannot be published.</p>
         <div className="flex flex-wrap gap-3">
           {(f.images || []).map((url, i) => (
             <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-border">
@@ -262,6 +270,33 @@ export default function ProductForm() {
         <Toggle label="Native plant" checked={!!f.native_status} onChange={(v) => set("native_status", v)} />
       </Card>
 
+      {/* Publishing */}
+      <Card className="p-4 space-y-4">
+        <SectionTitle icon={Check} title="Publishing" />
+        <div className="grid gap-4 sm:grid-cols-[12rem_1fr] sm:items-start">
+          <div className="space-y-1.5">
+            <Label>Listing status</Label>
+            <Select value={visibleStatus} onValueChange={(value) => set("listing_status", value)}>
+              <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paused">Save privately</SelectItem>
+                <SelectItem value="active" disabled={!readyToPublish}>Publish to marketplace</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className={"rounded-xl border p-4 " + (readyToPublish ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")} aria-live="polite">
+            <p className={"flex items-center gap-2 text-sm font-semibold " + (readyToPublish ? "text-emerald-900" : "text-amber-900")}>
+              <Check className="h-4 w-4" />
+              {readyToPublish ? "Ready to publish" : readiness.length + " item" + (readiness.length === 1 ? "" : "s") + " remaining"}
+            </p>
+            <p className={"mt-1 text-xs leading-5 " + (readyToPublish ? "text-emerald-800" : "text-amber-800")}>
+              {readyToPublish ? "This listing has the essential information buyers need." : readiness.join(" · ")}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Saving privately keeps the listing in your inventory without showing it to buyers. You can publish it whenever every requirement is complete.</p>
+      </Card>
+
       {/* Review */}
       <Card className="p-4 space-y-3">
         <SectionTitle icon={Check} title="Review" />
@@ -277,7 +312,7 @@ export default function ProductForm() {
 
       <div className="flex gap-2 pt-1 pb-4">
         <Button variant="outline" className="flex-1" onClick={() => navigate("/vendor/inventory")}>Cancel</Button>
-        <Button className="flex-1" onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}{id ? "Save changes" : "Create listing"}</Button>
+        <Button className="flex-1" onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}{f.listing_status === "active" ? (id ? "Save & publish" : "Publish listing") : (id ? "Save changes" : "Save listing")}</Button>
       </div>
     </div>
   );
