@@ -29,8 +29,7 @@
       },
       "CheckoutQuote": {
         "operations": [
-          "read",
-          "create"
+          "read"
         ],
         "description": null
       },
@@ -64,9 +63,7 @@
       },
       "DeliveryOption": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       },
@@ -78,25 +75,19 @@
       },
       "FreightQuote": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       },
       "InventoryReservation": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       },
       "MarketplaceFeeRule": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       },
@@ -109,37 +100,31 @@
       },
       "Notification": {
         "operations": [
-          "read",
-          "create"
+          "read"
         ],
         "description": null
       },
       "Order": {
         "operations": [
-          "read",
-          "update"
+          "read"
         ],
         "description": null
       },
       "OrderEvent": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       },
       "PaymentAttempt": {
         "operations": [
-          "read",
-          "update"
+          "read"
         ],
         "description": null
       },
       "PaymentRecord": {
         "operations": [
-          "read",
-          "update"
+          "read"
         ],
         "description": null
       },
@@ -152,8 +137,7 @@
       },
       "RFQ": {
         "operations": [
-          "read",
-          "update"
+          "read"
         ],
         "description": null
       },
@@ -165,24 +149,19 @@
       },
       "Shipment": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       },
       "ShipmentEvent": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       },
       "StripeEvent": {
         "operations": [
-          "read",
-          "update"
+          "read"
         ],
         "description": null
       },
@@ -194,8 +173,7 @@
       },
       "TaxCalculation": {
         "operations": [
-          "read",
-          "create"
+          "read"
         ],
         "description": null
       },
@@ -209,15 +187,13 @@
       },
       "TransactionDocument": {
         "operations": [
-          "read",
-          "create"
+          "read"
         ],
         "description": null
       },
       "TransactionLedgerEntry": {
         "operations": [
-          "read",
-          "create"
+          "read"
         ],
         "description": null
       },
@@ -238,9 +214,7 @@
       },
       "VendorQuote": {
         "operations": [
-          "read",
-          "create",
-          "update"
+          "read"
         ],
         "description": null
       }
