@@ -38,6 +38,10 @@ export default function ProductDetail() {
     (async () => {
       try {
         const p = await base44.entities.Product.get(id);
+        if (!p || p.is_test_fixture === true || p.listing_status !== "active") {
+          setProduct(null);
+          return;
+        }
         setProduct(p);
         setFav(await (async () => { try { const f = await base44.entities.Favorite.filter({ target_type: "product", target_id: id }); return f?.[0] || null; } catch { return null; } })());
         if (p?.vendor_id) { try { const { data } = await base44.functions.invoke("getPublicVendorProfiles", { vendorIds: [p.vendor_id] }); setVendor(data?.vendors?.[p.vendor_id] || null); } catch {} }
