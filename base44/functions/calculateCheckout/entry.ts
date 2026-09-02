@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { toCents, unitPriceCentsForQty, assembleCheckout, vendorCanSell } from "../../shared/transactions.ts";
 import { commerceModeForVendor } from "../../shared/stripe.ts";
 import { canUseInternalSimulator } from "../../shared/commerceAccess.ts";
+import { isPublicMarketplaceProduct, isPublicMarketplaceVendor } from "../../shared/marketplace.ts";
 
 export default async function(req) {
   try {
@@ -15,12 +16,11 @@ export default async function(req) {
     // ---- Direct listing checkout ----
     if (body.productId) {
       const product = await svc.entities.Product.get(body.productId);
-      if (!product) return Response.json({ error: "Product not found" }, { status: 404 });
-      if (product.listing_status !== "active") return Response.json({ error: "This listing is no longer available." }, { status: 400 });
+      if (!isPublicMarketplaceProduct(product)) return Response.json({ error: "This listing is no longer available." }, { status: 404 });
       // Operational selling is automatic for normal onboarding. Trust verification is
       // a separate badge and does not block checkout unless the seller is suspended/restricted.
       const vendor = await svc.entities.VendorProfile.get(product.vendor_id);
-      if (!vendorCanSell(vendor)) return Response.json({ error: "This seller account is not currently active for new orders." }, { status: 403 });
+      if (!isPublicMarketplaceVendor(vendor) || !vendorCanSell(vendor)) return Response.json({ error: "This seller account is not currently active for new orders." }, { status: 403 });
       const qty = Number(body.quantity);
       if (!qty || qty < (product.minimum_order_quantity || 1)) return Response.json({ error: "Quantity below minimum order." }, { status: 400 });
       if (qty > (product.quantity_available || 0)) return Response.json({ error: "Only " + (product.quantity_available || 0) + " available." }, { status: 400 });
@@ -54,7 +54,7 @@ export default async function(req) {
       // Seller operational status is re-checked at checkout — a seller suspended or
       // restricted after quoting cannot receive a new paid order.
       const quoteVendor = await svc.entities.VendorProfile.get(quote.vendor_id);
-      if (!vendorCanSell(quoteVendor)) {
+      if (!isPublicMarketplaceVendor(quoteVendor) || !vendorCanSell(quoteVendor)) {
         return Response.json({ error: "This seller account is not currently active for new orders." }, { status: 403 });
       }
       const items = (quote.items || []).map((i) => {
