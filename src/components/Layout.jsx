@@ -171,7 +171,7 @@ function TopBar() {
               <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
             </div>
           ) : (
-            <button onClick={() => navigate(accountType === "vendor" ? "/vendor" : accountType === "carrier" ? "/carrier" : "/home")} className="flex items-center gap-2 no-tap-highlight shrink-0">
+            <button onClick={() => navigate(accountType === "vendor" ? "/vendor" : accountType === "carrier" ? "/carrier" : "/home")} aria-label="Tree Marketplace workspace home" className="flex items-center gap-2 no-tap-highlight shrink-0">
               <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shadow-sm">
                 <Leaf className="w-5 h-5 text-primary-foreground" />
               </div>
@@ -179,11 +179,11 @@ function TopBar() {
             </button>
           )}
           {!isChild && (
-            <nav className="hidden lg:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1" aria-label="Primary workspace navigation">
               {desktopNav.map((item) => {
                 const active = isItemActive(location.pathname, item);
                 return (
-                  <Link key={item.to} to={item.to} className={cn("px-3 py-2 rounded-full text-[13px] font-semibold no-tap-highlight transition-colors", active ? "bg-secondary/80 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
+                  <Link key={item.to} to={item.to} aria-current={active ? "page" : undefined} className={cn("px-3 py-2 rounded-full text-[13px] font-semibold no-tap-highlight transition-colors", active ? "bg-secondary/80 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
                     {item.label}
                   </Link>
                 );
@@ -295,11 +295,12 @@ export default function Layout() {
 
   return (
     <div className="app-shell min-h-screen bg-background flex flex-col" data-workspace={accountType || "buyer"}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <TopBar />
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 py-6 md:py-9 pb-24 lg:pb-12">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 py-6 md:py-9 pb-24 lg:pb-12">
         <Outlet />
       </main>
-      <nav className="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur-xl border-t border-border/60 shadow-[0_-8px_35px_hsl(var(--foreground)/0.035)] lg:hidden pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur-xl border-t border-border/60 shadow-[0_-8px_35px_hsl(var(--foreground)/0.035)] lg:hidden pb-[env(safe-area-inset-bottom)]" aria-label="Mobile workspace navigation">
         <div className={nav.length === 4 ? "max-w-md mx-auto grid grid-cols-4" : "max-w-md mx-auto grid grid-cols-5"}>
           {nav.map((item) => {
             const active = isItemActive(location.pathname, item);
@@ -307,6 +308,7 @@ export default function Layout() {
               <Link
                 key={item.to}
                 to={item.to}
+                aria-current={active ? "page" : undefined}
                 className={cn("relative mx-0.5 my-1 flex flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium no-tap-highlight transition-colors",
                   active ? "bg-secondary/80 text-primary" : "text-muted-foreground hover:bg-muted/70")}
               >
