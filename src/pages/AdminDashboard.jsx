@@ -85,6 +85,8 @@ export default function AdminDashboard() {
   const activeListingsMissingPhotos = publishedProducts.filter((product) => !product.images?.length);
   const testFixtureCount = products.filter((product) => product.is_test_fixture === true).length + vendors.filter((vendor) => vendor.is_test_fixture === true).length;
   const pendingVendors = productionVendors.filter((vendor) => vendor.verification_status === "pending");
+  const hasReadinessException = activeListingsMissingPhotos.length > 0 || exceptions.length > 0;
+  const needsCatalogSetup = productionVendors.length === 0 || publishedProducts.length === 0;
 
   return (
     <div className="space-y-4">
@@ -136,8 +138,11 @@ export default function AdminDashboard() {
                   <p className="text-sm font-semibold">Production readiness</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">A concise view of what buyers can safely see and use.</p>
                 </div>
-                <Badge variant={activeListingsMissingPhotos.length || exceptions.length ? "destructive" : "secondary"}>
-                  {activeListingsMissingPhotos.length || exceptions.length ? "Attention needed" : "Controls healthy"}
+                <Badge
+                  variant={hasReadinessException ? "destructive" : "secondary"}
+                  className={!hasReadinessException && needsCatalogSetup ? "border-amber-200 bg-amber-100 text-amber-900" : undefined}
+                >
+                  {hasReadinessException ? "Attention needed" : needsCatalogSetup ? "Catalog setup needed" : "Controls healthy"}
                 </Badge>
               </div>
               <div className="grid gap-px bg-border/60 sm:grid-cols-2 lg:grid-cols-4">
