@@ -34,7 +34,7 @@ export default function Home() {
     if (!silent) setLoading(true);
     try {
       const [products, vendorResponse] = await Promise.all([
-        base44.entities.Product.filter({ listing_status: "active" }, "-created_date", 60),
+        base44.entities.Product.filter({ listing_status: "active", is_test_fixture: false }, "-created_date", 60),
         base44.functions.invoke("getPublicVendorProfiles", { verified: true, limit: 12 }),
       ]);
       const list = products || [];
