@@ -164,3 +164,15 @@ export function apiError(e) {
 export function formatCents(cents) {
   return formatCurrency((Number(cents) || 0) / 100);
 }
+
+export function listingReadiness(product) {
+  const missing = [];
+  if (!String(product?.common_name || "").trim()) missing.push("Common name");
+  if (!String(product?.category || "").trim()) missing.push("Category");
+  if (!(Number(product?.unit_price) > 0)) missing.push("Unit price");
+  if (!(Number(product?.quantity_available) > 0)) missing.push("Available inventory");
+  if (!Array.isArray(product?.images) || product.images.filter(Boolean).length === 0) missing.push("Current product photo");
+  if (![product?.container_size, product?.box_size, product?.caliper, product?.current_height].some((value) => String(value || "").trim())) missing.push("Size detail");
+  if (!product?.pickup_eligible && !product?.delivery_eligible) missing.push("Pickup or delivery option");
+  return missing;
+}
