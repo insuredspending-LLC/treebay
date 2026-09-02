@@ -213,7 +213,7 @@ export default function Onboarding() {
           {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
           {role === "vendor" ? "Open grower workspace" : role === "carrier" ? "Open carrier workspace" : "Open buyer workspace"}
         </Button>
-        <p className="text-xs text-muted-foreground text-center mt-4 flex items-center justify-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Your private details stay visible only to you.</p>
+        <p className="text-xs text-muted-foreground text-center mt-4 flex items-center justify-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Contact details stay protected; only marketplace profile information is shown publicly.</p>
         </div>
       </div>
       <AIAssistant onboarding onboardingRole={role} />
