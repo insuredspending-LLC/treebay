@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { vendorCanSell } from "../../shared/transactions.ts";
+import { isPublicMarketplaceProduct, isPublicMarketplaceVendor } from "../../shared/marketplace.ts";
 
 const INTENT_SCHEMA = {
   type: "object",
@@ -42,7 +43,7 @@ function parsePageContext(page) {
   return { orderId, productId, rfqId, vendorId: vendorId && !page.startsWith("/vendor/inventory") && !page.startsWith("/vendor/rfqs") ? vendorId : undefined };
 }
 async function searchProducts(svc, params) {
-  const filters: Record<string, any> = { listing_status: "active" };
+  const filters: Record<string, any> = { listing_status: "active", is_test_fixture: false };
   if (params.category) filters.category = params.category;
   if (params.verified) filters.verified_vendor = true;
   if (Number(params.quantity) > 0) filters.quantity_available = { $gte: Number(params.quantity) };
@@ -131,7 +132,7 @@ export default async function(req: Request): Promise<Response> {
     } else if (intent === "search_inventory") {
       if (pageCtx.productId) {
         const product = await svc.entities.Product.get(pageCtx.productId);
-        if (product?.listing_status === "active") queryData = { type: "products", count: 1, items: [sanitizeProduct(product)], searchedExhaustively: true };
+        if (isPublicMarketplaceProduct(product)) queryData = { type: "products", count: 1, items: [sanitizeProduct(product)], searchedExhaustively: true };
       }
       if (!queryData) {
         const search = await searchProducts(svc, params);
@@ -141,7 +142,7 @@ export default async function(req: Request): Promise<Response> {
       results.actions.push({ label: "View in Marketplace", path: "/marketplace" });
     } else if (intent === "find_growers") {
       const candidates = pageCtx.vendorId ? [await svc.entities.VendorProfile.get(pageCtx.vendorId)].filter(Boolean) : await svc.entities.VendorProfile.filter({}, "-rating", 30);
-      const vendors = candidates.filter(vendorCanSell).slice(0, 6);
+      const vendors = candidates.filter((vendor) => isPublicMarketplaceVendor(vendor) && vendorCanSell(vendor)).slice(0, 6);
       queryData = { type: "vendors", count: vendors.length, items: vendors.map(sanitizeVendor) };
       results.cards = vendors.map((vendor) => ({ type: "vendor", data: sanitizeVendor(vendor) }));
       results.actions.push({ label: "Browse Marketplace", path: "/marketplace" });
@@ -179,7 +180,7 @@ export default async function(req: Request): Promise<Response> {
       results.actions.push({ label: "View Projects & RFQs", path: presentationRole === "seller" ? "/vendor/rfqs" : "/projects" });
     } else if (intent === "match_rfqs") {
       const [inventory, open, received] = await Promise.all([
-        loadBounded(svc, "Product", { vendor_owner_id: user.id, listing_status: "active" }),
+        loadBounded(svc, "Product", { vendor_owner_id: user.id, listing_status: "active", is_test_fixture: false }),
         loadBounded(svc, "RFQ", { status: "open" }),
         loadBounded(svc, "RFQ", { status: "quotes_received" }),
       ]);
@@ -197,7 +198,7 @@ export default async function(req: Request): Promise<Response> {
       queryData = { type: "rfq_matches", count: matches.length, searchedExhaustively, items: matches };
       results.cards = matches.map((match) => ({ type: "rfq_match", data: match }));
     } else if (intent === "seller_attention" || intent === "low_stock") {
-      const products = await svc.entities.Product.filter({ vendor_owner_id: user.id, listing_status: "active" }, "-created_date", 100);
+      const products = await svc.entities.Product.filter({ vendor_owner_id: user.id, listing_status: "active", is_test_fixture: false }, "-created_date", 100);
       const low = products.filter((product) => product.quantity_available <= (intent === "low_stock" ? 10 : 5));
       if (intent === "seller_attention") {
         const orders = await svc.entities.Order.filter({ vendor_owner_id: user.id }, "-created_date", 20);
