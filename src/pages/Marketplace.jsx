@@ -149,7 +149,7 @@ export default function Marketplace() {
             <p className="text-sm">{loadError}</p>
             <Button className="mt-3" onClick={() => loadPage({ reset: retryFromStart })} disabled={loading || loadingMore}>Try loading again</Button>
           </div>
-        )
+        )}
         <section className="grid gap-6 border-b border-border/70 pb-8 lg:grid-cols-[1.2fr_.8fr] lg:items-center">
           <div>
             <p className="editorial-kicker">The marketplace</p>
@@ -242,6 +242,8 @@ export default function Marketplace() {
 
           {loading ? (
             <div className="grid grid-cols-1 gap-4 min-[440px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"><SkeletonCard count={8} /></div>
+          ) : loadError && displayProducts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Use “Try loading again” above to retry this search.</p>
           ) : displayProducts.length === 0 ? (
             <div className="grid overflow-hidden rounded-[2rem] border border-border/70 bg-card md:grid-cols-[.7fr_1.3fr]">
               <div className="relative hidden min-h-[340px] bg-[#dce3d3] md:block">
