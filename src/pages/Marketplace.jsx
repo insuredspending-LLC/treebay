@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
@@ -14,6 +14,7 @@ import ProductCard from "@/components/ProductCard";
 import SkeletonCard from "@/components/SkeletonCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import { CATEGORIES, approxDistance } from "@/lib/treebay";
+import { loadCatalogPage, createRequestGate } from "@/lib/catalogLoader";
 
 const PAGE_SIZE = 12;
 const BATCH_SIZE = 50;
@@ -32,6 +33,8 @@ export default function Marketplace() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [retryFromStart, setRetryFromStart] = useState(true);
   const [favs, setFavs] = useState({});
   const [sheet, setSheet] = useState(false);
   const [vendorName, setVendorName] = useState("");
@@ -65,28 +68,44 @@ export default function Marketplace() {
     return true;
   }, [q, filters.priceMax, filters.container, filters.caliper]);
 
+  const requestGate = useRef(null);
+  const loadInProgress = useRef(false);
+  if (!requestGate.current) requestGate.current = createRequestGate();
+
   const loadPage = useCallback(async ({ reset = false } = {}) => {
-    const activeOffset = reset ? 0 : offset;
-    if (reset) setLoading(true); else setLoadingMore(true);
-    let nextOffset = activeOffset;
-    let matches = reset ? [] : pendingMatches.slice();
-    let exhausted = false;
-    for (let scans = 0; scans < 8 && matches.length < PAGE_SIZE; scans += 1) {
-      const batch = await base44.entities.Product.filter(serverFilters, sortConfig.sort, BATCH_SIZE, nextOffset);
-      if (!batch?.length) { exhausted = true; break; }
-      nextOffset += batch.length;
-      matches = matches.concat(batch.filter(matchesClientFilters));
-      if (batch.length < BATCH_SIZE) { exhausted = true; break; }
+    if (!reset && loadInProgress.current) return;
+    const isCurrent = requestGate.current.begin();
+    loadInProgress.current = true;
+    setLoadError("");
+    if (reset) { setLoading(true); setProducts([]); } else setLoadingMore(true);
+    try {
+      const result = await loadCatalogPage({
+        fetchBatch: (limit, skip) => base44.entities.Product.filter(serverFilters, sortConfig.sort, limit, skip),
+        matchesFilter: matchesClientFilters,
+        offset: reset ? 0 : offset,
+        pendingMatches: reset ? [] : pendingMatches,
+        pageSize: PAGE_SIZE, batchSize: BATCH_SIZE,
+      });
+      if (!isCurrent()) return;
+      setProducts(current => reset ? result.page : [...current, ...result.page]);
+      setPendingMatches(result.remaining);
+      setOffset(result.offset);
+      setHasMore(result.hasMore);
+    } catch {
+      if (isCurrent()) {
+        setLoadError("Inventory could not load. Your filters are saved; try again.");
+        setRetryFromStart(reset);
+      }
+    } finally {
+      if (isCurrent()) {
+        loadInProgress.current = false;
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
-    const page = matches.slice(0, PAGE_SIZE);
-    const remaining = matches.slice(PAGE_SIZE);
-    setProducts((current) => reset ? page : [...current, ...page]);
-    setPendingMatches(remaining);
-    setOffset(nextOffset);
-    setHasMore(!exhausted || remaining.length > 0);
-    setLoading(false);
-    setLoadingMore(false);
   }, [offset, pendingMatches, serverFilters, matchesClientFilters, sortConfig]);
+
+  useEffect(() => () => requestGate.current.invalidate(), []);
 
   useEffect(() => {
     setQ(params.get("q") || "");
@@ -125,6 +144,12 @@ export default function Marketplace() {
   return (
     <PullToRefresh onRefresh={() => loadPage({ reset: true })}>
       <div className="space-y-8">
+        {loadError && (
+          <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-4">
+            <p className="text-sm">{loadError}</p>
+            <Button className="mt-3" onClick={() => loadPage({ reset: retryFromStart })} disabled={loading || loadingMore}>Try loading again</Button>
+          </div>
+        )
         <section className="grid gap-6 border-b border-border/70 pb-8 lg:grid-cols-[1.2fr_.8fr] lg:items-center">
           <div>
             <p className="editorial-kicker">The marketplace</p>
