@@ -1,3 +1,4 @@
+import { saveBuyerProfile } from "@/lib/accountProfiles";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -42,6 +43,7 @@ export default function EditBuyerProfile() {
       });
       return;
     }
+    if (saving) return;
     setSaving(true);
     try {
       const payload = {
@@ -53,8 +55,7 @@ export default function EditBuyerProfile() {
         state: f.state.trim(),
         zip_code: f.zip_code.trim(),
       };
-      if (buyerProfile) await base44.entities.BuyerProfile.update(buyerProfile.id, payload);
-      else await base44.entities.BuyerProfile.create(payload);
+      await saveBuyerProfile(base44, payload);
       try { await base44.auth.updateMe({ full_name: payload.full_name }); } catch {}
       await refresh();
       toast({ title: buyerProfile ? "Buyer profile updated" : "Buyer profile created" });
