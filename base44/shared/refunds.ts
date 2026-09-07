@@ -56,7 +56,7 @@ export async function resumePendingRefund(svc, orderId, actor) {
     }
   }
 
-  const isLive = order.commerce_mode === "live";
+  const isLive = ["live", "stripe_test"].includes(order.commerce_mode);
   if (isLive) {
     const refundedCents = payment.refunded_amount_cents || Math.round((payment.refunded_amount || 0) * 100);
     if (payment.provider !== "stripe") throw new Error("Live refund has no authoritative Stripe provider.");
