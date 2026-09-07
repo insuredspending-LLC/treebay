@@ -105,7 +105,7 @@ export default async function(req) {
 
       // Never trust the local clock to close a live attempt. Stripe is authoritative,
       // and the reconciliation helper refuses stale attempts.
-      if (order.commerce_mode === "live") {
+      if (["live", "stripe_test"].includes(order.commerce_mode)) {
         await reconcileLiveAwaitingPayment(svc, order);
         continue;
       }
@@ -216,7 +216,7 @@ export default async function(req) {
         const payment = (payments || [])[0];
         // Skip a completely reconciled transaction — nothing to recover.
         if (order.order_status === "refunded" && payment && payment.status === "refunded" && payment.refund_status === "full") continue;
-        if (order.commerce_mode === "live") {
+        if (["live", "stripe_test"].includes(order.commerce_mode)) {
           await reconcilePendingLiveRefund(svc, order);
           refundsRecovered++;
         } else if (order.commerce_mode === "test") {
@@ -274,7 +274,7 @@ export default async function(req) {
     ];
     for (const order of settleable) {
       try {
-        if (order.commerce_mode !== "live" && order.commerce_mode !== "test") continue;
+        if (!["live", "stripe_test", "test"].includes(order.commerce_mode)) continue;
         if (order.financial_hold || !order.buyer_confirmed_at || !order.payout_eligible_at) continue;
         if (new Date(order.payout_eligible_at) > now) continue;
         const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
@@ -296,7 +296,7 @@ export default async function(req) {
         // Verify settlement reconciliation before marking as settled.
         // Missing entries are created idempotently; wrong entries block with CRITICAL.
         await verifySettlementReconciliation(svc, order, cq);
-        if (order.commerce_mode === "live") {
+        if (["live", "stripe_test"].includes(order.commerce_mode)) {
           await createVendorTransfer(svc, order, cq);
         }
         await generateAndStoreDocument(svc, order, "vendor_settlement_statement", cq);
@@ -314,7 +314,7 @@ export default async function(req) {
         await notifySafely(svc, { user_id: order.vendor_owner_id, type: "general", eventType: "vendor_settlement", title: "Settlement statement ready", body: order.order_number, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
         await transitionOrder(svc, order.id, "settled", {
           type: "system", id: actorId,
-          description: order.commerce_mode === "live" ? "Settled after Stripe transfer confirmation" : "Settled (APPROVED TEST)",
+          description: ["live", "stripe_test"].includes(order.commerce_mode) ? "Settled after Stripe transfer confirmation" : "Settled (APPROVED TEST)",
         });
         settled++;
       } catch (err) {
