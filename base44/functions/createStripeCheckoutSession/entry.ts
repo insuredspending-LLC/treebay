@@ -1,3 +1,4 @@
+import { requireInternalSimulatorAccess } from "../../shared/commerceAccess.ts";
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { createCheckoutSession } from "../../shared/stripe.ts";
 
@@ -16,7 +17,8 @@ export default async function(req) {
     const order = await svc.entities.Order.get(orderId);
     if (!order) return Response.json({ error: "Order not found" }, { status: 404 });
     if (order.buyer_id !== user.id) return Response.json({ error: "Only the buyer can pay for this order." }, { status: 403 });
-    if (order.commerce_mode !== "live") return Response.json({ error: "This order is not a live transaction." }, { status: 400 });
+    if (!["live", "stripe_test"].includes(order.commerce_mode)) return Response.json({ error: "This order does not use Stripe." }, { status: 400 });
+    if (order.commerce_mode === "stripe_test") await requireInternalSimulatorAccess(svc, user);
     if (order.order_status !== "awaiting_payment") return Response.json({ error: "This order is not awaiting payment." }, { status: 400 });
     const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
     if (!cq) return Response.json({ error: "Pricing snapshot not found." }, { status: 400 });
