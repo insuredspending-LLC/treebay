@@ -185,3 +185,34 @@ test("a mismatched Stripe amount quarantines the payment without fulfillment",as
  assert.equal(order.financial_hold,true);assert.equal(order.order_status,"awaiting_payment");
  assert.notEqual(order.payment_status,"paid");
 });
+
+test("sandbox settlement uses the test seller and reverses its transfer on refund",async()=>{
+ const f=await fixture();await mod.createCheckoutSession(f.svc,f.order,f.cq,f.vendor);f.paid();
+ await mod.processLivePaymentSuccess(f.svc,"cs_test_unit","evt_settle","stripe_test");
+ const previousFetch=globalThis.fetch;let transferCount=0,reversalCount=0;
+ globalThis.fetch=async(url,opts={})=>{
+   const path=new URL(url).pathname.replace("/v1","");
+   if(path==="/transfers"){
+     assert.equal(opts.headers.Authorization,"Bearer sk_test_fake_for_unit_tests");
+     const body=new URLSearchParams(opts.body);
+     assert.equal(body.get("destination"),"acct_sandbox");
+     assert.equal(Number(body.get("amount")),mod.vendorPayableCents(f.cq));
+     transferCount++;return new Response(JSON.stringify({id:"tr_test_unit",livemode:false}),{status:200});
+   }
+   if(path==="/transfers/tr_test_unit/reversals"){
+     assert.equal(opts.headers.Authorization,"Bearer sk_test_fake_for_unit_tests");
+     assert.equal(Number(new URLSearchParams(opts.body).get("amount")),mod.vendorPayableCents(f.cq));
+     reversalCount++;return new Response(JSON.stringify({id:"trr_test_unit"}),{status:200});
+   }
+   return previousFetch(url,opts);
+ };
+ // Isolate financial settlement preconditions; fulfillment/UI is a separate test.
+ await f.svc.entities.Order.update(f.order.id,{buyer_confirmed_at:new Date().toISOString(),payout_eligible_at:new Date(Date.now()-1000).toISOString()});
+ await mod.createVendorTransfer(f.svc,await f.svc.entities.Order.get(f.order.id),f.cq);
+ await mod.createVendorTransfer(f.svc,await f.svc.entities.Order.get(f.order.id),f.cq);
+ assert.equal(transferCount,1);
+ await mod.initiateRefundWorkflow(f.svc,f.order.id,{type:"buyer",id:"buyer"},"Transfer reversal test");
+ assert.equal(reversalCount,1);
+ assert.equal((await f.svc.entities.Order.get(f.order.id)).stripe_transfer_reversed_cents,mod.vendorPayableCents(f.cq));
+ assert.equal((await f.svc.entities.Order.get(f.order.id)).order_status,"refunded");
+});
