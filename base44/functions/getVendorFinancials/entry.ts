@@ -29,8 +29,8 @@ export default async function(req) {
       const allOrders = await svc.entities.Order.filter({ vendor_id: vendor.id }, "-created_date", 200);
       const allLedgerEntries = await svc.entities.TransactionLedgerEntry.filter({ party_type: "vendor", party_id: vendor.id }, "-created_date", 500);
       const orders = (allOrders || []).filter((o) => o.commerce_mode === "live");
-      const testOrders = (allOrders || []).filter((o) => o.commerce_mode === "test");
-      const disabledOrders = (allOrders || []).filter((o) => o.commerce_mode !== "live" && o.commerce_mode !== "test");
+      const testOrders = (allOrders || []).filter((o) => ["test", "stripe_test"].includes(o.commerce_mode));
+      const disabledOrders = (allOrders || []).filter((o) => !["live", "test", "stripe_test"].includes(o.commerce_mode));
       const liveOrderIds = new Set(orders.map((o) => o.id));
       const ledgerEntries = (allLedgerEntries || []).filter((e) => liveOrderIds.has(e.order_id));
 
