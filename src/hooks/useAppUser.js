@@ -1,55 +1,51 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
+import { loadAccountProfiles } from "@/lib/accountProfiles";
 
 export function useAppUser() {
   const { user, isAuthenticated, checkUserAuth } = useAuth();
-  const [accountType, setAccountType] = useState(null);
-  const [buyerProfile, setBuyerProfile] = useState(null);
-  const [vendorProfiles, setVendorProfiles] = useState([]);
-  const [carrierProfile, setCarrierProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-
+  const queryClient = useQueryClient();
+  const queryKey = ["account-profiles", user?.id];
+  const query = useQuery({
+    queryKey,
+    queryFn: () => loadAccountProfiles(base44, user.id),
+    enabled: Boolean(isAuthenticated && user?.id),
+    staleTime: 30000,
+    retry: 1,
+  });
   const refresh = useCallback(async () => {
-    if (!isAuthenticated) { setLoading(false); return; }
-    try {
-      const me = await base44.auth.me();
-      const acc = me.account_type || me.data?.account_type || "buyer";
-      setAccountType(acc);
-      const [buyers, vendors, carriers] = await Promise.all([
-        base44.entities.BuyerProfile.filter({ created_by_id: me.id }).catch(() => []),
-        base44.entities.VendorProfile.filter({ owner_id: me.id }, "-created_date", 20).catch(() => []),
-        base44.entities.CarrierProfile.filter({ owner_id: me.id }, "-created_date", 20).catch(() => []),
-      ]);
-      setBuyerProfile(buyers?.[0] || null);
-      setVendorProfiles(vendors || []);
-      setCarrierProfile(carriers?.[0] || null);
-    } catch (e) {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
+    if (!isAuthenticated || !user?.id) return;
+    // All hook consumers (including the route guard) observe this same cache.
+    await queryClient.invalidateQueries({ queryKey: ["account-profiles", user.id], refetchType: "none" });
+    return queryClient.fetchQuery({
+      queryKey: ["account-profiles", user.id],
+      queryFn: () => loadAccountProfiles(base44, user.id),
+      staleTime: 0,
+    });
+  }, [isAuthenticated, user?.id, queryClient]);
   const switchAccountType = useCallback(async (type) => {
     try {
       await base44.auth.updateMe({ account_type: type });
-      setAccountType(type);
       await checkUserAuth();
+      await refresh();
       return true;
-    } catch (e) {
-      console.error("Failed to switch marketplace mode", e);
+    } catch (error) {
+      console.error("Failed to switch marketplace mode", error);
       return false;
     }
-  }, [checkUserAuth]);
-
-  const hasOnboarded = !!(buyerProfile || vendorProfiles.length || carrierProfile);
-
+  }, [checkUserAuth, refresh]);
+  const data = query.data;
+  const buyerProfile = data?.buyerProfile || null;
+  const vendorProfiles = data?.vendorProfiles || [];
+  const carrierProfile = data?.carrierProfile || null;
   return {
-    user, accountType: accountType || "buyer", loading,
-    buyerProfile, vendorProfiles, carrierProfile, hasOnboarded,
+    user, accountType: data?.accountType || "buyer",
+    loading: Boolean(isAuthenticated && user?.id && query.isPending),
+    profileError: query.error,
+    buyerProfile, vendorProfiles, carrierProfile,
+    hasOnboarded: Boolean(buyerProfile || vendorProfiles.length || carrierProfile),
     refresh, switchAccountType,
   };
 }
