@@ -71,7 +71,8 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
       const data = res.data || res;
       setMessages((m) => [...m, { role: "assistant", text: data.reply || "I'm here to help.", cards: data.results?.cards || [], actions: data.results?.actions || [] }]);
     } catch {
-      setMessages((m) => [...m, { role: "assistant", text: "I'm having trouble connecting right now, but you can still browse the marketplace and manage your orders normally.", error: true }]);
+      setMessages((m) => [...m, { role: "assistant", text: "The assistant could not connect. Sample plants are in the test marketplace. Use these buttons to open inventory or orders directly.", error: true,
+        actions: [{label:"Open test marketplace",path:"/stripe-sandbox"},{label:"Browse real listings",path:"/marketplace"},{label:"View orders",path:"/orders"}] }]);
     } finally {
       setLoading(false);
     }
@@ -119,6 +120,10 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
             <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close"><X className="w-5 h-5" /></Button>
           </div>
 
+          {!onboarding && <div className="px-4 py-3 border-b border-border bg-secondary/40">
+            <p className="text-sm mb-2">Testing a sample plant order?</p>
+            <Button variant="outline" size="sm" onClick={() => handleAction({path:"/stripe-sandbox"})}>Open test marketplace <ArrowRight className="w-3 h-3" /></Button>
+          </div>}
           {/* Messages — chronological: each turn renders text + cards + actions together */}
           <ScrollArea className="flex-1 px-4 py-4">
             <div ref={scrollRef} className="space-y-4 min-h-full">
