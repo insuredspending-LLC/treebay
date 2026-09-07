@@ -130,7 +130,7 @@ export default function Home() {
                 <h3 className="mt-3 font-display text-3xl font-semibold">Tell growers what you’re looking for.</h3>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">There are no live listings to show yet. A project request lets suppliers respond with the plants, quantities, and terms you need.</p>
               </div>
-              <Button className="mt-5 shrink-0 rounded-full sm:mt-0" asChild><Link to="/projects">Request quotes <ArrowRight className="h-4 w-4" /></Link></Button>
+              <div className="mt-5 flex flex-col gap-2 sm:mt-0"><Button className="shrink-0 rounded-full" asChild><Link to="/projects">Request quotes <ArrowRight className="h-4 w-4" /></Link></Button><Button variant="outline" className="rounded-full" asChild><Link to="/stripe-sandbox">Open test marketplace</Link></Button></div>
             </div>
           )}
         </section>
