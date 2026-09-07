@@ -1,3 +1,4 @@
+import { saveBuyerProfile } from "@/lib/accountProfiles";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -41,10 +42,11 @@ export default function Onboarding() {
       toast({ title: "Complete the required fields", description: missing.join(", ") + ".", variant: "destructive" });
       return;
     }
+    if (loading) return;
     setLoading(true);
     try {
       if (role === "buyer") {
-        await base44.entities.BuyerProfile.create({
+        await saveBuyerProfile(base44, {
           full_name: f.full_name, business_name: f.business_name, buyer_type: f.buyer_type,
           phone: f.phone, city: f.city, state: f.state, zip_code: f.zip_code,
         });
