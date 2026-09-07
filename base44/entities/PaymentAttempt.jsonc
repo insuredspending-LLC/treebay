@@ -18,7 +18,8 @@
     "commerce_mode": {
       "type": "string",
       "enum": [
-        "live"
+        "live",
+        "stripe_test"
       ],
       "default": "live"
     },
