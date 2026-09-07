@@ -357,7 +357,7 @@ export async function createAllocationLedger(svc, order, cq, paymentRef) {
   // Money in.
   await createLedgerEntry(svc, {
     order_id: order.id, transaction_id: group, entry_key: "payment", entry_type: "payment", party_type: "buyer", party_id: order.buyer_id,
-    description: order.commerce_mode === "live" ? "Buyer payment (Stripe)" : "Buyer payment (APPROVED TEST SIMULATION)", debit_cents: order.total_cents || cq.total_amount_cents, payment_reference: paymentRef || null,
+    description: order.commerce_mode === "live" ? "Buyer payment (Stripe)" : order.commerce_mode === "stripe_test" ? "Buyer payment (STRIPE SANDBOX — NO REAL MONEY)" : "Buyer payment (APPROVED TEST SIMULATION)", debit_cents: order.total_cents || cq.total_amount_cents, payment_reference: paymentRef || null,
   });
   // Money out (payables).
   await createLedgerEntry(svc, {
@@ -781,7 +781,7 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
   if (cq.commerce_mode === "payments_disabled") {
     throw new Error("Purchases are not available yet. Join the approved closed test or return when live payments launch.");
   }
-  if (cq.commerce_mode === "test" && !(await canUseInternalSimulator(svc, user))) {
+  if (["test", "stripe_test"].includes(cq.commerce_mode) && !(await canUseInternalSimulator(svc, user))) {
     throw new Error("Simulated purchases are restricted to approved closed-test participants.");
   }
   if (!cq.delivery_method) throw new Error("Please select a delivery option before placing your order.");
@@ -792,6 +792,12 @@ export async function createOrderFromQuote(svc, checkoutQuoteId, user) {
   }
   // Re-verify the seller before claiming the durable single-winner lock.
   const vendor = await assertVendorSellable(svc, cq.vendor_id);
+  if (cq.commerce_mode === "stripe_test") {
+    const product = cq.product_id ? await svc.entities.Product.get(cq.product_id) : null;
+    if (vendor.is_test_fixture !== true || product?.is_test_fixture !== true || product.vendor_id !== vendor.id || cq.delivery_method !== "buyer_pickup") {
+      throw new Error("Stripe sandbox requires a dedicated test seller, test inventory and pickup.");
+    }
+  }
   const lockResult = await svc.entities.CheckoutQuote.updateMany(
     { id: cq.id, processing_status: "available" },
     { $set: { processing_status: "consuming", processing_locked_at: new Date().toISOString() } },
