@@ -1,3 +1,4 @@
+import { stripeModeFromObject } from "../../shared/stripeMode.ts";
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
   verifyWebhookSignature, stripeEventMatchesKeyMode, syncVendorFromAccount,
@@ -11,11 +12,12 @@ export default async function(req) {
   try {
     const rawBody = await req.text();
     const signature = req.headers.get("stripe-signature");
-    if (!(await verifyWebhookSignature(rawBody, signature))) {
+    const event = JSON.parse(rawBody);
+    const mode = stripeModeFromObject(event);
+    if (!(await verifyWebhookSignature(rawBody, signature, mode))) {
       return Response.json({ error: "Invalid signature" }, { status: 400 });
     }
 
-    const event = JSON.parse(rawBody);
     if (!stripeEventMatchesKeyMode(event)) {
       return Response.json({ error: "Stripe event mode does not match the configured key." }, { status: 400 });
     }
@@ -33,16 +35,17 @@ export default async function(req) {
     switch (event.type) {
       case "account.updated":
         accountId = event.account || object.id;
-        await syncVendorFromAccount(svc, object.id, object);
+        await syncVendorFromAccount(svc, object.id, object, mode);
         break;
       case "checkout.session.completed": {
-        const result = await processLivePaymentSuccess(svc, object.id, event.id);
+        const result = await processLivePaymentSuccess(svc, object.id, event.id, mode);
         orderId = result?.orderId || orderId;
         summary = result?.quarantined ? "paid stale attempt quarantined" : "payment reconciled";
         break;
       }
       case "checkout.session.expired":
         await processLivePaymentFailure(svc, {
+          commerceMode: mode,
           orderId,
           sessionId: object.id,
           reason: "Checkout session expired",
@@ -53,6 +56,7 @@ export default async function(req) {
         break;
       case "payment_intent.payment_failed":
         await processLivePaymentFailure(svc, {
+          commerceMode: mode,
           orderId,
           paymentIntentId: object.id,
           reason: object.last_payment_error?.message || "PaymentIntent failed",
