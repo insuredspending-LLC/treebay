@@ -56,6 +56,7 @@ import VendorGuard from '@/components/VendorGuard';
 import { ThemeProvider } from "next-themes";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import ClientErrorReporter from "@/components/ClientErrorReporter";
+import StripeSandbox from "@/pages/StripeSandbox";
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -82,6 +83,7 @@ const AuthenticatedApp = () => {
 
       {/* Authenticated app */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+        <Route path="/stripe-sandbox" element={<StripeSandbox />} />
         <Route element={<OnboardingGate />}>
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/become-seller" element={<BecomeSeller />} />
