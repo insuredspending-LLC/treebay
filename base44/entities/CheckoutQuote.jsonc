@@ -23,7 +23,8 @@
       "enum": [
         "payments_disabled",
         "test",
-        "live"
+        "live",
+        "stripe_test"
       ],
       "default": "payments_disabled",
       "description": "Public checkout fails closed while payments are disabled. Test is restricted to approved testers/admins; live requires the production payment gate and provider."
