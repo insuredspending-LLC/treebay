@@ -144,6 +144,12 @@ export default function Marketplace() {
   return (
     <PullToRefresh onRefresh={() => loadPage({ reset: true })}>
       <div className="space-y-8">
+        <aside className="rounded-2xl border border-primary/25 bg-secondary/40 p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><h2 className="font-semibold text-lg">Looking for the sample plants?</h2>
+            <p className="text-sm text-muted-foreground mt-1">Sample inventory is in the test marketplace. It is kept separate from real plants for sale.</p>
+          </div>
+          <Button asChild className="shrink-0 rounded-xl"><Link to="/stripe-sandbox">Open test marketplace</Link></Button>
+        </aside>
         {loadError && (
           <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-4">
             <p className="text-sm">{loadError}</p>
@@ -264,6 +270,7 @@ export default function Marketplace() {
                   ) : (
                     <Button variant="outline" className="rounded-full" onClick={reset}>Clear filters</Button>
                   )}
+                  <Button className="rounded-full" asChild><Link to="/stripe-sandbox">View sample inventory</Link></Button>
                   <Button className="rounded-full" asChild><Link to="/projects"><FileText className="h-4 w-4" /> Request project quotes</Link></Button>
                 </div>
               </div>
