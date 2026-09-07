@@ -159,6 +159,11 @@ export default function Account() {
         </Card>
       )}
 
+      <Card className="p-4 space-y-2">
+        <h2 className="font-semibold">Test marketplace</h2>
+        <p className="text-sm text-muted-foreground">Approved testers can practice an order using sample inventory and Stripe sandbox.</p>
+        <Button asChild variant="outline"><Link to="/stripe-sandbox">Open test marketplace</Link></Button>
+      </Card>
       {/* Shortcuts */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">Activity</p>
