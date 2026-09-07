@@ -98,10 +98,10 @@ export default function Checkout() {
     setPlacing(true);
     try {
       const { data } = await base44.functions.invoke("createOrderFromCheckout", { checkoutQuoteId: quoteId });
-      if (data.order.commerce_mode === "live") {
+      if (["live", "stripe_test"].includes(data.order.commerce_mode)) {
         const { data: session } = await base44.functions.invoke("createStripeCheckoutSession", { orderId: data.order.id });
         if (window.self !== window.top) {
-          toast({ title: "Live checkout unavailable in preview", description: "Complete payment from the published app.", variant: "destructive" });
+          toast({ title: "Open checkout from the published app", description: "Complete payment from the published app.", variant: "destructive" });
           setPlacing(false);
           return;
         }
@@ -132,6 +132,11 @@ export default function Checkout() {
         <p className="text-sm text-muted-foreground mt-1">Review your final delivered price — all fees disclosed upfront.</p>
       </div>
 
+      {quote.commerce_mode === "stripe_test" && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+          Stripe sandbox — use test card details. No real money, seller payout or plant delivery.
+        </div>
+      )}
       {quote.commerce_mode === "test" && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" /> Approved tester mode — payment, tax, freight, and payouts are simulated. No real money is charged.
