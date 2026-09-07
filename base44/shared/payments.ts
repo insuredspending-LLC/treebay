@@ -33,8 +33,8 @@ async function paymentSucceededEventExists(svc, orderId, paymentRef) {
 export async function confirmOrderPayment(svc, orderId, p) {
   let order = await svc.entities.Order.get(orderId);
   if (!order) throw new Error("Order not found");
-  if (order.commerce_mode === "payments_disabled") throw new Error("Payments are disabled for this order.");
-  if (order.commerce_mode === "live" && p.provider !== "stripe") throw new Error("A live order requires Stripe confirmation.");
+  if (!["live", "stripe_test", "test"].includes(order.commerce_mode)) throw new Error("Payments are disabled for this order.");
+  if (["live", "stripe_test"].includes(order.commerce_mode) && p.provider !== "stripe") throw new Error("A live order requires Stripe confirmation.");
   if (order.commerce_mode === "test" && p.provider === "stripe") throw new Error("A test order cannot use Stripe confirmation.");
   if (["cancelled", "refunded"].includes(order.order_status)) throw new Error("A payment cannot be reconciled into a terminal order.");
 
