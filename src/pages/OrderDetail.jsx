@@ -161,11 +161,11 @@ export default function OrderDetail() {
   };
 
   const pay = async () => {
-    if (order.commerce_mode !== "live" && order.commerce_mode !== "test") {
+    if (!["live", "stripe_test", "test"].includes(order.commerce_mode)) {
       toast({ title: "Purchases are not open yet", description: "No payment can be submitted for this order.", variant: "destructive" });
       return;
     }
-    if (order.commerce_mode === "live") {
+    if (["live", "stripe_test"].includes(order.commerce_mode)) {
       try {
         const { data } = await base44.functions.invoke("createStripeCheckoutSession", { orderId: id });
         if (window.self !== window.top) {
@@ -233,6 +233,11 @@ export default function OrderDetail() {
         </div>
       </div>
 
+      {order.commerce_mode === "stripe_test" && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+          Stripe sandbox order — no real charge, payout or physical fulfillment.
+        </div>
+      )}
       {order.commerce_mode === "test" && (
         <Card className="p-4 border-amber-300 bg-amber-50">
           <p className="font-semibold text-sm text-amber-900">APPROVED TEST transaction — no real money moved</p>
@@ -431,8 +436,8 @@ export default function OrderDetail() {
       {/* Actions */}
       <div className="flex flex-wrap gap-2 pt-2">
         <Button variant="outline" onClick={message}><MessageSquare className="w-4 h-4 mr-2" /> Message</Button>
-        {isBuyer && order.order_status === "awaiting_payment" && ["live", "test"].includes(order.commerce_mode) && (
-          <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> {order.commerce_mode === "live" ? "Pay with Stripe" : "Pay (Approved Test)"}</Button>
+        {isBuyer && order.order_status === "awaiting_payment" && ["live", "stripe_test", "test"].includes(order.commerce_mode) && (
+          <Button onClick={pay}><ShieldCheck className="w-4 h-4 mr-2" /> {order.commerce_mode === "live" ? "Pay with Stripe" : order.commerce_mode === "stripe_test" ? "Pay with Stripe test card" : "Pay (Approved Test)"}</Button>
         )}
         {isBuyer && order.order_status === "completed" && <Button onClick={() => setReviewOpen(true)}><Star className="w-4 h-4 mr-2" /> Review vendor</Button>}
       </div>
