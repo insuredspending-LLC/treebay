@@ -1,3 +1,4 @@
+import { isStripeCommerceMode, stripeKeyForMode, stripeSandboxEnabled, stripeModeFromObject, assertStripeObjectMode, assertStripeOrderMode, vendorStripeField, vendorStripeAccountId, stripeWebhookSecret } from "./stripeMode.ts";
 // Tree Marketplace Stripe Connect integration — BACKEND ONLY.
 // Live charging remains fail-closed and requires an explicit production gate plus
 // a live Stripe key. Stripe TEST mode is never used as the app's internal simulator.
@@ -22,11 +23,7 @@ function env(name) {
   return undefined;
 }
 
-function secretKey() {
-  const key = env("STRIPE_SECRET_KEY");
-  if (!key) throw new Error("Stripe is not configured (STRIPE_SECRET_KEY missing).");
-  return key;
-}
+function secretKey(mode = "live") { return stripeKeyForMode(mode); }
 
 function keyIsLive() {
   return String(env("STRIPE_SECRET_KEY") || "").startsWith("sk_live_");
@@ -42,9 +39,7 @@ export function livePaymentsEnabled() {
 }
 
 export function stripeEventMatchesKeyMode(event) {
-  const key = String(env("STRIPE_SECRET_KEY") || "");
-  if (!key.startsWith("sk_test_") && !key.startsWith("sk_live_")) return false;
-  return Boolean(event?.livemode) === key.startsWith("sk_live_");
+  try { stripeKeyForMode(stripeModeFromObject(event)); return true; } catch { return false; }
 }
 
 function publicAppOrigin() {
@@ -76,10 +71,10 @@ function flattenParams(params, prefix, out) {
   return out;
 }
 
-export async function stripeFetch(path, opts) {
+export async function stripeFetch(path, opts, mode = "live") {
   const method = opts?.method || "GET";
   const headers = {
-    Authorization: "Bearer " + secretKey(),
+    Authorization: "Bearer " + secretKey(mode),
     "Stripe-Version": STRIPE_VERSION,
   };
   let body;
@@ -93,16 +88,17 @@ export async function stripeFetch(path, opts) {
   if (!response.ok) {
     throw new Error(json?.error?.message || ("Stripe API error " + response.status));
   }
+  if (typeof json?.livemode === "boolean") assertStripeObjectMode(json, mode);
   return json;
 }
 
 // ---- Seller Connect readiness ----
-export function vendorStripeReady(vendor) {
-  return Boolean(
-    vendor?.stripe_account_id &&
-    vendor?.stripe_payouts_enabled &&
-    vendor?.stripe_details_submitted,
-  );
+function stripeFetchForMode(mode, path, opts) { return stripeFetch(path, opts, mode); }
+
+export function vendorStripeReady(vendor, mode = "live") {
+  return Boolean(vendorStripeAccountId(vendor, mode) &&
+    vendor?.[vendorStripeField("stripe_payouts_enabled", mode)] &&
+    vendor?.[vendorStripeField("stripe_details_submitted", mode)]);
 }
 
 function stripeAccountReady(account) {
@@ -113,7 +109,15 @@ function stripeAccountReady(account) {
   );
 }
 
-export function commerceModeForVendor(vendor, testAuthorized) {
+export function commerceModeForVendor(vendor, testAuthorized, requestedSandbox = false) {
+  if (requestedSandbox) {
+    if (!testAuthorized) throw new Error("Stripe sandbox is restricted to approved testers.");
+    if (!stripeSandboxEnabled()) throw new Error("Stripe sandbox is not configured.");
+    if (vendor?.is_test_fixture !== true) throw new Error("Sandbox checkout requires a dedicated test seller.");
+    if (!vendorStripeReady(vendor, "stripe_test")) throw new Error("Complete test seller Stripe onboarding first.");
+    return "stripe_test";
+  }
+  if (vendor?.is_test_fixture === true) return "payments_disabled";
   if (livePaymentsEnabled() && vendorStripeReady(vendor)) return "live";
   return testAuthorized ? "test" : "payments_disabled";
 }
@@ -125,11 +129,14 @@ function onboardingStatus(account) {
   return "pending";
 }
 
-export async function createConnectAccount(svc, vendor, email) {
-  if (vendor.stripe_account_id) return retrieveAccount(svc, vendor.stripe_account_id);
-  const account = await stripeFetch("/accounts", {
+export async function createConnectAccount(svc, vendor, email, mode = "live") {
+  if (mode === "stripe_test" && (!stripeSandboxEnabled() || vendor.is_test_fixture !== true)) throw new Error("Use an enabled sandbox with a dedicated test seller.");
+  if (mode === "live" && vendor.is_test_fixture === true) throw new Error("A fixture cannot create a live seller account.");
+  const existingAccountId = vendorStripeAccountId(vendor, mode);
+  if (existingAccountId) return retrieveAccount(svc, existingAccountId, mode);
+  const account = await stripeFetchForMode(mode, "/accounts", {
     method: "POST",
-    idempotencyKey: "connect-" + vendor.id,
+    idempotencyKey: "connect-" + mode + "-" + vendor.id,
     params: {
       type: "express",
       country: "US",
@@ -143,31 +150,31 @@ export async function createConnectAccount(svc, vendor, email) {
     },
   });
   await svc.entities.VendorProfile.update(vendor.id, {
-    stripe_account_id: account.id,
-    stripe_payouts_enabled: Boolean(account.payouts_enabled),
-    stripe_details_submitted: Boolean(account.details_submitted),
-    stripe_onboarding_status: onboardingStatus(account),
-    seller_billing_provider: "stripe",
+    [vendorStripeField("stripe_account_id", mode)]: account.id,
+    [vendorStripeField("stripe_payouts_enabled", mode)]: Boolean(account.payouts_enabled),
+    [vendorStripeField("stripe_details_submitted", mode)]: Boolean(account.details_submitted),
+    [vendorStripeField("stripe_onboarding_status", mode)]: onboardingStatus(account),
+    ...(mode === "live" ? { seller_billing_provider: "stripe" } : {}),
   });
   return account;
 }
 
-export async function retrieveAccount(svc, accountId) {
-  const account = await stripeFetch("/accounts/" + accountId);
-  await syncVendorFromAccount(svc, accountId, account);
+export async function retrieveAccount(svc, accountId, mode = "live") {
+  const account = await stripeFetchForMode(mode, "/accounts/" + accountId);
+  await syncVendorFromAccount(svc, accountId, account, mode);
   return account;
 }
 
-export async function syncVendorFromAccount(svc, accountId, account) {
-  const vendors = await svc.entities.VendorProfile.filter({ stripe_account_id: accountId });
+export async function syncVendorFromAccount(svc, accountId, account, mode = "live") {
+  const vendors = await svc.entities.VendorProfile.filter({ [vendorStripeField("stripe_account_id", mode)]: accountId });
   const vendor = (vendors || [])[0];
   if (!vendor) return null;
-  const wasEnabled = Boolean(vendor.stripe_payouts_enabled);
+  const wasEnabled = Boolean(vendor[vendorStripeField("stripe_payouts_enabled", mode)]);
   const isEnabled = stripeAccountReady(account);
   await svc.entities.VendorProfile.update(vendor.id, {
-    stripe_payouts_enabled: isEnabled,
-    stripe_details_submitted: Boolean(account.details_submitted),
-    stripe_onboarding_status: onboardingStatus(account),
+    [vendorStripeField("stripe_payouts_enabled", mode)]: isEnabled,
+    [vendorStripeField("stripe_details_submitted", mode)]: Boolean(account.details_submitted),
+    [vendorStripeField("stripe_onboarding_status", mode)]: onboardingStatus(account),
   });
   if (wasEnabled && !isEnabled) {
     await raiseExceptionOnce(svc, {
@@ -184,24 +191,24 @@ export async function syncVendorFromAccount(svc, accountId, account) {
   return vendor;
 }
 
-export async function createAccountLink(svc, vendor, type) {
-  if (!vendor.stripe_account_id) throw new Error("No Stripe account connected.");
+export async function createAccountLink(svc, vendor, type, mode = "live") {
+  if (!vendorStripeAccountId(vendor, mode)) throw new Error("No Stripe account connected.");
   const origin = publicAppOrigin();
-  return stripeFetch("/account_links", {
+  return stripeFetchForMode(mode, "/account_links", {
     method: "POST",
-    idempotencyKey: "link-" + vendor.stripe_account_id + "-" + (type || "onboarding") + "-" + Date.now(),
+    idempotencyKey: "link-" + vendorStripeAccountId(vendor, mode) + "-" + (type || "onboarding") + "-" + Date.now(),
     params: {
-      account: vendor.stripe_account_id,
-      refresh_url: origin + "/vendor",
-      return_url: origin + "/vendor",
+      account: vendorStripeAccountId(vendor, mode),
+      refresh_url: origin + (mode === "stripe_test" ? "/stripe-sandbox" : "/vendor"),
+      return_url: origin + (mode === "stripe_test" ? "/stripe-sandbox" : "/vendor"),
       type: type || "account_onboarding",
     },
   });
 }
 
-export async function createLoginLink(svc, vendor) {
-  if (!vendor.stripe_account_id) throw new Error("No Stripe account connected.");
-  return stripeFetch("/accounts/" + vendor.stripe_account_id + "/login_links", { method: "POST" });
+export async function createLoginLink(svc, vendor, mode = "live") {
+  if (!vendorStripeAccountId(vendor, mode)) throw new Error("No Stripe account connected.");
+  return stripeFetchForMode(mode, "/accounts/" + vendorStripeAccountId(vendor, mode) + "/login_links", { method: "POST" });
 }
 
 // ---- Durable live checkout attempts ----
@@ -260,24 +267,27 @@ async function quarantineStalePaidAttempt(svc, order, attempt, detail) {
 }
 
 export async function createCheckoutSession(svc, order, cq, vendor) {
-  if (!livePaymentsEnabled()) throw new Error("Live payments are not enabled.");
-  if (!keyIsLive()) throw new Error("Live checkout requires a live Stripe key.");
-  if (order.commerce_mode !== "live") throw new Error("A Stripe checkout session requires a live order.");
+  const mode = order.commerce_mode;
+  if (!isStripeCommerceMode(mode)) throw new Error("This order does not use Stripe.");
+  if (mode === "live" && !livePaymentsEnabled()) throw new Error("Live payments are not enabled.");
+  if (mode === "stripe_test" && (!stripeSandboxEnabled() || vendor?.is_test_fixture !== true)) throw new Error("Sandbox checkout requires an enabled sandbox and a test seller.");
+  stripeKeyForMode(mode);
+  if (cq.commerce_mode !== mode || cq.buyer_id !== order.buyer_id || cq.vendor_id !== order.vendor_id) throw new Error("Checkout snapshot ownership or environment mismatch.");
   if (order.order_status !== "awaiting_payment") throw new Error("This order is not awaiting payment.");
   if (order.financial_hold) throw new Error("This order is on a financial hold.");
   if (order.fulfillment_method === "third_party_carrier") {
     throw new Error("Third-party carrier is not available for live orders.");
   }
 
-  if (!vendor?.stripe_account_id) throw new Error("This seller has no connected payout account.");
-  const account = await retrieveAccount(svc, vendor.stripe_account_id);
+  if (!vendorStripeAccountId(vendor, mode)) throw new Error("This seller has no connected payout account.");
+  const account = await retrieveAccount(svc, vendorStripeAccountId(vendor, mode), mode);
   if (!stripeAccountReady(account)) {
     throw new Error("This seller is not currently eligible to receive Stripe transfers.");
   }
 
   const existingAttempt = await currentAttemptForOrder(svc, order);
   if (existingAttempt?.checkout_session_id && existingAttempt.is_current) {
-    const previousSession = await stripeFetch("/checkout/sessions/" + existingAttempt.checkout_session_id);
+    const previousSession = await stripeFetchForMode(mode, "/checkout/sessions/" + existingAttempt.checkout_session_id);
     if (previousSession.status === "open") {
       await svc.entities.PaymentAttempt.update(existingAttempt.id, {
         status: "open",
@@ -311,7 +321,7 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
     const racedOrder = await svc.entities.Order.get(order.id);
     const racedAttempt = await currentAttemptForOrder(svc, racedOrder);
     if (racedAttempt?.checkout_session_id && racedAttempt.is_current) {
-      const racedSession = await stripeFetch("/checkout/sessions/" + racedAttempt.checkout_session_id);
+      const racedSession = await stripeFetchForMode(mode, "/checkout/sessions/" + racedAttempt.checkout_session_id);
       if (racedSession.status === "open") return racedSession;
     }
     throw new Error("Another checkout attempt is being created. Please retry.");
@@ -373,7 +383,7 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
     buyer_id: order.buyer_id,
     attempt_sequence: nextSequence,
     provider: "stripe",
-    commerce_mode: "live",
+    commerce_mode: mode,
     status: "creating",
     is_current: true,
     amount_cents: order.total_cents,
@@ -385,7 +395,7 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
   await svc.entities.Order.update(order.id, { current_payment_attempt_id: attempt.id });
   const origin = publicAppOrigin();
   try {
-    const session = await stripeFetch("/checkout/sessions", {
+    const session = await stripeFetchForMode(mode, "/checkout/sessions", {
       method: "POST",
       idempotencyKey,
       params: {
@@ -433,7 +443,7 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
     };
     if (payment) {
       await svc.entities.PaymentRecord.update(payment.id, {
-        commerce_mode: "live",
+        commerce_mode: mode,
         provider: "stripe",
         status: payment.status === "paid" ? "paid" : "pending",
         confirmation_status: payment.confirmation_status || "pending",
@@ -444,7 +454,7 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
         order_id: order.id,
         buyer_id: order.buyer_id,
         vendor_owner_id: order.vendor_owner_id,
-        commerce_mode: "live",
+        commerce_mode: mode,
         provider: "stripe",
         amount: order.total,
         amount_cents: order.total_cents || Math.round((order.total || 0) * 100),
@@ -470,11 +480,12 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
   }
 }
 
-async function validateCurrentPaidSession(svc, session) {
+async function validateCurrentPaidSession(svc, session, mode) {
   const attempt = await attemptBySession(svc, session.id);
   const orderId = session.metadata?.order_id || attempt?.order_id;
   const order = orderId ? await svc.entities.Order.get(orderId) : null;
   if (!order) throw new Error("No Tree Marketplace order matches the Stripe Checkout Session.");
+  assertStripeOrderMode(order, mode);
   if (!attempt || order.current_payment_attempt_id !== attempt.id || order.stripe_checkout_session_id !== session.id) {
     await quarantineStalePaidAttempt(
       svc,
@@ -487,16 +498,14 @@ async function validateCurrentPaidSession(svc, session) {
   return { quarantined: false, order, attempt };
 }
 
-export async function processLivePaymentSuccess(svc, sessionId, eventId) {
-  const session = await stripeFetch("/checkout/sessions/" + sessionId);
+export async function processLivePaymentSuccess(svc, sessionId, eventId, mode = "live") {
+  const session = await stripeFetchForMode(mode, "/checkout/sessions/" + sessionId);
   if (session.payment_status !== "paid") {
     throw new Error("Stripe reported a completed checkout that is not paid.");
   }
-  if (session.livemode !== true || !keyIsLive()) {
-    throw new Error("A non-live Stripe session cannot confirm a live order.");
-  }
+  assertStripeObjectMode(session, mode);
 
-  const current = await validateCurrentPaidSession(svc, session);
+  const current = await validateCurrentPaidSession(svc, session, mode);
   if (current.quarantined) return { quarantined: true, orderId: current.order.id };
   const { order, attempt } = current;
   const cq = order.checkout_quote_id
@@ -507,7 +516,7 @@ export async function processLivePaymentSuccess(svc, sessionId, eventId) {
   const expectedCurrency = (cq.currency || "usd").toLowerCase();
   const expectedTotal = order.total_cents || Math.round((order.total || 0) * 100);
   const integrityErrors = [];
-  if (order.commerce_mode !== "live") integrityErrors.push("order is not live");
+  if (order.commerce_mode !== mode || cq.commerce_mode !== mode || attempt.commerce_mode !== mode) integrityErrors.push("payment environment mismatch");
   if (session.metadata?.order_id !== order.id) integrityErrors.push("session order metadata mismatch");
   if (session.metadata?.payment_attempt_id !== attempt.id) integrityErrors.push("session attempt metadata mismatch");
   if (session.metadata?.base44_app_id && session.metadata.base44_app_id !== appId()) {
@@ -524,8 +533,8 @@ export async function processLivePaymentSuccess(svc, sessionId, eventId) {
   if (!paymentIntentId) integrityErrors.push("missing PaymentIntent");
   let chargeId = paymentIntentId;
   if (paymentIntentId) {
-    const intent = await stripeFetch("/payment_intents/" + paymentIntentId);
-    if (intent.livemode !== true) integrityErrors.push("PaymentIntent is not live");
+    const intent = await stripeFetchForMode(mode, "/payment_intents/" + paymentIntentId);
+    if (intent.livemode !== (mode === "live")) integrityErrors.push("PaymentIntent environment mismatch");
     if (intent.status !== "succeeded") integrityErrors.push("PaymentIntent did not succeed");
     if (intent.amount_received !== expectedTotal) integrityErrors.push("PaymentIntent amount mismatch");
     if ((intent.currency || "").toLowerCase() !== expectedCurrency) integrityErrors.push("PaymentIntent currency mismatch");
@@ -592,7 +601,8 @@ export async function processLivePaymentFailure(svc, details) {
     : await attemptByPaymentIntent(svc, paymentIntentId);
   const orderId = details?.orderId || attempt?.order_id;
   const order = orderId ? await svc.entities.Order.get(orderId) : null;
-  if (!order || order.commerce_mode !== "live") return { ignored: true };
+  if (!order) return { ignored: true };
+  assertStripeOrderMode(order, details?.commerceMode || "live");
 
   if (!attempt || order.current_payment_attempt_id !== attempt.id) {
     if (attempt) {
@@ -658,9 +668,10 @@ export async function processLivePaymentFailure(svc, details) {
 }
 
 export async function reconcileLiveAwaitingPayment(svc, order) {
-  if (!order || order.commerce_mode !== "live" || order.order_status !== "awaiting_payment") {
+  if (!order || !isStripeCommerceMode(order.commerce_mode) || order.order_status !== "awaiting_payment") {
     return { safeToRelease: false, ignored: true };
   }
+  const mode = order.commerce_mode;
   try {
     const attempt = await currentAttemptForOrder(svc, order);
     if (!attempt?.checkout_session_id) {
@@ -676,9 +687,9 @@ export async function reconcileLiveAwaitingPayment(svc, order) {
       });
       return { safeToRelease: false };
     }
-    const session = await stripeFetch("/checkout/sessions/" + attempt.checkout_session_id);
+    const session = await stripeFetchForMode(mode, "/checkout/sessions/" + attempt.checkout_session_id);
     if (session.payment_status === "paid") {
-      await processLivePaymentSuccess(svc, session.id, "maintenance-reconciliation");
+      await processLivePaymentSuccess(svc, session.id, "maintenance-reconciliation", mode);
       return { safeToRelease: false, paid: true };
     }
     if (session.status === "open") {
@@ -696,6 +707,7 @@ export async function reconcileLiveAwaitingPayment(svc, order) {
     }
     if (session.status === "expired" || session.status === "complete") {
       await processLivePaymentFailure(svc, {
+        commerceMode: mode,
         orderId: order.id,
         sessionId: session.id,
         reason: "Stripe confirmed checkout session " + session.status + " without payment",
@@ -727,7 +739,7 @@ export async function reconcileLiveAwaitingPayment(svc, order) {
 }
 
 export async function reconcilePendingLiveRefund(svc, order) {
-  if (!order || order.commerce_mode !== "live") return { ignored: true };
+  if (!order || !isStripeCommerceMode(order.commerce_mode)) return { ignored: true };
   const payments = await svc.entities.PaymentRecord.filter({ order_id: order.id });
   const payment = (payments || [])[0];
   if (!payment?.provider_refund_id) {
@@ -744,14 +756,16 @@ export async function reconcilePendingLiveRefund(svc, order) {
     });
     return { refundPending: true, missingReference: true };
   }
-  const refund = await stripeFetch("/refunds/" + payment.provider_refund_id);
+  const refund = await stripeFetchForMode(order.commerce_mode, "/refunds/" + payment.provider_refund_id);
   return reconcileStripeRefund(svc, refund, "maintenance-reconciliation");
 }
 
 // ---- Settlement transfer ----
 export async function createVendorTransfer(svc, order, cq) {
-  if (order.commerce_mode !== "live") return null;
-  if (!livePaymentsEnabled()) throw new Error("Live settlement transfers are paused.");
+  const mode = order.commerce_mode;
+  if (!isStripeCommerceMode(mode)) return null;
+  if (mode === "live" && !livePaymentsEnabled()) throw new Error("Live settlement transfers are paused.");
+  if (mode === "stripe_test" && !stripeSandboxEnabled()) throw new Error("Sandbox transfers are paused.");
   if (order.financial_hold) throw new Error("Order is on a financial hold.");
   if (!order.buyer_confirmed_at) throw new Error("Buyer delivery confirmation is required before settlement.");
   if (!order.payout_eligible_at || new Date(order.payout_eligible_at) > new Date()) {
@@ -762,23 +776,24 @@ export async function createVendorTransfer(svc, order, cq) {
   }
 
   const vendor = await svc.entities.VendorProfile.get(order.vendor_id);
-  if (!vendor?.stripe_account_id) throw new Error("Seller has no connected Stripe account for payout.");
-  const account = await retrieveAccount(svc, vendor.stripe_account_id);
+  if (!vendorStripeAccountId(vendor, mode)) throw new Error("Seller has no connected Stripe account for payout.");
+  const account = await retrieveAccount(svc, vendorStripeAccountId(vendor, mode), mode);
   if (!stripeAccountReady(account)) {
     throw new Error("Seller Stripe account is not currently enabled for transfers.");
   }
 
+  if (mode === "stripe_test" && vendor.is_test_fixture !== true) throw new Error("Sandbox seller isolation failed.");
   const amount = vendorPayableCents(cq);
   if (amount <= 0) return { skipped: true };
   let transfer;
   try {
-    transfer = await stripeFetch("/transfers", {
+    transfer = await stripeFetchForMode(mode, "/transfers", {
       method: "POST",
       idempotencyKey: "transfer-" + order.id,
       params: {
         amount,
         currency: (cq.currency || "usd").toLowerCase(),
-        destination: vendor.stripe_account_id,
+        destination: vendorStripeAccountId(vendor, mode),
         transfer_group: order.id,
         metadata: { order_id: order.id, vendor_id: vendor.id, base44_app_id: appId() },
       },
@@ -829,7 +844,7 @@ export async function ensureTransferReversal(svc, order, cq, cumulativeRefundedC
   if (amount <= 0) return { alreadyReversed: true, targetCents };
 
   try {
-    const reversal = await stripeFetch("/transfers/" + order.stripe_transfer_id + "/reversals", {
+    const reversal = await stripeFetchForMode(order.commerce_mode, "/transfers/" + order.stripe_transfer_id + "/reversals", {
       method: "POST",
       idempotencyKey: "transfer-reversal-" + order.id + "-" + targetCents,
       params: {
@@ -896,8 +911,8 @@ async function stageRefund(svc, order, payment, actor, reason) {
     },
   });
   await svc.entities.Order.update(order.id, {
-    financial_hold: order.commerce_mode === "live",
-    financial_hold_reason: order.commerce_mode === "live" ? "Live refund is awaiting provider reconciliation." : null,
+    financial_hold: isStripeCommerceMode(order.commerce_mode),
+    financial_hold_reason: isStripeCommerceMode(order.commerce_mode) ? "Stripe refund is awaiting provider reconciliation." : null,
   });
 }
 
@@ -938,14 +953,14 @@ export async function initiateRefundWorkflow(svc, orderId, actor, reason) {
     return resumePendingRefund(svc, orderId, actor);
   }
 
-  if (order.commerce_mode !== "live") {
+  if (!isStripeCommerceMode(order.commerce_mode)) {
     throw new Error("Payments are disabled for this order.");
   }
-  if (!keyIsLive()) throw new Error("A live refund requires the production Stripe key.");
+  stripeKeyForMode(order.commerce_mode);
 
   const refreshed = await svc.entities.PaymentRecord.get(payment.id);
   if (refreshed.provider_refund_id && refreshed.provider_refund_status === "pending") {
-    const existingRefund = await stripeFetch("/refunds/" + refreshed.provider_refund_id);
+    const existingRefund = await stripeFetchForMode(order.commerce_mode, "/refunds/" + refreshed.provider_refund_id);
     return reconcileStripeRefund(svc, existingRefund, "refund-retry");
   }
   if (refreshed.provider_refund_status === "succeeded" && refreshed.refund_status === "full") {
@@ -958,7 +973,7 @@ export async function initiateRefundWorkflow(svc, orderId, actor, reason) {
   }
   let refund;
   try {
-    refund = await stripeFetch("/refunds", {
+    refund = await stripeFetchForMode(order.commerce_mode, "/refunds", {
       method: "POST",
       idempotencyKey: "refund-" + orderId + "-full",
       params: {
@@ -1122,24 +1137,22 @@ async function reconcileChargeRefundTruth(svc, order, payment, charge, refund, s
 export async function reconcileStripeRefund(svc, refund, source) {
   const order = await locateOrderForRefund(svc, refund);
   if (!order) return { ignored: true };
-  if (order.commerce_mode !== "live") throw new Error("Stripe refund cannot mutate a non-live order.");
-  if (refund.livemode !== true || !keyIsLive()) {
-    throw new Error("Non-live Stripe refund cannot mutate a live order.");
-  }
+  assertStripeOrderMode(order, stripeModeFromObject(refund));
   const payments = await svc.entities.PaymentRecord.filter({ order_id: order.id });
   const payment = (payments || [])[0];
   if (!payment) throw new Error("No PaymentRecord matches the refunded order.");
 
   let charge;
   if (typeof refund.charge === "string") {
-    charge = await stripeFetch("/charges/" + refund.charge);
+    charge = await stripeFetchForMode(order.commerce_mode, "/charges/" + refund.charge);
   } else if (refund.charge?.id) {
     charge = refund.charge;
   } else if (payment.transaction_ref?.startsWith("ch_")) {
-    charge = await stripeFetch("/charges/" + payment.transaction_ref);
+    charge = await stripeFetchForMode(order.commerce_mode, "/charges/" + payment.transaction_ref);
   } else {
     throw new Error("Stripe refund has no charge for cumulative refund verification.");
   }
+  assertStripeObjectMode(charge, order.commerce_mode);
   return reconcileChargeRefundTruth(svc, order, payment, charge, refund, source || "webhook");
 }
 
@@ -1151,8 +1164,7 @@ export async function handleChargeRefunded(svc, charge) {
   }
   if (!order && charge.metadata?.order_id) order = await svc.entities.Order.get(charge.metadata.order_id);
   if (!order) return { ignored: true };
-  if (order.commerce_mode !== "live") throw new Error("Stripe charge refund cannot mutate a non-live order.");
-  if (charge.livemode !== true || !keyIsLive()) throw new Error("Non-live charge cannot mutate a live order.");
+  assertStripeOrderMode(order, stripeModeFromObject(charge));
   const payments = await svc.entities.PaymentRecord.filter({ order_id: order.id });
   const payment = (payments || [])[0];
   if (!payment) throw new Error("No PaymentRecord matches the refunded charge.");
@@ -1181,7 +1193,7 @@ async function locateOrderForDispute(svc, dispute) {
 export async function handleDisputeEvent(svc, eventType, dispute) {
   const order = await locateOrderForDispute(svc, dispute);
   if (!order) return { ignored: true };
-  if (order.commerce_mode !== "live") throw new Error("Stripe dispute cannot mutate a non-live order.");
+  assertStripeOrderMode(order, stripeModeFromObject(dispute));
 
   const status = dispute.status || eventType.replace("charge.dispute.", "");
   const payments = await svc.entities.PaymentRecord.filter({ order_id: order.id });
@@ -1245,7 +1257,7 @@ export async function handlePayoutEvent(svc, event) {
   const payout = event.data.object;
   const accountId = event.account;
   if (!accountId) return;
-  const vendors = await svc.entities.VendorProfile.filter({ stripe_account_id: accountId });
+  const vendors = await svc.entities.VendorProfile.filter({ [vendorStripeField("stripe_account_id", stripeModeFromObject(event))]: accountId });
   const vendor = (vendors || [])[0];
   if (!vendor) return;
   if (event.type === "payout.failed") {
@@ -1274,7 +1286,7 @@ export async function handlePayoutEvent(svc, event) {
 }
 
 // ---- Webhook signature verification ----
-export async function verifyWebhookSignature(rawBody, sigHeader) {
+export async function verifyWebhookSignature(rawBody, sigHeader, mode = "live") {
   if (!sigHeader) return false;
   let timestamp = null;
   const signatures = [];
@@ -1287,7 +1299,7 @@ export async function verifyWebhookSignature(rawBody, sigHeader) {
   const timestampNumber = Number(timestamp);
   if (!Number.isFinite(timestampNumber)) return false;
   if (Math.abs(Date.now() / 1000 - timestampNumber) > 300) return false;
-  const secret = env("STRIPE_WEBHOOK_SECRET");
+  const secret = stripeWebhookSecret(mode);
   if (!secret) return false;
 
   const key = await crypto.subtle.importKey(
