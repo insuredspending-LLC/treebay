@@ -9,10 +9,10 @@ export function stripeKeyForMode(mode) {
   if (!isStripeCommerceMode(mode)) throw new Error("Unsupported Stripe commerce mode.");
   const legacy = String(readStripeEnv("STRIPE_SECRET_KEY") || "");
   const key = mode === "stripe_test"
-    ? String(readStripeEnv("STRIPE_TEST_SECRET_KEY") || (legacy.startsWith("sk_test_") ? legacy : ""))
+    ? String(readStripeEnv("STRIPE_TEST_SECRET_KEY") || (/^(sk|rk)_test_/.test(legacy) ? legacy : ""))
     : legacy;
-  const prefix = mode === "stripe_test" ? "sk_test_" : "sk_live_";
-  if (!key.startsWith(prefix)) throw new Error(mode === "stripe_test"
+  const prefix = mode === "stripe_test" ? /^(sk|rk)_test_/ : /^(sk|rk)_live_/;
+  if (!prefix.test(key)) throw new Error(mode === "stripe_test"
     ? "Stripe sandbox requires STRIPE_TEST_SECRET_KEY containing a test secret key."
     : "Live Stripe requires the production secret key.");
   return key;
@@ -50,7 +50,7 @@ export function stripeWebhookSecret(mode) {
   if (mode === "stripe_test") {
     const dedicated = readStripeEnv("STRIPE_TEST_WEBHOOK_SECRET");
     if (dedicated) return dedicated;
-    if (String(readStripeEnv("STRIPE_SECRET_KEY") || "").startsWith("sk_test_")) return readStripeEnv("STRIPE_WEBHOOK_SECRET");
+    if (/^(sk|rk)_test_/.test(String(readStripeEnv("STRIPE_SECRET_KEY") || ""))) return readStripeEnv("STRIPE_WEBHOOK_SECRET");
     return undefined;
   }
   return mode === "live" ? readStripeEnv("STRIPE_WEBHOOK_SECRET") : undefined;
