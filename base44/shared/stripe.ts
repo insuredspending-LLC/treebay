@@ -26,7 +26,7 @@ function env(name) {
 function secretKey(mode = "live") { return stripeKeyForMode(mode); }
 
 function keyIsLive() {
-  return String(env("STRIPE_SECRET_KEY") || "").startsWith("sk_live_");
+  return /^(sk|rk)_live_/.test(String(env("STRIPE_SECRET_KEY") || ""));
 }
 
 function appId() {
