@@ -117,7 +117,7 @@ export default function Account() {
               <StatusBadge status={vendor.verification_status} />
             </div>
             {vendor.verification_status === "pending" && (vendor.selling_status || "active") === "active" && (
-              <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded-md p-2">Your seller account is active. You can list, quote, and receive orders now; Tree Marketplace verification is still pending for the trust badge.</p>
+              <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded-md p-2">Your seller account is active. You can list, quote, and receive orders now; TreEbay verification is still pending for the trust badge.</p>
             )}
             {vendor.verification_status === "verified" && (
               <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded-md p-2">Your nursery is verified. Buyers can purchase your listings directly and accept your quotes.</p>
@@ -191,7 +191,7 @@ export default function Account() {
       <Button variant="outline" className="w-full h-12 text-rose-600" onClick={() => logout()}>
         <LogOut className="w-4 h-4 mr-2" /> Log out
       </Button>
-      <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1"><Leaf className="w-3 h-3" /> Tree Marketplace — the marketplace for plants, trees & delivery.</p>
+      <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1"><Leaf className="w-3 h-3" /> TreEbay — the marketplace for plants, trees & delivery.</p>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
         <main className="flex min-h-screen flex-col px-5 py-7 sm:px-10 lg:px-14">
           <div className="flex items-center justify-between">
             <Link to="/" className="inline-flex items-center gap-2 text-xs font-semibold text-[#5b675e] transition hover:text-primary"><ArrowLeft className="h-4 w-4" /> Back to marketplace</Link>
-            <div className="flex items-center gap-2 lg:hidden"><Leaf className="h-5 w-5 text-primary" /><span className="text-sm font-bold text-primary">Tree Marketplace</span></div>
+            <div className="flex items-center gap-2 lg:hidden"><Leaf className="h-5 w-5 text-primary" /><span className="text-sm font-bold text-primary">TreEbay</span></div>
           </div>
 
           <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-12 lg:py-16">
@@ -43,7 +43,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
             </div>
             {footer && <p className="mt-6 text-center text-sm text-[#69736b]">{footer}</p>}
           </div>
-          <p className="text-center text-[11px] text-[#8a938d]">Tree Marketplace · Trees, plants & delivery, connected.</p>
+          <p className="text-center text-[11px] text-[#8a938d]">TreEbay · Trees, plants & delivery, connected.</p>
         </main>
       </div>
     </div>

@@ -1,8 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-// Admin-only Tree Marketplace financials dashboard.
+// Admin-only TreEbay financials dashboard.
 // Authoritative totals from TransactionLedgerEntry + Order + TaxCalculation + SystemException.
-// Does NOT call gross fee revenue "profit" — uses "Tree Marketplace Fee Revenue".
+// Does NOT call gross fee revenue "profit" — uses "TreEbay Fee Revenue".
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);

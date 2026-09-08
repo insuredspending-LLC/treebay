@@ -22,7 +22,7 @@ export function isNonNegativeNumber(n) {
 }
 
 // A vendor quote total covers MERCHANDISE and the vendor's own delivery offer only.
-// Sales tax and marketplace fees are computed authoritatively by Tree Marketplace at checkout —
+// Sales tax and marketplace fees are computed authoritatively by TreEbay at checkout —
 // vendors do not quote them, so the buyer is never shown a total containing amounts
 // that are silently discarded later.
 export function computeQuoteTotal(items) {

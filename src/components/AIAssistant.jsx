@@ -97,10 +97,10 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
         <button
           onClick={() => setOpen(true)}
           className="fixed z-40 bottom-20 right-4 lg:bottom-6 lg:right-6 h-12 w-12 lg:w-auto lg:px-4 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center gap-2 no-tap-highlight hover:bg-primary/90 transition card-shadow"
-          aria-label="Open Tree Marketplace Assistant"
+          aria-label="Open TreEbay Assistant"
         >
           <Sparkles className="w-5 h-5" />
-          <span className="hidden lg:inline text-sm font-semibold">{onboarding ? "Setup help" : "Ask Tree Marketplace"}</span>
+          <span className="hidden lg:inline text-sm font-semibold">{onboarding ? "Setup help" : "Ask TreEbay"}</span>
         </button>
       )}
 
@@ -113,7 +113,7 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
                 <Sparkles className="w-4 h-4 text-primary-foreground" />
               </div>
               <div>
-                <p className="font-heading font-bold text-sm text-foreground">Tree Marketplace Assistant</p>
+                <p className="font-heading font-bold text-sm text-foreground">TreEbay Assistant</p>
                 <p className="text-[10px] text-muted-foreground">{onboarding ? "Setup guide" : assistantRole === "vendor" ? "Seller mode" : assistantRole === "carrier" ? "Carrier mode" : "Buyer mode"}</p>
               </div>
             </div>
@@ -131,8 +131,8 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
                 <div className="space-y-4">
                   <div className="rounded-2xl bg-secondary p-4 text-sm text-foreground">
                     {onboarding
-                      ? "Welcome to Tree Marketplace. I can explain each setup choice in plain language and help you finish without guessing."
-                      : "Hi! I'm your Tree Marketplace Assistant. I can help you find plants, compare suppliers, build RFQs, track orders, and navigate the marketplace. What do you need?"}
+                      ? "Welcome to TreEbay. I can explain each setup choice in plain language and help you finish without guessing."
+                      : "Hi! I'm your TreEbay Assistant. I can help you find plants, compare suppliers, build RFQs, track orders, and navigate the marketplace. What do you need?"}
                   </div>
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2">Try asking:</p>
@@ -176,7 +176,7 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
                 <div className="flex justify-start">
                   <div className="bg-secondary rounded-2xl px-4 py-3 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    <span className="text-sm text-muted-foreground">Searching Tree Marketplace…</span>
+                    <span className="text-sm text-muted-foreground">Searching TreEbay…</span>
                   </div>
                 </div>
               )}

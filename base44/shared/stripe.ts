@@ -1,5 +1,5 @@
 import { isStripeCommerceMode, stripeKeyForMode, stripeSandboxEnabled, stripeModeFromObject, assertStripeObjectMode, assertStripeOrderMode, vendorStripeField, vendorStripeAccountId, stripeWebhookSecret } from "./stripeMode.ts";
-// Tree Marketplace Stripe Connect integration — BACKEND ONLY.
+// TreEbay Stripe Connect integration — BACKEND ONLY.
 // Live charging remains fail-closed and requires an explicit production gate plus
 // a live Stripe key. Stripe TEST mode is never used as the app's internal simulator.
 
@@ -352,7 +352,7 @@ export async function createCheckoutSession(svc, order, cq, vendor) {
       price_data: {
         currency,
         unit_amount: buyerFeeCents,
-        product_data: { name: "Tree Marketplace fee" },
+        product_data: { name: "TreEbay fee" },
       },
       quantity: 1,
     });
@@ -484,7 +484,7 @@ async function validateCurrentPaidSession(svc, session, mode) {
   const attempt = await attemptBySession(svc, session.id);
   const orderId = session.metadata?.order_id || attempt?.order_id;
   const order = orderId ? await svc.entities.Order.get(orderId) : null;
-  if (!order) throw new Error("No Tree Marketplace order matches the Stripe Checkout Session.");
+  if (!order) throw new Error("No TreEbay order matches the Stripe Checkout Session.");
   assertStripeOrderMode(order, mode);
   if (!attempt || order.current_payment_attempt_id !== attempt.id || order.stripe_checkout_session_id !== session.id) {
     await quarantineStalePaidAttempt(

@@ -243,7 +243,7 @@ export default function ProductDetail() {
               {!sellerActive ? "Seller unavailable" : showReqQuote ? "Request quote to buy" : "Start Order"}
             </Button>
             {!sellerActive && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> This seller account is not currently active for new orders.</p>}
-            {sellerActive && !sellerVerified && <p className="text-xs text-muted-foreground flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Seller is active. Tree Marketplace verification badge is still pending.</p>}
+            {sellerActive && !sellerVerified && <p className="text-xs text-muted-foreground flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Seller is active. TreEbay verification badge is still pending.</p>}
 
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">

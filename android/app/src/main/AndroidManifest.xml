@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Tree Marketplace requires network access only. No location, camera, contacts,
+    <!-- TreEbay requires network access only. No location, camera, contacts,
          SMS, call-log, or broad storage permissions are requested. -->
     <uses-permission android:name="android.permission.INTERNET" />
 

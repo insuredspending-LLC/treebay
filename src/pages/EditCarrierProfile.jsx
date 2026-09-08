@@ -98,7 +98,7 @@ export default function EditCarrierProfile() {
           <Field label="DOT number" value={f.dot_number} onChange={(v) => set("dot_number", v)} />
           <Field label="MC number" value={f.mc_number} onChange={(v) => set("mc_number", v)} />
         </div>
-        <p className="text-xs text-amber-700">DOT/MC values are informational in TEST mode. Tree Marketplace is not performing real FMCSA or insurance verification yet.</p>
+        <p className="text-xs text-amber-700">DOT/MC values are informational in TEST mode. TreEbay is not performing real FMCSA or insurance verification yet.</p>
       </Card>
 
       <div className="flex gap-2">

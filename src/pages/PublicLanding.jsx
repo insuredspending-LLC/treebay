@@ -118,7 +118,7 @@ export default function PublicLanding() {
     <div className="marketing-surface min-h-screen bg-[#f7f4ed] text-[#152119]">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#10251a]/80 text-white backdrop-blur-xl">
         <div className="page-shell flex h-[4.5rem] items-center justify-between gap-4">
-          <Link to="/" className="flex items-center gap-2.5 no-tap-highlight" aria-label="Tree Marketplace home">
+          <Link to="/" className="flex items-center gap-2.5 no-tap-highlight" aria-label="TreEbay home">
             <BrandMark className="h-9 w-9 rounded-full bg-white/[0.12] ring-1 ring-white/20" />
             <BrandWordmark className="text-lg text-white sm:text-xl" />
           </Link>
@@ -259,7 +259,7 @@ export default function PublicLanding() {
                   One connected path from plant list to jobsite.
                 </h2>
                 <p className="mt-6 max-w-lg text-base leading-7 text-[#5c675f]">
-                  Tree Marketplace keeps the useful detail close and the operational complexity out of your way until you need it.
+                  TreEbay keeps the useful detail close and the operational complexity out of your way until you need it.
                 </p>
                 <Button className="mt-8 rounded-full px-6" asChild>
                   <Link to="/register">Create your buyer workspace <ArrowRight className="h-4 w-4" /></Link>
@@ -396,7 +396,7 @@ export default function PublicLanding() {
                     </div>
                     <label className="flex items-start gap-3 rounded-xl bg-[#f8f6f1] p-3.5 text-sm">
                       <input type="checkbox" className="mt-1 accent-primary" checked={consent} onChange={(event) => setConsent(event.target.checked)} required />
-                      <span>I agree to be contacted about the Tree Marketplace closed test.</span>
+                      <span>I agree to be contacted about the TreEbay closed test.</span>
                     </label>
                     {error && <p className="text-sm text-destructive">{error}</p>}
                     <Button type="submit" className="h-12 w-full rounded-xl" disabled={submitting}>
@@ -428,7 +428,7 @@ export default function PublicLanding() {
               <Link to="/login" className="hover:text-white">Log in</Link>
             </div>
           </div>
-          <p className="mt-10 border-t border-white/10 pt-6 text-xs text-white/35">{"© " + new Date().getFullYear() + " Tree Marketplace. All rights reserved."}</p>
+          <p className="mt-10 border-t border-white/10 pt-6 text-xs text-white/35">{"© " + new Date().getFullYear() + " TreEbay. All rights reserved."}</p>
         </div>
       </footer>
     </div>

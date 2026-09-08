@@ -332,7 +332,7 @@ export default function OrderDetail() {
       {order.fulfillment_method === "third_party_carrier" && order.order_status === "ready_for_pickup" && (
         <Card className="p-4 flex items-center gap-2">
           <Truck className="w-5 h-5 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Tree Marketplace is automatically assigning a freight carrier. No action needed.</p>
+          <p className="text-sm text-muted-foreground">TreEbay is automatically assigning a freight carrier. No action needed.</p>
         </Card>
       )}
 

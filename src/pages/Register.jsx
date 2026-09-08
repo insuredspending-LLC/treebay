@@ -221,7 +221,7 @@ export default function Register() {
         </div>
         <label className="flex items-start gap-2 text-sm text-muted-foreground">
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5" />
-          <span>I agree to the Tree Marketplace <Link to="/terms" className="text-primary underline">Terms of Service</Link> and <Link to="/community-rules" className="text-primary underline">Marketplace Rules</Link> and acknowledge the <Link to="/privacy" className="text-primary underline">Privacy Policy</Link>.</span>
+          <span>I agree to the TreEbay <Link to="/terms" className="text-primary underline">Terms of Service</Link> and <Link to="/community-rules" className="text-primary underline">Marketplace Rules</Link> and acknowledge the <Link to="/privacy" className="text-primary underline">Privacy Policy</Link>.</span>
         </label>
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (

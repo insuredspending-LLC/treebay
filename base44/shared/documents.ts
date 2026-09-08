@@ -1,4 +1,4 @@
-// Tree Marketplace transaction document generation — print-friendly HTML stored in TransactionDocument.
+// TreEbay transaction document generation — print-friendly HTML stored in TransactionDocument.
 // Approved TEST documents prominently state that no real money moved. LIVE
 // documents never carry simulator language.
 
@@ -35,12 +35,12 @@ function baseHtml(title, subtitle, isTest, body) {
     @media print{body{padding:0;max-width:none;}}
   </style></head><body>
   <div class="header">
-    <div><div class="brand">Tree Marketplace</div><div class="tagline">THE LANDSCAPE SUPPLY MARKETPLACE</div></div>
+    <div><div class="brand">TreEbay</div><div class="tagline">THE LANDSCAPE SUPPLY MARKETPLACE</div></div>
     <div style="text-align:right;"><h1>${title}</h1><div class="muted">${subtitle}</div></div>
   </div>
   ${testBanner}
   ${body}
-  <p class="muted" style="margin-top:32px;border-top:1px solid #e2e8f0;padding-top:8px;">Generated ${dateStr(new Date())} · Tree Marketplace Marketplace</p>
+  <p class="muted" style="margin-top:32px;border-top:1px solid #e2e8f0;padding-top:8px;">Generated ${dateStr(new Date())} · TreEbay Marketplace</p>
   </body></html>`;
 }
 
@@ -116,7 +116,7 @@ export function generateSettlementStatement(order, cq, vendor) {
     <div class="section"><div class="label">Vendor</div><div class="value">${vendor?.business_name || order.vendor_name || "—"}</div></div>
     <table>
       <tr><td class="muted">Merchandise Subtotal</td><td style="text-align:right;">${money(cq?.merchandise_subtotal_cents || 0)}</td></tr>
-      ${vendorFee ? `<tr><td class="muted">Less Tree Marketplace seller commission</td><td style="text-align:right;">-${money(vendorFee)}</td></tr>` : `<tr><td class="muted">Marketplace fee</td><td style="text-align:right;">Buyer-paid historical rule — not deducted</td></tr>`}
+      ${vendorFee ? `<tr><td class="muted">Less TreEbay seller commission</td><td style="text-align:right;">-${money(vendorFee)}</td></tr>` : `<tr><td class="muted">Marketplace fee</td><td style="text-align:right;">Buyer-paid historical rule — not deducted</td></tr>`}
       ${vendorDelivery ? `<tr><td class="muted">Vendor Delivery</td><td style="text-align:right;">${money(vendorDelivery)}</td></tr>` : ""}
       <tr class="total-row"><td>Net Vendor Payable</td><td style="text-align:right;">${money(vendorPayable)}</td></tr>
     </table>

@@ -171,11 +171,11 @@ function TopBar() {
               <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
             </div>
           ) : (
-            <button onClick={() => navigate(accountType === "vendor" ? "/vendor" : accountType === "carrier" ? "/carrier" : "/home")} aria-label="Tree Marketplace workspace home" className="flex items-center gap-2 no-tap-highlight shrink-0">
+            <button onClick={() => navigate(accountType === "vendor" ? "/vendor" : accountType === "carrier" ? "/carrier" : "/home")} aria-label="TreEbay workspace home" className="flex items-center gap-2 no-tap-highlight shrink-0">
               <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shadow-sm">
                 <Leaf className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-heading font-bold text-base sm:text-lg text-primary tracking-tight">Tree Marketplace</span>
+              <span className="font-heading font-bold text-base sm:text-lg text-primary tracking-tight">TreEbay</span>
             </button>
           )}
           {!isChild && (
@@ -213,7 +213,7 @@ function TopBar() {
           <Button variant="ghost" size="icon" className="hidden sm:inline-flex lg:hidden" asChild aria-label="Messages">
             <Link to="/messages"><MessageSquare className="w-5 h-5" /></Link>
           </Button>
-          <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="Tree Marketplace Assistant">
+          <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="TreEbay Assistant">
             <Sparkles className="w-5 h-5 text-primary" />
           </Button>
           <Popover>

@@ -84,7 +84,7 @@ export default function ProblemReportDialog({ open, onOpenChange, defaultType = 
             <DialogHeader>
               <DialogTitle className="text-center">Report received</DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground">It is now visible in the Tree Marketplace admin issue inbox for review.</p>
+            <p className="text-sm text-muted-foreground">It is now visible in the TreEbay admin issue inbox for review.</p>
             {submittedId !== "submitted" && <p className="text-xs text-muted-foreground">Reference: {submittedId.slice(-8)}</p>}
             <Button className="w-full" onClick={() => close(false)}>Done</Button>
           </div>
@@ -138,7 +138,7 @@ export default function ProblemReportDialog({ open, onOpenChange, defaultType = 
                 />
               </div>
 
-              <p className="text-xs text-muted-foreground">Tree Marketplace automatically includes the current screen and device type. It does not include passwords or form entries.</p>
+              <p className="text-xs text-muted-foreground">TreEbay automatically includes the current screen and device type. It does not include passwords or form entries.</p>
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
 

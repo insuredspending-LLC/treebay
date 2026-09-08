@@ -65,7 +65,7 @@ export default function BecomeSeller() {
         wholesale_available: !!f.wholesale_available,
       });
       await refresh();
-      toast({ title: "Seller account activated", description: "You can list and sell immediately. Tree Marketplace verification is a separate trust badge." });
+      toast({ title: "Seller account activated", description: "You can list and sell immediately. TreEbay verification is a separate trust badge." });
       navigate("/vendor", { replace: true });
     } catch (e) {
       toast({ title: "Could not save profile", description: apiError(e), variant: "destructive" });
@@ -151,11 +151,11 @@ export default function BecomeSeller() {
             <Card className="p-4 bg-secondary/50 space-y-2">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-primary" />
-                <p className="text-sm font-medium">Why Tree Marketplace verifies growers</p>
+                <p className="text-sm font-medium">Why TreEbay verifies growers</p>
               </div>
-              <p className="text-xs text-muted-foreground">Tree Marketplace verifies growers to ensure buyers receive healthy, accurately represented plants. Verification confirms your nursery is a legitimate business.</p>
+              <p className="text-xs text-muted-foreground">TreEbay verifies growers to ensure buyers receive healthy, accurately represented plants. Verification confirms your nursery is a legitimate business.</p>
               <p className="text-xs text-muted-foreground"><span className="font-medium text-emerald-700">Active sellers</span> can list inventory, submit commercial quotes, and receive orders immediately after onboarding.</p>
-              <p className="text-xs text-muted-foreground"><span className="font-medium text-primary">Verified sellers</span> receive a separate Tree Marketplace trust badge after verification. The badge is not required for normal selling.</p>
+              <p className="text-xs text-muted-foreground"><span className="font-medium text-primary">Verified sellers</span> receive a separate TreEbay trust badge after verification. The badge is not required for normal selling.</p>
             </Card>
           </div>
         )}
@@ -165,7 +165,7 @@ export default function BecomeSeller() {
           <div className="space-y-4">
             <div>
               <h2 className="font-semibold">Review & submit</h2>
-              <p className="text-sm text-muted-foreground">Tree Marketplace is free to join. A 4% marketplace fee is calculated only when a sale is made and is fully disclosed at checkout. No monthly seller plan is required.</p>
+              <p className="text-sm text-muted-foreground">TreEbay is free to join. A 4% marketplace fee is calculated only when a sale is made and is fully disclosed at checkout. No monthly seller plan is required.</p>
             </div>
             <Card className="p-4 space-y-3 text-sm">
               <div>
@@ -184,7 +184,7 @@ export default function BecomeSeller() {
                 <p>{[f.pickup_available !== false && "Pickup", f.delivery_available !== false && "Delivery", f.wholesale_available && "Wholesale"].filter(Boolean).join(" · ") || "None selected"}</p>
               </div>
             </Card>
-            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Your seller account activates automatically; Tree Marketplace verification begins as pending and only controls the trust badge. There is no monthly seller subscription.</p>
+            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Your seller account activates automatically; TreEbay verification begins as pending and only controls the trust badge. There is no monthly seller subscription.</p>
           </div>
         )}
 

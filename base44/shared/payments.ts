@@ -1,4 +1,4 @@
-// Tree Marketplace payment engine.
+// TreEbay payment engine.
 // Simulated outcomes are restricted to approved closed-test users/admins. The shared
 // confirmation sequence is resumable and idempotent for both approved TEST and Stripe LIVE.
 

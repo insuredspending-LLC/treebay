@@ -38,7 +38,7 @@ export default function VendorFinancials() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <StatCard icon={TrendingUp} label="Gross Marketplace Sales" value={formatCents(v.totals.gross_merchandise_sales_cents)} />
         <StatCard icon={Receipt} label="Taxable Marketplace Sales" value={formatCents(v.totals.taxable_marketplace_sales_cents)} />
-        <StatCard icon={Receipt} label="Tax Collected by Tree Marketplace" value={formatCents(v.totals.tax_collected_cents)} />
+        <StatCard icon={Receipt} label="Tax Collected by TreEbay" value={formatCents(v.totals.tax_collected_cents)} />
         <StatCard icon={Truck} label="Delivery Revenue" value={formatCents(v.totals.vendor_delivery_revenue_cents)} />
         <StatCard icon={Receipt} label="Seller Commissions Deducted" value={formatCents(v.totals.vendor_fee_deduction_cents)} />
         <StatCard icon={CheckCircle2} label="Net Settled Proceeds" value={formatCents(v.totals.net_settled_proceeds_cents)} />

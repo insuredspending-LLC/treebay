@@ -20,7 +20,7 @@ export async function reportClientError({
   error,
   message,
   componentStack = "",
-  details = "Tree Marketplace detected an unexpected client-side error. No form values were included.",
+  details = "TreEbay detected an unexpected client-side error. No form values were included.",
   impact = "blocked",
   reportType = "automatic_crash",
 }) {

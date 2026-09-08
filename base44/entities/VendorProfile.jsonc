@@ -110,7 +110,7 @@
         "suspended"
       ],
       "default": "pending",
-      "description": "Trust badge status. Pending does not block normal selling; verified may only be shown after Tree Marketplace verification. The suspended value is retained for backward compatibility."
+      "description": "Trust badge status. Pending does not block normal selling; verified may only be shown after TreEbay verification. The suspended value is retained for backward compatibility."
     },
     "selling_status": {
       "type": "string",

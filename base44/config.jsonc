@@ -1,5 +1,5 @@
 {
-  "name": "Tree Marketplace",
+  "name": "TreEbay",
   "site": {
     "installCommand": "npm install",
     "buildCommand": "npm run build",

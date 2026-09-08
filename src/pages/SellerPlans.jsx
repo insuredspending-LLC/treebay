@@ -18,7 +18,7 @@ export default function SellerPlans() {
           </span>
           <h1 className="mt-5 font-heading text-3xl font-bold tracking-tight md:text-5xl">Pay only when a product sells.</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-emerald-50 md:text-base">
-            Tree Marketplace does not charge an app-download, account, or monthly subscription fee.
+            TreEbay does not charge an app-download, account, or monthly subscription fee.
           </p>
         </div>
       </section>

@@ -1,4 +1,4 @@
-// Tree Marketplace fulfillment engine — the ONE implementation of vendor fulfillment steps.
+// TreEbay fulfillment engine — the ONE implementation of vendor fulfillment steps.
 // Backend functions supply authorization; this module owns the state machine.
 //
 // Vendor responsibility ENDS at `delivered`. delivered -> completed belongs to the

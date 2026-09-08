@@ -24,7 +24,7 @@ export default async function(req) {
     }
 
     // Keep the response neutral so this endpoint cannot be used to enumerate
-    // whether a Tree Marketplace account exists for an email address.
+    // whether a TreEbay account exists for an email address.
     return Response.json({ ok: true });
   } catch {
     return Response.json({ error: "Could not submit the deletion request." }, { status: 500 });
