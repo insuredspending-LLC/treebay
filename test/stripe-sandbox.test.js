@@ -13,6 +13,22 @@ const bundle=await build({
 });
 const mod=await import("data:text/javascript;base64,"+Buffer.from(bundle.outputFiles[0].text).toString("base64"));
 
+test("restricted Stripe credentials preserve environment separation",()=>{
+ configure();
+ process.env.STRIPE_SECRET_KEY=["rk","live","fixture"].join("_");
+ process.env.STRIPE_TEST_SECRET_KEY=["rk","test","fixture"].join("_");
+ assert.equal(mod.stripeKeyForMode("live"),process.env.STRIPE_SECRET_KEY);
+ assert.equal(mod.stripeKeyForMode("stripe_test"),process.env.STRIPE_TEST_SECRET_KEY);
+ process.env.STRIPE_TEST_SECRET_KEY=process.env.STRIPE_SECRET_KEY;
+ assert.throws(()=>mod.stripeKeyForMode("stripe_test"));
+ process.env.STRIPE_SECRET_KEY=["rk","test","fixture"].join("_");
+ assert.throws(()=>mod.stripeKeyForMode("live"));
+ delete process.env.STRIPE_TEST_SECRET_KEY;
+ assert.equal(mod.stripeKeyForMode("stripe_test"),process.env.STRIPE_SECRET_KEY);
+ delete process.env.STRIPE_TEST_WEBHOOK_SECRET;
+ assert.equal(mod.stripeWebhookSecret("stripe_test"),process.env.STRIPE_WEBHOOK_SECRET);
+});
+
 function configure(){
  process.env.STRIPE_SECRET_KEY="sk_live_fake_for_unit_tests";
  process.env.STRIPE_TEST_SECRET_KEY="sk_test_fake_for_unit_tests";
