@@ -62,16 +62,25 @@ export default function AIAssistant({ onboarding = false, onboardingRole = null 
     setLoading(true);
     try {
       // Send prior completed turns only; the current message is sent separately.
-      const history = messages.slice(-8).map((m) => ({ role: m.role, text: m.text }));
+      const history = messages.filter((m) => !m.error).slice(-8).map((m) => ({ role: m.role, text: m.text }));
       const res = await base44.functions.invoke("trebayAssistant", {
         message: text,
         context: { role: assistantRole, page: location.pathname, onboarding },
         history,
       });
-      const data = res.data || res;
+      const data = res.data;
+      if (!data || typeof data.reply !== "string" || !data.reply.trim() ||
+          !Array.isArray(data.results?.cards) || !Array.isArray(data.results?.actions)) {
+        throw new Error("Invalid assistant response");
+      }
       setMessages((m) => [...m, { role: "assistant", text: data.reply || "I'm here to help.", cards: data.results?.cards || [], actions: data.results?.actions || [] }]);
-    } catch {
-      setMessages((m) => [...m, { role: "assistant", text: "The assistant could not connect. Sample plants are in the test marketplace. Use these buttons to open inventory or orders directly.", error: true,
+    } catch (error) {
+      const status = Number(error?.response?.status) || undefined;
+      const rawRequestId = error?.response?.data?.requestId;
+      const requestId = typeof rawRequestId === "string" && /^[a-f0-9-]{36}$/i.test(rawRequestId) ? rawRequestId : undefined;
+      // A missing HTTP status can mean network/CORS; only browser network tools can distinguish them.
+      console.warn("trebay_assistant_request_failed", { status, requestId, category: status ? "http" : "network_cors_or_response" });
+      setMessages((m) => [...m, { role: "assistant", text: [401, 403].includes(status) ? "Please sign in again to use the assistant. You can still browse the marketplace." : "The assistant could not connect. Sample plants are in the test marketplace. Use these buttons to open inventory or orders directly.", error: true,
         actions: [{label:"Open test marketplace",path:"/stripe-sandbox"},{label:"Browse real listings",path:"/marketplace"},{label:"View orders",path:"/orders"}] }]);
     } finally {
       setLoading(false);

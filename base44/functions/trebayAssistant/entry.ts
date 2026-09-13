@@ -95,31 +95,56 @@ function findRfqProductMatch(rfq, products) {
 }
 
 export default async function(req: Request): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  const started = Date.now();
+  let stage = "client_configuration";
+  console.info(JSON.stringify({ event: "trebay_assistant", outcome: "started", requestId }));
   try {
+    if (req.method !== "POST") return Response.json({ error: "METHOD_NOT_ALLOWED", requestId }, { status: 405, headers: { Allow: "POST" } });
     const base44 = createClientFromRequest(req);
+    stage = "authentication";
     const user = await base44.auth.me();
-    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) throw Object.assign(new Error("Unauthorized"), { status: 401 });
+    stage = "request_validation";
     const body = await req.json();
-    const { message, context = {}, history = [] } = body;
-    if (!message) return Response.json({ error: "Message is required" }, { status: 400 });
+    const { message, context = {}, history = [] } = body || {};
+    if (typeof message !== "string" || !message.trim() || message.length > 8000 ||
+        !context || typeof context !== "object" || Array.isArray(context) ||
+        (context.page !== undefined && typeof context.page !== "string") ||
+        !Array.isArray(history) || history.length > 8 ||
+        history.some((turn) => !turn || !["user", "assistant"].includes(turn.role) || typeof turn.text !== "string" || turn.text.length > 8000)) {
+      throw new Error("Invalid request");
+    }
+    stage = "service_role_configuration";
     const svc = base44.asServiceRole;
+    stage = "profile_query";
     const vendorProfiles = await svc.entities.VendorProfile.filter({ owner_id: user.id }, "-created_date", 20);
     const isSeller = vendorProfiles.length > 0;
+    const isVerifiedSeller = vendorProfiles.some((profile) => profile.verification_status === "verified");
     const isActiveSeller = vendorProfiles.some((profile) => vendorCanSell(profile));
     const presentationRole = context.role === "vendor" && isSeller ? "seller" : "buyer";
     const onboardingContext = context.onboarding === true && context.page === "/onboarding";
     const setupRole = ["buyer", "vendor", "carrier"].includes(context.role) ? context.role : "buyer";
     const pageCtx = parsePageContext(context.page || "");
     const historyStr = history.slice(-8).map((turn) => `${turn.role === "user" ? "User" : "Assistant"}: ${turn.text || ""}`).join("\n");
+    stage = "provider_classification";
     const classification = await base44.integrations.Core.InvokeLLM({
       prompt: `${SYSTEM_PROMPT}\n\nPresentation mode: ${presentationRole}\nOnboarding: ${onboardingContext ? "yes" : "no"}\nSelected setup role: ${setupRole}\nCurrent page: ${context.page || "unknown"}${historyStr ? `\nPrior completed turns:\n${historyStr}` : ""}\n\nCurrent user message: "${message}"\n\nClassify intent, extract parameters, and write a short, directly useful answer.`,
       response_json_schema: INTENT_SCHEMA,
     });
-    const intent = classification.intent || "general";
+    stage = "classification_parsing";
+    if (!classification || typeof classification !== "object" || Array.isArray(classification) ||
+        !INTENT_SCHEMA.properties.intent.enum.includes(classification.intent) ||
+        (classification.reply !== undefined && typeof classification.reply !== "string") ||
+        (classification.params !== undefined && (!classification.params || typeof classification.params !== "object" || Array.isArray(classification.params)))) {
+      throw new Error("Invalid structured provider response");
+    }
+    const intent = classification.intent;
     const params = classification.params || {};
     let reply = classification.reply || "I can help you search inventory, review RFQs, and navigate TreEbay.";
     const results = { cards: [], actions: [] };
     let queryData = null;
+    stage = "marketplace_query";
 
     if (onboardingContext) {
       reply = classification.reply || "I can explain any setup field and help you choose the right TreEbay role.";
@@ -224,13 +249,44 @@ export default async function(req: Request): Promise<Response> {
     }
 
     if (queryData && !["seller_access", "listing_draft", "rfq_draft"].includes(queryData.type)) {
+      stage = "provider_explanation";
       const explanation = await base44.integrations.Core.InvokeLLM({
         prompt: `Repeat only explicit fields in the verified TreEbay JSON data below. Do not infer plant compatibility, summarize statuses with new labels, calculate totals, or invent data. Describe an RFQ as open only if its explicit status is open. If count is zero and searchedExhaustively is true, say no matching results were found. If count is zero and searchedExhaustively is false, say the search is still limited and suggest Marketplace or an RFQ. Keep to 2-4 sentences.\n\nUser message: ${message}\nIntent: ${intent}\nData: ${JSON.stringify(queryData).slice(0, 3000)}`,
       });
-      if (explanation) reply = explanation;
+      stage = "explanation_parsing";
+      if (typeof explanation !== "string" || !explanation.trim()) throw new Error("Invalid text provider response");
+      reply = explanation;
     }
-    return Response.json({ reply, intent, results, user: { id: user.id, isSeller, isVerifiedSeller, presentationRole } });
+    stage = "response_serialization";
+    const response = Response.json({ reply, intent, results, requestId, user: { id: user.id, isSeller, isVerifiedSeller, presentationRole } });
+    console.info(JSON.stringify({ event: "trebay_assistant", outcome: "success", requestId, stage, durationMs: Date.now() - started }));
+    return response;
   } catch (error) {
-    return Response.json({ error: error.message, reply: "I’m having trouble connecting right now. You can still browse the marketplace and manage TreEbay normally." }, { status: 500 });
+    const upstreamStatus = Number(error?.response?.status || error?.status) || undefined;
+    const provider = stage.startsWith("provider_");
+    let code = "INTERNAL_ERROR", status = 500;
+    let action = "Inspect the deployed function at the recorded stage; reproduce with the regression tests.";
+    if (stage === "request_validation") {
+      code = "INVALID_REQUEST"; status = 400; action = "Send valid JSON with a nonempty message, context object, and at most eight history turns.";
+    } else if (stage === "authentication" && ([401, 403].includes(upstreamStatus) || error?.message === "Authentication required to view users")) {
+      code = "AUTH_REQUIRED"; status = upstreamStatus === 403 ? 403 : 401; action = "Sign in again and verify the caller Authorization header reaches the Base44 gateway.";
+    } else if (stage.endsWith("configuration")) {
+      code = "BACKEND_CONFIGURATION"; action = "Verify Base44 gateway app ID and service-role credential injection. Never supply the service token from the browser.";
+    } else if (stage.endsWith("parsing")) {
+      code = "PROVIDER_RESPONSE_INVALID"; status = 502; action = "Check Core.InvokeLLM response shape against the requested schema or text contract.";
+    } else if (error?.name === "AbortError" || error?.code === "ECONNABORTED" || upstreamStatus === 504) {
+      code = "UPSTREAM_TIMEOUT"; status = 504; action = "Check Base44 upstream latency and function timeout logs.";
+    } else if (!upstreamStatus && ((error?.name === "TypeError" && /fetch failed|failed to fetch|network/i.test(error?.message || "")) || ["ENOTFOUND", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ERR_NETWORK"].includes(error?.code))) {
+      code = "UPSTREAM_NETWORK"; status = 502; action = "Check backend DNS, TLS, and outbound connectivity to Base44 at the recorded stage.";
+    } else if (provider) {
+      code = upstreamStatus === 429 ? "PROVIDER_RATE_LIMIT" : [401, 403].includes(upstreamStatus) ? "PROVIDER_ACCESS" : "PROVIDER_ERROR";
+      status = upstreamStatus === 429 ? 503 : 502;
+      action = "Check Base44 Core.InvokeLLM availability, integration credits, and app permissions; no direct AI API key is read by this function.";
+    } else if (["authentication", "profile_query", "marketplace_query"].includes(stage)) {
+      code = "BACKEND_DEPENDENCY"; status = 502; action = "Check Base44 auth/entity service status, entity schemas, and service-role permissions at the recorded stage.";
+    }
+    // Never log raw SDK errors: they can contain tokens, prompts, or response bodies.
+    console.error(JSON.stringify({ event: "trebay_assistant", outcome: "failure", requestId, stage, code, status, upstreamStatus, durationMs: Date.now() - started, action }));
+    return Response.json({ error: code, requestId, reply: code === "AUTH_REQUIRED" ? "Please sign in again to use the assistant." : "I’m having trouble connecting right now. You can still browse the marketplace and manage TreEbay normally." }, { status });
   }
 }

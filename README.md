@@ -1,5 +1,7 @@
 # Base44 Project
 
+For the assistant request path, environment audit, production diagnostics, and verification limits, see [Assistant runtime audit](docs/assistant-runtime-audit.md).
+
 Use this repository to run and edit the app locally, then publish changes back through Base44.
 
 Any change pushed to the repo will also be reflected in the Base44 Builder.

@@ -12,7 +12,8 @@
     "test:catalog": "node --test test/catalog-loader.test.js",
     "test:buyer": "node --test test/account-profiles.test.js",
     "test:stripe": "node --test test/stripe-sandbox.test.js",
-    "verify": "npm run test:catalog && npm run test:buyer && npm run test:stripe && npm run lint && npm run typecheck && npm run build",
+    "test:assistant": "node --test test/assistant.test.js",
+    "verify": "npm run test:catalog && npm run test:buyer && npm run test:stripe && npm run test:assistant && npm run lint && npm run typecheck && npm run build",
     "preview": "vite preview"
   },
   "dependencies": {
