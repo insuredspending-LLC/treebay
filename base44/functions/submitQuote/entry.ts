@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { computeQuoteTotal, isPositiveNumber, isNonNegativeNumber } from "../../shared/marketplace.ts";
 import { notifySafely } from "../../shared/notifications.ts";
+import { vendorCanSell } from "../../shared/transactions.ts";
 
 export default async function(req) {
   try {
@@ -21,12 +22,13 @@ export default async function(req) {
     }
 
     const svc = base44.asServiceRole;
-    const vendors = await svc.entities.VendorProfile.filter({ created_by_id: user.id });
+    const vendors = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     const vendor = (vendors || [])[0];
     if (!vendor) return Response.json({ error: "No vendor profile found" }, { status: 403 });
-    // Same seller-trust bar as direct listings: only verified sellers may quote commercially.
-    if (vendor.verification_status !== "verified") {
-      return Response.json({ error: "Your seller account must be verified before you can submit quotes." }, { status: 403 });
+    // Normal seller onboarding is automatic. Trust verification is a separate badge;
+    // only an operational restriction/suspension blocks commercial quoting.
+    if (!vendorCanSell(vendor)) {
+      return Response.json({ error: "Your seller account is not currently active for commercial quotes." }, { status: 403 });
     }
 
     const rfq = await svc.entities.RFQ.get(rfqId);

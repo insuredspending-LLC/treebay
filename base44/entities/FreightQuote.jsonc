@@ -8,6 +8,15 @@
     "checkout_quote_id": {
       "type": "string"
     },
+    "commerce_mode": {
+      "type": "string",
+      "enum": [
+        "test",
+        "live"
+      ],
+      "default": "test",
+      "description": "Test freight is simulated and never books a carrier. Live freight requires an approved production freight workflow."
+    },
     "carrier_id": {
       "type": "string",
       "description": "CarrierProfile id"

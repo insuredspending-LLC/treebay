@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { isPositiveNumber, isNonNegativeNumber } from "../../shared/marketplace.ts";
+import { isPositiveNumber, isNonNegativeNumber, listingReadinessErrors } from "../../shared/marketplace.ts";
+import { vendorCanSell } from "../../shared/transactions.ts";
 
 const ALLOWED = ["common_name","botanical_name","cultivar","category","description","sku","container_size","box_size","caliper","current_height","approximate_spread","quantity_available","unit_price","minimum_order_quantity","wholesale_eligible","pickup_eligible","delivery_eligible","native_status","foliage_type","usda_zones","sun_requirement","water_requirement","mature_height","mature_spread","listing_status","bulk_price_tiers","images"];
 
@@ -11,9 +12,10 @@ export default async function(req) {
     const body = await req.json() || {};
 
     const svc = base44.asServiceRole;
-    const vendors = await svc.entities.VendorProfile.filter({ created_by_id: user.id });
+    const vendors = await svc.entities.VendorProfile.filter({ owner_id: user.id });
     const vendor = (vendors || [])[0];
     if (!vendor) return Response.json({ error: "No vendor profile found. Complete vendor onboarding first." }, { status: 403 });
+    if (!vendorCanSell(vendor)) return Response.json({ error: "Your seller account is not currently active for new listings." }, { status: 403 });
 
     if (!body.common_name || !body.category) return Response.json({ error: "Name and category are required" }, { status: 400 });
     const qty = Number(body.quantity_available) || 0;
@@ -25,6 +27,7 @@ export default async function(req) {
 
     const payload = {};
     for (const k of ALLOWED) { if (body[k] !== undefined) payload[k] = body[k]; }
+    payload.is_test_fixture = false;
     payload.vendor_id = vendor.id;
     payload.vendor_owner_id = user.id;
     payload.vendor_name = vendor.business_name;
@@ -37,7 +40,13 @@ export default async function(req) {
     payload.quantity_sold = 0;
     payload.unit_price = price;
     payload.minimum_order_quantity = moq;
-    payload.listing_status = qty <= 0 ? "sold_out" : (payload.listing_status || "active");
+    payload.listing_status = qty <= 0 ? "sold_out" : (payload.listing_status || "paused");
+    if (payload.listing_status === "active") {
+      const readinessErrors = listingReadinessErrors(payload);
+      if (readinessErrors.length) {
+        return Response.json({ error: "Complete this listing before publishing: " + readinessErrors.join(" ") }, { status: 400 });
+      }
+    }
 
     const product = await svc.entities.Product.create(payload);
     return Response.json({ product });

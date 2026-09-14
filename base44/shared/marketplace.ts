@@ -35,6 +35,28 @@ export function quoteDeliveryTotal(items) {
   return (items || []).reduce((s, i) => s + (i.delivery_offered ? (Number(i.delivery_price) || 0) : 0), 0);
 }
 
+export function listingReadinessErrors(product) {
+  const errors = [];
+  if (!String(product?.common_name || "").trim()) errors.push("Add a common name.");
+  if (!String(product?.category || "").trim()) errors.push("Choose a category.");
+  if (!(Number(product?.unit_price) > 0)) errors.push("Set a unit price greater than zero.");
+  if (!(Number(product?.physical_quantity ?? product?.quantity_available) > 0)) errors.push("Add available inventory.");
+  if (!Array.isArray(product?.images) || product.images.filter(Boolean).length === 0) errors.push("Add at least one current product photo.");
+  if (![product?.container_size, product?.box_size, product?.caliper, product?.current_height].some((value) => String(value || "").trim())) {
+    errors.push("Add at least one size detail.");
+  }
+  if (!product?.pickup_eligible && !product?.delivery_eligible) errors.push("Offer pickup or grower delivery.");
+  return errors;
+}
+
+export function isPublicMarketplaceProduct(product) {
+  return !!product && product.is_test_fixture !== true && product.listing_status === "active";
+}
+
+export function isPublicMarketplaceVendor(vendor) {
+  return !!vendor && vendor.is_test_fixture !== true && !["restricted", "suspended"].includes(vendor.selling_status || "active");
+}
+
 export async function isBlocked(svc, a, b) {
   const blocks = await svc.entities.UserBlock.filter({
     $or: [{ blocker_id: a, blocked_id: b }, { blocker_id: b, blocked_id: a }]

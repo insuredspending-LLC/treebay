@@ -23,7 +23,7 @@ export default function ExceptionDetail() {
       const e = await base44.entities.SystemException.get(id);
       setExc(e);
       if (e?.order_id) { try { setOrder(await base44.entities.Order.get(e.order_id)); } catch {} }
-    } catch (e) { toast({ title: "Not found", variant: "destructive" }); }
+    } catch { toast({ title: "Not found", variant: "destructive" }); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [id]);

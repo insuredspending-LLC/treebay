@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Trash2, FileText, Package, Calendar, MapPin, Plus, Loader2, ArrowRight, ShoppingCart, Check } from "lucide-react";
+import { Trash2, FileText, Package, Calendar, MapPin, Plus, Loader2, ArrowRight, Check } from "lucide-react";
 import { shortDate, formatNumber, formatCurrency, apiError } from "@/lib/treebay";
 import SectionHeader from "@/components/SectionHeader";
 

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { listingReadinessErrors } from "../../shared/marketplace.ts";
 
 const ALLOWED = ["common_name","botanical_name","cultivar","category","description","sku","container_size","box_size","caliper","current_height","approximate_spread","quantity_available","unit_price","minimum_order_quantity","wholesale_eligible","pickup_eligible","delivery_eligible","native_status","foliage_type","usda_zones","sun_requirement","water_requirement","mature_height","mature_spread","listing_status","bulk_price_tiers","images"];
 
@@ -64,6 +65,16 @@ export default async function(req) {
 
     const update = {};
     for (const k of ALLOWED) { if (body[k] !== undefined) update[k] = body[k]; }
+
+    const requestedPhysical = update.quantity_available !== undefined ? Number(update.quantity_available) : (product.physical_quantity ?? product.quantity_available);
+    const requestedStatus = requestedPhysical <= 0 ? "sold_out" : (update.listing_status ?? product.listing_status);
+    if (!product.is_test_fixture && requestedStatus === "active") {
+      const readinessErrors = listingReadinessErrors({ ...product, ...update, physical_quantity: requestedPhysical, listing_status: requestedStatus });
+      if (readinessErrors.length) {
+        return Response.json({ error: "Complete this listing before publishing: " + readinessErrors.join(" ") }, { status: 400 });
+      }
+    }
+
     if (update.quantity_available !== undefined) {
       // Seller enters total physical units on hand. The reservation snapshot is part
       // of the write condition, so a concurrent reserve/release cannot be overwritten.

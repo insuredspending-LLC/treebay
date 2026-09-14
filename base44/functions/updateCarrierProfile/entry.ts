@@ -19,7 +19,7 @@ export default async function(req) {
     const svc = base44.asServiceRole;
     const profile = await svc.entities.CarrierProfile.get(profileId);
     if (!profile) return Response.json({ error: "Profile not found" }, { status: 404 });
-    if (profile.created_by_id !== user.id) return Response.json({ error: "Not authorized" }, { status: 403 });
+    if (profile.owner_id !== user.id) return Response.json({ error: "Not authorized" }, { status: 403 });
 
     const update = {};
     for (const k of ALLOWED) { if (fields[k] !== undefined) update[k] = fields[k]; }

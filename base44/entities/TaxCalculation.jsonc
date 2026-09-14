@@ -8,6 +8,17 @@
     "checkout_quote_id": {
       "type": "string"
     },
+    "commerce_mode": {
+      "type": "string",
+      "enum": [
+        "payments_disabled",
+        "test",
+        "live",
+        "stripe_test"
+      ],
+      "default": "payments_disabled",
+      "description": "No tax is charged while payments are disabled. Test tax is an estimate only; live tax requires a production tax engine."
+    },
     "provider": {
       "type": "string"
     },

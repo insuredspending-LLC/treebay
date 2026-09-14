@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
@@ -9,12 +9,12 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, SlidersHorizontal, X, Package, FileText, Sparkles, ShieldCheck, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, X, FileText, Sparkles, ShieldCheck, Loader2 } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import SkeletonCard from "@/components/SkeletonCard";
-import EmptyState from "@/components/EmptyState";
 import PullToRefresh from "@/components/PullToRefresh";
 import { CATEGORIES, approxDistance } from "@/lib/treebay";
+import { loadCatalogPage, createRequestGate } from "@/lib/catalogLoader";
 
 const PAGE_SIZE = 12;
 const BATCH_SIZE = 50;
@@ -33,6 +33,8 @@ export default function Marketplace() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [retryFromStart, setRetryFromStart] = useState(true);
   const [favs, setFavs] = useState({});
   const [sheet, setSheet] = useState(false);
   const [vendorName, setVendorName] = useState("");
@@ -41,7 +43,7 @@ export default function Marketplace() {
   const sortConfig = filters.sort === "price_asc" ? { field: "unit_price", sort: "unit_price", direction: 1 } : filters.sort === "price_desc" ? { field: "unit_price", sort: "-unit_price", direction: -1 } : filters.sort === "qty" ? { field: "quantity_available", sort: "-quantity_available", direction: -1 } : { field: "created_date", sort: "-created_date", direction: -1 };
 
   const serverFilters = useMemo(() => {
-    const next = { listing_status: "active" };
+    const next = { listing_status: "active", is_test_fixture: false };
     if (vendorId) next.vendor_id = vendorId;
     if (category !== "all") next.category = category;
     if (filters.state !== "all") next.vendor_state = filters.state;
@@ -66,28 +68,44 @@ export default function Marketplace() {
     return true;
   }, [q, filters.priceMax, filters.container, filters.caliper]);
 
+  const requestGate = useRef(null);
+  const loadInProgress = useRef(false);
+  if (!requestGate.current) requestGate.current = createRequestGate();
+
   const loadPage = useCallback(async ({ reset = false } = {}) => {
-    const activeOffset = reset ? 0 : offset;
-    if (reset) setLoading(true); else setLoadingMore(true);
-    let nextOffset = activeOffset;
-    let matches = reset ? [] : pendingMatches.slice();
-    let exhausted = false;
-    for (let scans = 0; scans < 8 && matches.length < PAGE_SIZE; scans += 1) {
-      const batch = await base44.entities.Product.filter(serverFilters, sortConfig.sort, BATCH_SIZE, nextOffset);
-      if (!batch?.length) { exhausted = true; break; }
-      nextOffset += batch.length;
-      matches = matches.concat(batch.filter(matchesClientFilters));
-      if (batch.length < BATCH_SIZE) { exhausted = true; break; }
+    if (!reset && loadInProgress.current) return;
+    const isCurrent = requestGate.current.begin();
+    loadInProgress.current = true;
+    setLoadError("");
+    if (reset) { setLoading(true); setProducts([]); } else setLoadingMore(true);
+    try {
+      const result = await loadCatalogPage({
+        fetchBatch: (limit, skip) => base44.entities.Product.filter(serverFilters, sortConfig.sort, limit, skip),
+        matchesFilter: matchesClientFilters,
+        offset: reset ? 0 : offset,
+        pendingMatches: reset ? [] : pendingMatches,
+        pageSize: PAGE_SIZE, batchSize: BATCH_SIZE,
+      });
+      if (!isCurrent()) return;
+      setProducts(current => reset ? result.page : [...current, ...result.page]);
+      setPendingMatches(result.remaining);
+      setOffset(result.offset);
+      setHasMore(result.hasMore);
+    } catch {
+      if (isCurrent()) {
+        setLoadError("Inventory could not load. Your filters are saved; try again.");
+        setRetryFromStart(reset);
+      }
+    } finally {
+      if (isCurrent()) {
+        loadInProgress.current = false;
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
-    const page = matches.slice(0, PAGE_SIZE);
-    const remaining = matches.slice(PAGE_SIZE);
-    setProducts((current) => reset ? page : [...current, ...page]);
-    setPendingMatches(remaining);
-    setOffset(nextOffset);
-    setHasMore(!exhausted || remaining.length > 0);
-    setLoading(false);
-    setLoadingMore(false);
   }, [offset, pendingMatches, serverFilters, matchesClientFilters, sortConfig]);
+
+  useEffect(() => () => requestGate.current.invalidate(), []);
 
   useEffect(() => {
     setQ(params.get("q") || "");
@@ -123,17 +141,215 @@ export default function Marketplace() {
     else { const favorite = await base44.entities.Favorite.create({ user_id: "", target_type: "product", target_id: product.id, target_name: product.common_name }); setFavs((current) => ({ ...current, [product.id]: favorite })); }
   };
 
-  return <PullToRefresh onRefresh={() => loadPage({ reset: true })}><div className="space-y-4">
-    <div className="flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search trees, plants, nurseries…" className="pl-10 h-11" /></div><Sheet open={sheet} onOpenChange={setSheet}><SheetTrigger asChild><Button variant="outline" className="h-11 relative md:hidden"><SlidersHorizontal className="w-4 h-4" /> Filters</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto"><SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader><FilterControls filters={filters} setF={setF} category={category} setCategory={setCategory} states={states} reset={reset} onDone={() => setSheet(false)} /></SheetContent></Sheet></div>
-    {activeFilters.length > 0 && <div className="flex items-center gap-2 flex-wrap">{activeFilters.map((filter) => <button key={filter.key} onClick={filter.clear} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80">{filter.key === "vendor" ? `Grower: ${vendorName || "Selected grower"}` : filter.label} <X className="w-3 h-3" /></button>)}<button onClick={reset} className="text-xs text-primary font-medium">Clear all</button></div>}
-    <div className="md:flex gap-6"><aside className="hidden md:block w-56 shrink-0"><div className="sticky top-20 space-y-4"><div className="flex items-center justify-between"><h2 className="font-heading font-semibold text-sm">Filters</h2>{activeFilters.length > 0 && <button onClick={reset} className="text-xs text-primary font-medium">Clear all</button>}</div><FilterControls filters={filters} setF={setF} category={category} setCategory={setCategory} states={states} reset={reset} variant="sidebar" /></div></aside>
-      <div className="flex-1 min-w-0 space-y-4"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{loading ? "Searching…" : `${displayProducts.length} loaded result${displayProducts.length === 1 ? "" : "s"}${hasMore ? "+" : ""}`}</p><Select value={filters.sort} onValueChange={(value) => setF("sort", value)}><SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="relevance">Newest</SelectItem><SelectItem value="price_asc">Price ↑</SelectItem><SelectItem value="price_desc">Price ↓</SelectItem>{distanceAvailable && <SelectItem value="distance">Distance</SelectItem>}<SelectItem value="qty">Quantity</SelectItem></SelectContent></Select></div>
-      {loading ? <div className="grid grid-cols-2 md:grid-cols-3 gap-3"><SkeletonCard count={6} /></div> : displayProducts.length === 0 ? <EmptyState icon={Package} title={hasMore ? "No matches in the inventory searched so far." : "No plants match those filters yet."} description={hasMore ? "Continue searching more inventory, or broaden your filters." : "Try broadening your search, adjusting filters, or request a bulk quote."} action={<div className="flex gap-2 justify-center">{hasMore ? <Button onClick={() => loadPage()} disabled={loadingMore}>{loadingMore && <Loader2 className="w-4 h-4 animate-spin" />} Search More Inventory</Button> : <Button variant="outline" onClick={reset}>Clear Filters</Button>}<Button asChild><Link to="/projects"><FileText className="w-4 h-4" /> Create an RFQ</Link></Button></div>} /> : <><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{displayProducts.map((product) => <ProductCard key={product.id} product={product} favorite={!!favs[product.id]} onToggleFavorite={() => toggleFav(product)} />)}</div>{hasMore && <div className="flex justify-center pt-2"><Button variant="outline" onClick={() => loadPage()} disabled={loadingMore} className="px-8">{loadingMore && <Loader2 className="w-4 h-4 animate-spin" />} Load more</Button></div>}{!hasMore && <p className="text-center text-xs text-muted-foreground">You’ve reached the end of these results.</p>}</>}
-      {!loading && <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5"><Sparkles className="w-5 h-5 text-primary shrink-0" /><p className="text-sm text-foreground flex-1">Can’t find what you need? Ask the TreEbay Assistant to search or build an RFQ draft.</p><Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}>Ask AI</Button></div>}</div></div>
-  </div></PullToRefresh>;
+  return (
+    <PullToRefresh onRefresh={() => loadPage({ reset: true })}>
+      <div className="space-y-8">
+        <aside className="rounded-2xl border border-primary/25 bg-secondary/40 p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><h2 className="font-semibold text-lg">Looking for the sample plants?</h2>
+            <p className="text-sm text-muted-foreground mt-1">Sample inventory is in the test marketplace. It is kept separate from real plants for sale.</p>
+          </div>
+          <Button asChild className="shrink-0 rounded-xl"><Link to="/stripe-sandbox">Open test marketplace</Link></Button>
+        </aside>
+        {loadError && (
+          <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-4">
+            <p className="text-sm">{loadError}</p>
+            <Button className="mt-3" onClick={() => loadPage({ reset: retryFromStart })} disabled={loading || loadingMore}>Try loading again</Button>
+          </div>
+        )}
+        <section className="grid gap-6 border-b border-border/70 pb-8 lg:grid-cols-[1.2fr_.8fr] lg:items-center">
+          <div>
+            <p className="editorial-kicker">The marketplace</p>
+            <h1 className="mt-3 max-w-2xl font-display text-4xl font-semibold leading-[1.02] md:text-5xl">
+              Find what grows your next project.
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+              Browse nursery inventory, compare specifications, and source with a clearer view of availability.
+            </p>
+          </div>
+          <div className="relative hidden h-40 overflow-hidden rounded-[1.75rem] bg-[#183524] lg:block">
+            <img src="/marketplace/tree-marketplace-nursery-hero.webp" alt="" className="h-full w-full object-cover object-[70%_60%]" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#10251a]/70 to-transparent" />
+            <div className="absolute bottom-5 left-6 text-white">
+              <p className="text-[10px] font-bold uppercase tracking-[.2em] text-white/65">Source with confidence</p>
+              <p className="mt-1 font-display text-2xl">From grower to project.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(event) => setQ(event.target.value)}
+                placeholder="Search trees, plants, sizes, or nurseries"
+                aria-label="Search marketplace inventory"
+                className="h-14 rounded-2xl border-border/80 bg-card pl-14 text-base shadow-sm"
+              />
+            </div>
+            <Sheet open={sheet} onOpenChange={setSheet}>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="h-14 rounded-2xl bg-card px-5">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Refine search
+                  {activeFilters.length > 0 && <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">{activeFilters.length}</span>}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+                <SheetHeader className="border-b border-border/70 pb-5">
+                  <SheetTitle className="font-display text-3xl">Find the right fit.</SheetTitle>
+                </SheetHeader>
+                <FilterControls filters={filters} setF={setF} category={category} setCategory={setCategory} states={states} reset={reset} onDone={() => setSheet(false)} />
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button onClick={() => setCategory("all")} className={"shrink-0 rounded-full border px-4 py-2.5 text-xs font-semibold transition " + (category === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border/80 bg-card text-muted-foreground hover:border-primary/30 hover:text-primary")}>All inventory</button>
+            {CATEGORIES.map((item) => (
+              <button key={item.name} onClick={() => setCategory(item.name)} className={"shrink-0 rounded-full border px-4 py-2.5 text-xs font-semibold transition " + (category === item.name ? "border-primary bg-primary text-primary-foreground" : "border-border/80 bg-card text-muted-foreground hover:border-primary/30 hover:text-primary")}>{item.name}</button>
+            ))}
+          </div>
+
+          {activeFilters.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {activeFilters.map((filter) => (
+                <button key={filter.key} onClick={filter.clear} className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-secondary/70">
+                  {filter.key === "vendor" ? "Grower: " + (vendorName || "Selected grower") : filter.label}
+                  <X className="h-3 w-3" />
+                </button>
+              ))}
+              <button onClick={reset} className="px-2 text-xs font-semibold text-primary">Clear all</button>
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
+            <div>
+              <h2 className="text-lg font-bold">{vendorId ? vendorName || "Grower inventory" : category === "all" ? "Available inventory" : category}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {loading ? "Searching nursery inventory…" : displayProducts.length + " loaded result" + (displayProducts.length === 1 ? "" : "s") + (hasMore ? "+" : "")}
+                {myCity ? " · Sourcing from " + myCity : ""}
+              </p>
+            </div>
+            <Select value={filters.sort} onValueChange={(value) => setF("sort", value)}>
+              <SelectTrigger className="h-10 w-44 rounded-full border-border/70 bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="relevance">Newest listings</SelectItem>
+                <SelectItem value="price_asc">Price: low to high</SelectItem>
+                <SelectItem value="price_desc">Price: high to low</SelectItem>
+                {distanceAvailable && <SelectItem value="distance">Closest first</SelectItem>}
+                <SelectItem value="qty">Most available</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-1 gap-4 min-[440px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"><SkeletonCard count={8} /></div>
+          ) : loadError && displayProducts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Use “Try loading again” above to retry this search.</p>
+          ) : displayProducts.length === 0 ? (
+            <div className="grid overflow-hidden rounded-[2rem] border border-border/70 bg-card md:grid-cols-[.7fr_1.3fr]">
+              <div className="relative hidden min-h-[340px] bg-[#dce3d3] md:block">
+                <img src="/marketplace/category-native.webp" alt="" className="absolute inset-0 h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#173522]/35 to-transparent" />
+              </div>
+              <div className="flex flex-col justify-center p-8 md:p-12">
+                <p className="editorial-kicker">Keep the project moving</p>
+                <h3 className="mt-3 max-w-lg font-display text-3xl font-semibold leading-none md:text-4xl">
+                  {hasMore ? "Let’s look a little further." : "The right plant is worth finding."}
+                </h3>
+                <p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground">
+                  {hasMore ? "No matches in the inventory searched so far. Continue searching, or broaden your filters." : "No listings match this search yet. Try fewer filters or send growers a project request so they can respond with availability."}
+                </p>
+                <div className="mt-7 flex flex-wrap gap-3">
+                  {hasMore ? (
+                    <Button className="rounded-full" onClick={() => loadPage()} disabled={loadingMore}>{loadingMore && <Loader2 className="h-4 w-4 animate-spin" />} Search more inventory</Button>
+                  ) : (
+                    <Button variant="outline" className="rounded-full" onClick={reset}>Clear filters</Button>
+                  )}
+                  <Button className="rounded-full" asChild><Link to="/stripe-sandbox">View sample inventory</Link></Button>
+                  <Button className="rounded-full" asChild><Link to="/projects"><FileText className="h-4 w-4" /> Request project quotes</Link></Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 min-[440px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                {displayProducts.map((product) => <ProductCard key={product.id} product={product} favorite={!!favs[product.id]} onToggleFavorite={() => toggleFav(product)} />)}
+              </div>
+              {hasMore && (
+                <div className="flex justify-center pt-5">
+                  <Button variant="outline" onClick={() => loadPage()} disabled={loadingMore} className="h-12 rounded-full bg-card px-9">{loadingMore && <Loader2 className="h-4 w-4 animate-spin" />} Load more inventory</Button>
+                </div>
+              )}
+              {!hasMore && <p className="pt-4 text-center text-xs text-muted-foreground">You’ve reached the end of these results.</p>}
+            </>
+          )}
+        </section>
+
+        {!loading && (
+          <section className="flex flex-col gap-6 rounded-[1.75rem] bg-[#10251a] p-6 text-white sm:flex-row sm:items-center sm:justify-between md:p-8">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#b7cda3]">Sourcing a bigger project?</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold">One request. Better options.</h2>
+              <p className="mt-2 text-sm text-white/60">Organize your plant list and compare grower responses.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button className="rounded-full bg-[#dce9c9] text-[#173522] hover:bg-white" asChild><Link to="/projects">Request quotes <FileText className="h-4 w-4" /></Link></Button>
+              <Button variant="ghost" className="rounded-full text-white/75 hover:bg-white/10 hover:text-white" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))}><Sparkles className="h-4 w-4" /> Sourcing assistant</Button>
+            </div>
+          </section>
+        )}
+      </div>
+    </PullToRefresh>
+  );
 }
 
-function FilterControls({ filters, setF, category, setCategory, states, reset, variant = "sheet", onDone }) {
-  return <div className={variant === "sidebar" ? "space-y-4" : "space-y-5 px-1 pb-4 mt-2"}><div className="space-y-2"><Label>Category</Label><Select value={category} onValueChange={setCategory}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{CATEGORIES.map((item) => <SelectItem key={item.name} value={item.name}>{item.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>State</Label><Select value={filters.state} onValueChange={(value) => setF("state", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All states</SelectItem>{states.map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>Max unit price: {filters.priceMax > 0 ? `$${filters.priceMax}` : "Any"}</Label><Slider value={[filters.priceMax]} max={2000} step={25} onValueChange={(value) => setF("priceMax", value[0])} /></div><div className="space-y-2"><Label>Min quantity available: {filters.minQty}</Label><Slider value={[filters.minQty]} max={500} step={5} onValueChange={(value) => setF("minQty", value[0])} /></div><div className="space-y-2"><Label>Container size</Label><Input value={filters.container} onChange={(event) => setF("container", event.target.value)} placeholder="5 gallon" /></div><div className="space-y-2"><Label>Caliper</Label><Input value={filters.caliper} onChange={(event) => setF("caliper", event.target.value)} placeholder='4&quot;' /></div><div className="space-y-3"><ToggleRow label="Verified growers" checked={filters.verified} onChange={(value) => setF("verified", value)} icon={ShieldCheck} /><ToggleRow label="Native plant" checked={filters.native} onChange={(value) => setF("native", value)} /><ToggleRow label="Pickup available" checked={filters.pickup} onChange={(value) => setF("pickup", value)} /><ToggleRow label="Delivery available" checked={filters.delivery} onChange={(value) => setF("delivery", value)} /><ToggleRow label="Wholesale eligible" checked={filters.wholesale} onChange={(value) => setF("wholesale", value)} /></div>{variant === "sheet" && <div className="flex gap-2 pt-2"><Button variant="outline" className="flex-1" onClick={reset}>Reset</Button><Button className="flex-1" onClick={onDone}>Show results</Button></div>}</div>;
+function FilterControls({ filters, setF, category, setCategory, states, reset, onDone }) {
+  return (
+    <div className="space-y-7 px-1 pb-6 pt-6">
+      <section className="space-y-4">
+        <p className="editorial-kicker">Inventory</p>
+        <div className="space-y-2">
+          <Label>Category</Label>
+          <Select value={category} onValueChange={setCategory}><SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{CATEGORIES.map((item) => <SelectItem key={item.name} value={item.name}>{item.name}</SelectItem>)}</SelectContent></Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Grower state</Label>
+          <Select value={filters.state} onValueChange={(value) => setF("state", value)}><SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All states</SelectItem>{states.map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}</SelectContent></Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2"><Label>Container size</Label><Input aria-label="Container size" value={filters.container} onChange={(event) => setF("container", event.target.value)} placeholder="5 gallon" className="h-11 rounded-xl" /></div>
+          <div className="space-y-2"><Label>Caliper</Label><Input aria-label="Caliper" value={filters.caliper} onChange={(event) => setF("caliper", event.target.value)} placeholder="4 inch" className="h-11 rounded-xl" /></div>
+        </div>
+      </section>
+
+      <section className="space-y-5 border-t border-border/70 pt-6">
+        <p className="editorial-kicker">Price & quantity</p>
+        <div className="space-y-3"><Label>Maximum unit price <span className="float-right font-semibold text-primary">{filters.priceMax > 0 ? "$" + filters.priceMax : "Any"}</span></Label><Slider aria-label="Maximum unit price" value={[filters.priceMax]} max={2000} step={25} onValueChange={(value) => setF("priceMax", value[0])} /></div>
+        <div className="space-y-3"><Label>Minimum available <span className="float-right font-semibold text-primary">{filters.minQty || "Any"}</span></Label><Slider aria-label="Minimum available quantity" value={[filters.minQty]} max={500} step={5} onValueChange={(value) => setF("minQty", value[0])} /></div>
+      </section>
+
+      <section className="space-y-4 border-t border-border/70 pt-6">
+        <p className="editorial-kicker">Preferences</p>
+        <ToggleRow label="Verified growers" checked={filters.verified} onChange={(value) => setF("verified", value)} icon={ShieldCheck} />
+        <ToggleRow label="Native plants" checked={filters.native} onChange={(value) => setF("native", value)} />
+        <ToggleRow label="Pickup available" checked={filters.pickup} onChange={(value) => setF("pickup", value)} />
+        <ToggleRow label="Delivery available" checked={filters.delivery} onChange={(value) => setF("delivery", value)} />
+        <ToggleRow label="Wholesale eligible" checked={filters.wholesale} onChange={(value) => setF("wholesale", value)} />
+      </section>
+
+      <div className="sticky bottom-0 flex gap-3 border-t border-border/70 bg-background/95 pt-5 backdrop-blur">
+        <Button variant="outline" className="h-12 flex-1 rounded-full" onClick={reset}>Reset</Button>
+        <Button className="h-12 flex-1 rounded-full" onClick={onDone}>Show results</Button>
+      </div>
+    </div>
+  );
 }
-function ToggleRow({ label, checked, onChange, icon: Icon }) { return <div className="flex items-center justify-between"><Label className="font-normal flex items-center gap-1.5">{Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}{label}</Label><Switch checked={checked} onCheckedChange={onChange} /></div>; }
+
+function ToggleRow({ label, checked, onChange, icon: Icon }) {
+  return <div className="flex items-center justify-between gap-4"><Label className="flex items-center gap-2 font-normal">{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}{label}</Label><Switch aria-label={label} checked={checked} onCheckedChange={onChange} /></div>;
+}

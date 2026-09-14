@@ -25,24 +25,33 @@ export default function VendorFinancials() {
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold">Seller Financials</h1>
-        <p className="text-sm text-muted-foreground">Authoritative data from transaction ledger — TEST MODE.</p>
+        <p className="text-sm text-muted-foreground">Live earnings only. Test transactions are excluded from sales and payout totals.</p>
       </div>
+
+      {v.totals.test_orders_excluded > 0 && (
+        <Card className="p-4 border-amber-200 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">Test history excluded</p>
+          <p className="text-xs text-amber-800 mt-1">{v.totals.test_orders_excluded} simulated orders · {formatCents(v.totals.test_simulated_gmv_cents || 0)} simulated GMV. This is not seller revenue.</p>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <StatCard icon={TrendingUp} label="Gross Marketplace Sales" value={formatCents(v.totals.gross_merchandise_sales_cents)} />
         <StatCard icon={Receipt} label="Taxable Marketplace Sales" value={formatCents(v.totals.taxable_marketplace_sales_cents)} />
         <StatCard icon={Receipt} label="Tax Collected by TreEbay" value={formatCents(v.totals.tax_collected_cents)} />
         <StatCard icon={Truck} label="Delivery Revenue" value={formatCents(v.totals.vendor_delivery_revenue_cents)} />
+        <StatCard icon={Receipt} label="Seller Commissions Deducted" value={formatCents(v.totals.vendor_fee_deduction_cents)} />
         <StatCard icon={CheckCircle2} label="Net Settled Proceeds" value={formatCents(v.totals.net_settled_proceeds_cents)} />
         <StatCard icon={Receipt} label="Refunds" value={formatCents(v.totals.refunds_cents)} />
       </div>
-      {data.partial && <p className="text-xs text-amber-600">Partial TEST totals — more records exist beyond the scanned window.</p>}
+      {data.partial && <p className="text-xs text-amber-600">Partial totals — more records exist beyond the scanned window.</p>}
 
       <Card className="p-4">
         <h2 className="font-semibold text-sm mb-2">Fee Policy</h2>
         <p className="text-sm text-muted-foreground">
-          TreEbay marketplace fee: <strong>{v.totals.fee_payer === "buyer" ? "Buyer-paid" : v.totals.fee_payer}</strong>.
-          {v.totals.fee_payer === "buyer" && " The fee is NOT deducted from your proceeds."}
+          Current standard: <strong>{v.totals.current_commission_rate_percent ?? 4}% seller commission</strong> on merchandise subtotal,
+          retained from seller product-sale proceeds. It is not a buyer surcharge, download fee, account fee, or subscription.
+          {v.totals.fee_payer === "mixed" && " Historical orders with earlier fee rules remain reported under their original snapshots."}
         </p>
       </Card>
 

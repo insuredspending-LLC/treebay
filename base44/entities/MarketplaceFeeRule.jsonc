@@ -38,8 +38,8 @@
         "vendor",
         "split"
       ],
-      "default": "buyer",
-      "description": "Who bears the marketplace fee. TEST MODE uses 'buyer': the fee is added to the buyer total and never deducted from vendor proceeds."
+      "default": "vendor",
+      "description": "Who bears the marketplace fee. The standard model is a seller commission deducted from seller product-sale proceeds; historical checkout snapshots retain their original fee payer."
     },
     "active": {
       "type": "boolean",

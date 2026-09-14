@@ -11,14 +11,29 @@ export default async function(req) {
     if (user.role !== "admin") return Response.json({ error: "Admin only" }, { status: 403 });
     const svc = base44.asServiceRole;
 
-    const orders = await svc.entities.Order.list("-created_date", 500);
-    const ledgerEntries = await svc.entities.TransactionLedgerEntry.list("-created_date", 1000);
+    const allOrders = await svc.entities.Order.list("-created_date", 500);
+    const allLedgerEntries = await svc.entities.TransactionLedgerEntry.list("-created_date", 1000);
     const exceptions = await svc.entities.SystemException.filter({ requires_admin: true }, "-created_date", 100);
     const feeRules = await svc.entities.MarketplaceFeeRule.filter({ active: true }, "-effective_date", 10);
 
-    // GMV = sum of all paid order totals
-    const paidOrders = (orders || []).filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status));
+    // Financial headline metrics are LIVE ONLY. Legacy orders without commerce_mode are
+    // intentionally classified as test so simulated history can never masquerade as revenue.
+    const orders = (allOrders || []).filter((o) => o.commerce_mode === "live");
+    const testOrders = (allOrders || []).filter((o) => ["test", "stripe_test"].includes(o.commerce_mode));
+    const disabledOrders = (allOrders || []).filter((o) => !["live", "test", "stripe_test"].includes(o.commerce_mode));
+    const liveOrderIds = new Set(orders.map((o) => o.id));
+    const ledgerEntries = (allLedgerEntries || []).filter((e) => liveOrderIds.has(e.order_id));
+
+    // GMV = sum of LIVE paid order totals
+    const paidOrders = orders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status));
     const gmv = paidOrders.reduce((s, o) => s + (o.total_cents || 0), 0);
+    // Taxable marketplace sales from the immutable CheckoutQuote tax snapshot.
+    let taxableMarketplaceSales = 0;
+    for (const o of paidOrders) {
+      if (!o.checkout_quote_id) continue;
+      const cq = await svc.entities.CheckoutQuote.get(o.checkout_quote_id);
+      if (cq) taxableMarketplaceSales += (cq.taxable_amount_cents ?? cq.merchandise_subtotal_cents ?? 0);
+    }
 
     // Ledger breakdown
     const sumBy = (type, groupPrefix) => (ledgerEntries || [])
@@ -40,17 +55,26 @@ export default async function(req) {
 
     // Unresolved financial exceptions
     const openExceptions = (exceptions || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED");
-    const financialExceptionTypes = ["financial_reconciliation", "settlement_failed", "freight_assignment_failed", "notification_delivery_failed", "refund_reconciliation", "inventory_reconciliation_failed", "checkout_lock_recovery_failed"];
+    const financialExceptionTypes = [
+      "financial_reconciliation", "settlement_failed", "freight_assignment_failed",
+      "notification_delivery_failed", "refund_reconciliation", "inventory_reconciliation_failed",
+      "checkout_lock_recovery_failed", "stripe_account_restricted", "stripe_stale_attempt_paid",
+      "stripe_payment_integrity", "stripe_attempt_missing", "stripe_attempt_reconciliation",
+      "stripe_refund_reference_missing", "stripe_transfer_failed", "stripe_transfer_reversal_failed",
+      "stripe_refund_failed", "partial_refund_review", "stripe_dispute", "stripe_payout_failed",
+      "disabled_commerce_order", "disabled_commerce_refund",
+    ];
     const financialExceptions = openExceptions.filter((e) => financialExceptionTypes.includes(e.exception_type));
 
     // Active fee policy
-    const activeFeeRule = (feeRules || [])[0] || { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 500, maximum_fee_cents: 0, fee_payer: "buyer" };
+    const activeFeeRule = (feeRules || [])[0] || { rule_name: "dev_default", percentage_fee: 4, flat_fee_cents: 0, minimum_fee_cents: 0, maximum_fee_cents: 0, fee_payer: "vendor" };
 
     return Response.json({
       totals: {
         gmv_cents: gmv,
         paid_orders: paidOrders.length,
         total_orders: (orders || []).length,
+        taxable_marketplace_sales_cents: taxableMarketplaceSales,
         vendor_payables_cents: vendorPayables,
         carrier_payables_cents: carrierPayables,
         sales_tax_collected_cents: taxCollected,
@@ -66,8 +90,15 @@ export default async function(req) {
         id: e.id, type: e.exception_type, severity: e.severity, status: e.status,
         order_id: e.order_id, reason: e.reason, created_date: e.created_date,
       })),
-      partial: (orders || []).length >= 500 || (ledgerEntries || []).length >= 1000,
-      records_scanned: { orders: (orders || []).length, ledger_entries: (ledgerEntries || []).length },
+      test_summary: {
+        orders: testOrders.length,
+        disabled_or_legacy_orders: disabledOrders.length,
+        paid_orders: testOrders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status)).length,
+        simulated_gmv_cents: testOrders.filter((o) => ["paid", "refunded", "partially_refunded", "disputed"].includes(o.payment_status)).reduce((sum, o) => sum + (o.total_cents || 0), 0),
+      },
+      partial: (allOrders || []).length >= 500 || (allLedgerEntries || []).length >= 1000,
+      records_scanned: { orders: (allOrders || []).length, ledger_entries: (allLedgerEntries || []).length },
+      scope: "live_only", 
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

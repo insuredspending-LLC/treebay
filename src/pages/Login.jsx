@@ -45,7 +45,7 @@ export default function Login() {
         <>
           Don't have an account?{" "}
           <Link
-            to={"/register" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
+            to={"/register" + (returnTo !== "/home" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
             className="text-primary font-medium hover:underline"
           >
             Create one
@@ -128,7 +128,7 @@ export default function Login() {
         </Button>
       </form>
       <p className="text-center text-xs text-muted-foreground mt-4">
-        <Link to="/terms" className="hover:underline">Terms</Link> · <Link to="/privacy" className="hover:underline">Privacy</Link> · <Link to="/community-rules" className="hover:underline">Marketplace Rules</Link>
+        <Link to="/terms" className="hover:underline">Terms</Link> · <Link to="/privacy" className="hover:underline">Privacy</Link> · <Link to="/community-rules" className="hover:underline">Marketplace Rules</Link> · <Link to="/testers" className="hover:underline">Android Test</Link>
       </p>
     </AuthLayout>
   );

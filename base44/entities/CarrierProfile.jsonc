@@ -2,6 +2,10 @@
   "name": "CarrierProfile",
   "type": "object",
   "properties": {
+    "owner_id": {
+      "type": "string",
+      "description": "Authenticated user id that owns this carrier profile"
+    },
     "business_name": {
       "type": "string"
     },
@@ -70,7 +74,7 @@
     "read": {
       "$or": [
         {
-          "created_by_id": "{{user.id}}"
+          "data.owner_id": "{{user.id}}"
         },
         {
           "user_condition": {

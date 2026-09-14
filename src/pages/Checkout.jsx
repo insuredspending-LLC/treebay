@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, ArrowLeft, ShieldCheck, AlertTriangle, MapPin, Truck, Package, Store, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { formatCents, apiError, TEST_MODE } from "@/lib/treebay";
+import { formatCents, apiError } from "@/lib/treebay";
 import VerifiedBadge from "@/components/VerifiedBadge";
 
 export default function Checkout() {
@@ -20,6 +20,7 @@ export default function Checkout() {
   const [quote, setQuote] = useState(null);
   const [options, setOptions] = useState([]);
   const [vendor, setVendor] = useState(null);
+  const [freightQuotes, setFreightQuotes] = useState({});
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [applyingDelivery, setApplyingDelivery] = useState(false);
@@ -46,7 +47,12 @@ export default function Checkout() {
         };
         setAddress((p) => ({ ...p, ...hydratedAddress }));
         const opts = await base44.entities.DeliveryOption.filter({ checkout_quote_id: quoteId }) || [];
-        setOptions(opts.filter((o) => o.status === "available" || o.status === "selected"));
+        const visibleOpts = opts.filter((o) => o.status === "available" || o.status === "selected");
+        setOptions(visibleOpts);
+        const freightEntries = await Promise.all(visibleOpts.filter((o) => o.freight_quote_id).map(async (o) => {
+          try { return [o.freight_quote_id, await base44.entities.FreightQuote.get(o.freight_quote_id)]; } catch { return [o.freight_quote_id, null]; }
+        }));
+        setFreightQuotes(Object.fromEntries(freightEntries.filter(([, fq]) => fq)));
         if (cq.delivery_method) {
           const sel = opts.find((o) => o.provider_type === cq.delivery_method);
           if (sel) setSelectedOption(sel.id);
@@ -92,6 +98,16 @@ export default function Checkout() {
     setPlacing(true);
     try {
       const { data } = await base44.functions.invoke("createOrderFromCheckout", { checkoutQuoteId: quoteId });
+      if (["live", "stripe_test"].includes(data.order.commerce_mode)) {
+        const { data: session } = await base44.functions.invoke("createStripeCheckoutSession", { orderId: data.order.id });
+        if (window.self !== window.top) {
+          toast({ title: "Open checkout from the published app", description: "Complete payment from the published app.", variant: "destructive" });
+          setPlacing(false);
+          return;
+        }
+        window.location.href = session.url;
+        return;
+      }
       toast({ title: "Order placed", description: data.order.order_number });
       navigate(`/orders/${data.order.id}`);
     } catch (e) { toast({ title: "Could not place order", description: apiError(e), variant: "destructive" }); }
@@ -105,7 +121,8 @@ export default function Checkout() {
   const visibleOption = options.find((o) => o.id === selectedOption);
   const isPickup = visibleOption?.provider_type === "buyer_pickup";
   const deliveryReady = !!quote.delivery_method && visibleOption?.provider_type === quote.delivery_method;
-  const confirmDisabled = placing || expired || !deliveryReady || (!isPickup && addressDirty);
+  const paymentsDisabled = quote.commerce_mode === "payments_disabled";
+  const confirmDisabled = placing || paymentsDisabled || expired || !deliveryReady || (!isPickup && addressDirty);
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -115,9 +132,24 @@ export default function Checkout() {
         <p className="text-sm text-muted-foreground mt-1">Review your final delivered price — all fees disclosed upfront.</p>
       </div>
 
-      {TEST_MODE && (
+      {quote.commerce_mode === "stripe_test" && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+          Stripe sandbox — use test card details. No real money, seller payout or plant delivery.
+        </div>
+      )}
+      {quote.commerce_mode === "test" && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-          <AlertTriangle className="w-4 h-4 shrink-0" /> Test mode — payments and tax are simulated. No real money is charged.
+          <AlertTriangle className="w-4 h-4 shrink-0" /> Approved tester mode — payment, tax, freight, and payouts are simulated. No real money is charged.
+        </div>
+      )}
+      {paymentsDisabled && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-300 text-slate-800 text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" /> Purchases are not open yet. You can browse and join the closed test, but no order or payment can be submitted.
+        </div>
+      )}
+      {quote.commerce_mode === "live" && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+          <ShieldCheck className="w-4 h-4 shrink-0" /> Live order — real payment processed securely via Stripe. Tax is not configured and is not charged.
         </div>
       )}
       {expired && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">This quote has expired. Please go back and recalculate.</div>}
@@ -161,6 +193,10 @@ export default function Checkout() {
                 <div className="flex-1">
                   <p className="text-sm font-medium capitalize">{opt.service_type || opt.provider_type.replace(/_/g, " ")}</p>
                   <p className="text-xs text-muted-foreground">{formatCents(opt.delivery_price_cents)}{opt.estimated_delivery_days ? ` · ${opt.estimated_delivery_days} day(s)` : ""}</p>
+                  {opt.provider_type === "third_party_carrier" && freightQuotes[opt.freight_quote_id] && (() => {
+                    const fq = freightQuotes[opt.freight_quote_id];
+                    return <p className="text-[11px] text-amber-700 mt-0.5">{quote.commerce_mode === "test" ? "APPROVED TEST FREIGHT" : "FREIGHT"} · {fq.quote_reference} · {fq.equipment_type || "equipment TBD"}{fq.estimated_transit_days ? ` · ~${fq.estimated_transit_days} day transit` : ""}{fq.expires_at ? ` · expires ${new Date(fq.expires_at).toLocaleString()}` : ""}</p>;
+                  })()}
                 </div>
               </label>
             ))}
@@ -219,7 +255,14 @@ export default function Checkout() {
             <PricingRow label="Merchandise" value={formatCents(quote.merchandise_subtotal_cents)} />
             {quote.bulk_discount_cents > 0 && <PricingRow label="Bulk discount" value={"-" + formatCents(quote.bulk_discount_cents)} />}
             <PricingRow label={"Delivery" + (quote.delivery_method ? ` (${quote.delivery_method.replace(/_/g, " ")})` : " (select option)")} value={formatCents(quote.delivery_amount_cents)} />
-            <PricingRow label="TreEbay marketplace fee" value={formatCents(quote.marketplace_fee_cents)} />
+            {quote.marketplace_fee_cents > 0 && (
+              <PricingRow
+                label={quote.fee_payer === "vendor"
+                  ? "Seller commission (deducted from seller proceeds; not charged to you)"
+                  : "Marketplace fee (charged to buyer on this historical quote)"}
+                value={formatCents(quote.marketplace_fee_cents)}
+              />
+            )}
             <PricingRow label={"Sales tax" + (quote.tax_status === "test_estimated" ? " (TEST/ESTIMATED)" : "")} value={formatCents(quote.tax_amount_cents)} />
           </div>
           <Separator className="my-4" />
@@ -234,9 +277,9 @@ export default function Checkout() {
       </div>
 
       <Button onClick={placeOrder} disabled={confirmDisabled} className="w-full h-12 text-base font-medium">
-        {placing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />} Confirm & Place Order
+        {placing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />} {paymentsDisabled ? "Purchases Not Open Yet" : "Confirm & Place Order"}
       </Button>
-      {!deliveryReady && <p className="text-xs text-center text-muted-foreground">Apply the selected delivery option to continue.</p>}
+      {!paymentsDisabled && !deliveryReady && <p className="text-xs text-center text-muted-foreground">Apply the selected delivery option to continue.</p>}
       {deliveryReady && !isPickup && addressDirty && <p className="text-xs text-center text-amber-600 font-medium">Apply your updated delivery information before confirming the order.</p>}
     </div>
   );

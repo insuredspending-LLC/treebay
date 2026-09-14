@@ -1,12 +1,14 @@
-import { transitionOrder, recordOrderEvent, createRefundLedger, verifyRefundReconciliation, raiseExceptionOnce } from "./transactions.ts";
+import {
+  transitionOrder, recordOrderEvent, createRefundLedger, verifyRefundReconciliation,
+  raiseExceptionOnce, vendorPayableCents,
+} from "./transactions.ts";
 import { applyRefundInventoryPolicy } from "./inventory.ts";
 import { generateAndStoreDocument } from "./documents.ts";
 
-// Resume a staged refund from ANY legitimate partial state. All recovery is idempotent:
-//   - Order refund_pending + PaymentRecord already refunded/full  -> finalize the order transition
-//   - Order refunded + PaymentRecord still pending                  -> finalize the payment record
-//   - interrupted refund staging (ledger/inventory/document done, payment/order not) -> complete the missing steps
-// Each step checks current state before acting, so re-running after a partial failure is safe.
+// Finalizes internal refund state only after truth is authoritative:
+// - approved TEST: the simulator staged a full refund;
+// - LIVE: Stripe reported a succeeded, full refund and any settled seller transfer
+//   was reversed before this function runs.
 export async function resumePendingRefund(svc, orderId, actor) {
   const order = await svc.entities.Order.get(orderId);
   if (!order) throw new Error("Order not found");
@@ -14,77 +16,151 @@ export async function resumePendingRefund(svc, orderId, actor) {
   const payment = (payments || [])[0];
   if (!payment) throw new Error("No payment record found for this order.");
 
-  // Already fully reconciled — idempotent no-op.
-  if (order.order_status === "refunded" && payment.status === "refunded" && payment.refund_status === "full") {
+  const totalCents = order.total_cents || Math.round((order.total || 0) * 100);
+  if (
+    order.order_status === "refunded" &&
+    payment.status === "refunded" &&
+    payment.refund_status === "full" &&
+    (payment.refunded_amount_cents || Math.round((payment.refunded_amount || 0) * 100)) >= totalCents
+  ) {
     return { order, payment, alreadyRefunded: true };
   }
 
-  // Only legitimate staged refund states are recoverable.
   const orderStaged = order.order_status === "refund_pending" || order.order_status === "refunded";
-  const paymentStaged = payment.status === "paid" || payment.status === "refunded";
-  if (!orderStaged || !paymentStaged) {
-    throw new Error("Refund is not staged for reconciliation (order=" + order.order_status + ", payment=" + payment.status + ").");
+  if (!orderStaged) {
+    throw new Error("Refund is not staged for reconciliation (order=" + order.order_status + ").");
   }
 
   const metadata = payment.metadata || {};
   let originStatus = metadata.refund_origin_status;
   if (!originStatus) {
-    // Staging failed after the Order transitioned to refund_pending — recover the
-    // origin state from the audit trail rather than guessing.
     const events = await svc.entities.OrderEvent.filter({ order_id: orderId }, "-created_date", 50);
-    const toPending = (events || []).find((e) => e.event_type === "status_transition" && e.new_status === "refund_pending");
+    const toPending = (events || []).find(
+      (event) => event.event_type === "status_transition" && event.new_status === "refund_pending",
+    );
     originStatus = toPending?.previous_status || null;
     if (!originStatus) {
       await raiseExceptionOnce(svc, {
-        severity: "CRITICAL", exception_type: "refund_reconciliation", order_id: orderId,
-        buyer_id: order.buyer_id, vendor_id: order.vendor_id, payment_id: payment.id,
-        reason: "Refund origin status could not be determined for " + order.order_number + " — no refund_origin_status metadata and no audit trail entry for the refund_pending transition.",
+        severity: "CRITICAL",
+        exception_type: "refund_reconciliation",
+        order_id: orderId,
+        buyer_id: order.buyer_id,
+        vendor_id: order.vendor_id,
+        payment_id: payment.id,
+        reason: "Refund origin status could not be determined for " + order.order_number + ".",
         technical_details_private: "order_status=" + order.order_status + ", payment_status=" + payment.status,
-        recommended_action: "Admin must inspect the order history and set refund_origin_status before retrying the refund.", requires_admin: true,
+        recommended_action: "Inspect the order history and set refund_origin_status before retrying.",
+        requires_admin: true,
       });
       throw new Error("Refund origin status could not be determined from metadata or audit trail.");
     }
   }
+
+  const isLive = ["live", "stripe_test"].includes(order.commerce_mode);
+  if (isLive) {
+    const refundedCents = payment.refunded_amount_cents || Math.round((payment.refunded_amount || 0) * 100);
+    if (payment.provider !== "stripe") throw new Error("Live refund has no authoritative Stripe provider.");
+    if (payment.provider_refund_status !== "succeeded") {
+      throw new Error("Stripe refund is not provider-confirmed successful (status=" + (payment.provider_refund_status || "none") + ").");
+    }
+    if (payment.refund_status !== "full" || refundedCents < totalCents) {
+      throw new Error("A partial live refund cannot finalize the order as fully refunded.");
+    }
+  } else if (order.commerce_mode !== "test") {
+    throw new Error("Refunds are disabled for this commerce mode.");
+  }
+
   const reason = metadata.refund_reason || "Buyer refund request";
-  const totalCents = order.total_cents || Math.round((order.total || 0) * 100);
   const cq = order.checkout_quote_id ? await svc.entities.CheckoutQuote.get(order.checkout_quote_id) : null;
 
+  if (isLive && order.stripe_transfer_id && cq) {
+    const requiredReversal = vendorPayableCents(cq);
+    if ((order.stripe_transfer_reversed_cents || 0) < requiredReversal) {
+      throw new Error("Seller transfer reversal is incomplete; live refund remains quarantined.");
+    }
+  }
+
   try {
-    // 1. Ledger — idempotent per entry (createRefundLedger creates only missing entries).
     await createRefundLedger(svc, order, cq, totalCents, reason);
-    // 2. Verify refund reversals reconcile before finalization.
     if (cq) await verifyRefundReconciliation(svc, order, cq);
-    // 3. Inventory — idempotent (reservation state guards prevent double-release/reverse).
-    const inventory = await applyRefundInventoryPolicy(svc, { ...order, order_status: originStatus }, "Refund: " + reason);
-    // 4. Refund statement document.
-    await generateAndStoreDocument(svc, order, "refund_statement", cq, { payment, refundReason: reason, refundAmountCents: totalCents });
-    // 5. PaymentRecord — only update if not already finalized.
-    if (payment.status !== "refunded" || payment.refund_status !== "full") {
+    const inventory = await applyRefundInventoryPolicy(
+      svc,
+      { ...order, order_status: originStatus },
+      "Refund: " + reason,
+    );
+    await generateAndStoreDocument(svc, order, "refund_statement", cq, {
+      payment,
+      refundReason: reason,
+      refundAmountCents: totalCents,
+    });
+
+    if (!isLive && (
+      payment.status !== "refunded" ||
+      payment.refund_status !== "full" ||
+      (payment.refunded_amount_cents || 0) < totalCents
+    )) {
       await svc.entities.PaymentRecord.update(payment.id, {
-        status: "refunded", refunded_amount: order.total, refund_status: "full",
+        status: "refunded",
+        refunded_amount: order.total,
+        refunded_amount_cents: totalCents,
+        refund_status: "full",
+        provider_refund_status: "succeeded",
+        refund_last_event_at: new Date().toISOString(),
       });
     }
-    // 6. Order payment_status — only update if not already refunded.
+
     if (order.payment_status !== "refunded") {
-      await svc.entities.Order.update(orderId, { payment_status: "refunded" });
+      await svc.entities.Order.update(orderId, {
+        payment_status: "refunded",
+        financial_hold: order.stripe_dispute_status && order.stripe_dispute_status !== "won",
+        financial_hold_reason: order.stripe_dispute_status && order.stripe_dispute_status !== "won"
+          ? "Stripe dispute remains open after refund."
+          : null,
+      });
     }
-    // 7. Order status transition — only if not already refunded.
     if (order.order_status !== "refunded") {
-      await transitionOrder(svc, orderId, "refunded", { type: "system", description: "Refund reconciled and finalized (TEST)" });
+      await transitionOrder(svc, orderId, "refunded", {
+        type: actor?.type || "system",
+        id: actor?.id,
+        description: isLive
+          ? "Provider-confirmed refund reconciled and finalized"
+          : "Approved test refund reconciled and finalized",
+      });
     }
-    await recordOrderEvent(svc, {
-      order_id: orderId, event_type: "refund_processed", actor_type: actor?.type || "system", actor_id: actor?.id,
-      description: "Test refund processed (" + reason + ")",
-      metadata: { inventory_action: inventory.action, inventory_quantity: inventory.quantity, refunded_from: originStatus },
-    });
-    return { order: await svc.entities.Order.get(orderId), payment: await svc.entities.PaymentRecord.get(payment.id), inventory };
+
+    const existing = await svc.entities.OrderEvent.filter({ order_id: orderId, event_type: "refund_processed" }, "-created_date", 50);
+    if (!(existing || []).some((event) => event.metadata?.provider_refund_id === payment.provider_refund_id)) {
+      await recordOrderEvent(svc, {
+        order_id: orderId,
+        event_type: "refund_processed",
+        actor_type: actor?.type || "system",
+        actor_id: actor?.id,
+        description: (isLive ? "Stripe refund finalized" : "Approved test refund processed") + " (" + reason + ")",
+        metadata: {
+          inventory_action: inventory.action,
+          inventory_quantity: inventory.quantity,
+          refunded_from: originStatus,
+          provider_refund_id: payment.provider_refund_id || "approved-test",
+        },
+      });
+    }
+    return {
+      order: await svc.entities.Order.get(orderId),
+      payment: await svc.entities.PaymentRecord.get(payment.id),
+      inventory,
+    };
   } catch (error) {
     await raiseExceptionOnce(svc, {
-      severity: "CRITICAL", exception_type: "refund_reconciliation", order_id: orderId,
-      buyer_id: order.buyer_id, vendor_id: order.vendor_id, payment_id: payment.id,
+      severity: "CRITICAL",
+      exception_type: "refund_reconciliation",
+      order_id: orderId,
+      buyer_id: order.buyer_id,
+      vendor_id: order.vendor_id,
+      payment_id: payment.id,
       reason: "Refund reconciliation failed for " + order.order_number + ": " + error.message,
       technical_details_private: error.message,
-      recommended_action: "Run Transaction Maintenance or retry the refund after correcting the failing internal step.", requires_admin: true,
+      recommended_action: "Keep the order quarantined and retry after correcting the provider/ledger/inventory state.",
+      requires_admin: true,
     });
     throw error;
   }

@@ -1,9 +1,10 @@
 import { Navigate, useLocation, Outlet } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
 export default function OnboardingGate() {
-  const { loading, hasOnboarded } = useAppUser();
+  const { loading, hasOnboarded, profileError, refresh } = useAppUser();
   const location = useLocation();
 
   if (loading) {
@@ -14,11 +15,19 @@ export default function OnboardingGate() {
     );
   }
 
+  if (profileError) {
+    return <div className="max-w-md mx-auto p-6 space-y-4">
+      <h1 className="text-xl font-bold">We could not load your profile</h1>
+      <p>Your saved information has not been erased. Retry before creating another profile.</p>
+      <Button onClick={() => refresh().catch(() => {})}>Retry profile loading</Button>
+    </div>;
+  }
+
   if (!hasOnboarded && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
   if (hasOnboarded && location.pathname === "/onboarding") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/home" replace />;
   }
   return <Outlet />;
 }

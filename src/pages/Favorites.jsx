@@ -17,8 +17,13 @@ export default function Favorites() {
         setFavs(list);
         const productFavs = list.filter((f) => f.target_type === "product");
         const prods = [];
-        for (const f of productFavs) { try { prods.push(await base44.entities.Product.get(f.target_id)); } catch {} }
-        setProducts(prods.filter(Boolean));
+        for (const f of productFavs) {
+          try {
+            const product = await base44.entities.Product.get(f.target_id);
+            if (product && product.is_test_fixture !== true && product.listing_status === "active") prods.push(product);
+          } catch {}
+        }
+        setProducts(prods);
       } catch {}
       finally { setLoading(false); }
     })();

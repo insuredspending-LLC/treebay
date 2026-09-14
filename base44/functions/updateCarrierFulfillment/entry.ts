@@ -23,7 +23,7 @@ export default async function(req) {
 
     // Verify carrier authorization: the carrier must own the assigned CarrierProfile
     const carrier = await svc.entities.CarrierProfile.get(shipment.carrier_id);
-    if (!carrier || carrier.created_by_id !== user.id) {
+    if (!carrier || carrier.owner_id !== user.id) {
       return Response.json({ error: "You are not the assigned carrier for this shipment." }, { status: 403 });
     }
     if (carrier.verification_status !== "verified") {
@@ -35,6 +35,18 @@ export default async function(req) {
 
     let newStatus = null;
     let description = "";
+
+    // Validate action/state BEFORE writing POD or other side effects.
+    const currentShipmentStatus = shipment.shipment_status;
+    const stateAllowed =
+      (action === "accept" && currentShipmentStatus === "assigned") ||
+      (action === "decline" && currentShipmentStatus === "assigned") ||
+      (action === "pickup" && currentShipmentStatus === "pickup_scheduled") ||
+      (action === "in_transit" && currentShipmentStatus === "picked_up") ||
+      (action === "deliver" && ["in_transit", "delivery_delayed"].includes(currentShipmentStatus));
+    if (!stateAllowed) {
+      return Response.json({ error: "Action " + action + " is not valid while shipment is " + currentShipmentStatus + "." }, { status: 400 });
+    }
 
     if (action === "accept") {
       newStatus = "pickup_scheduled";
@@ -111,6 +123,8 @@ export default async function(req) {
     await notifySafely(svc, { user_id: order.buyer_id, type: notifType, eventType: "carrier_" + action, title: "Shipment update", body: order.order_number + " — " + description, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id });
     await notifySafely(svc, { user_id: order.vendor_owner_id, type: notifType, eventType: "carrier_" + action, title: "Shipment update", body: order.order_number + " — " + description, reference_type: "order", reference_id: order.id, order_id: order.id, buyer_id: order.buyer_id, vendor_id: order.vendor_id, carrier_id: carrier.id });
 
+    // Carrier delivery records proof of delivery only. The buyer must explicitly
+    // confirm receipt before completion and before the payout cooling hold starts.
     return Response.json({ ok: true, shipment_status: newStatus });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

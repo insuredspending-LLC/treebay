@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { isPublicMarketplaceVendor } from "../../shared/marketplace.ts";
 
 // Safe public seller projection — returns only marketplace display fields.
 // Never exposes contact_name, phone, address, or zip_code.
@@ -7,12 +8,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 const PUBLIC_FIELDS = [
   "id", "business_name", "city", "state", "website", "description",
   "service_area", "pickup_available", "delivery_available", "wholesale_available",
-  "verification_status", "logo_url", "cover_url", "rating", "review_count",
+  "verification_status", "selling_status", "logo_url", "cover_url", "rating", "review_count",
   "created_date"
 ];
 
 function sanitize(vendor) {
-  if (!vendor) return null;
+  if (!isPublicMarketplaceVendor(vendor)) return null;
   const result = {};
   for (const k of PUBLIC_FIELDS) {
     if (vendor[k] !== undefined) result[k] = vendor[k];
@@ -30,7 +31,7 @@ export default async function(req: Request): Promise<Response> {
     if (Array.isArray(body.vendorIds) && body.vendorIds.length) {
       const vendors = await svc.entities.VendorProfile.filter({ id: { $in: body.vendorIds } });
       const map = {};
-      (vendors || []).forEach(v => { map[v.id] = sanitize(v); });
+      (vendors || []).filter(isPublicMarketplaceVendor).forEach(v => { map[v.id] = sanitize(v); });
       return Response.json({ vendors: map });
     }
 
@@ -38,7 +39,7 @@ export default async function(req: Request): Promise<Response> {
     if (body.verified) {
       const limit = Math.min(body.limit || 12, 50);
       const vendors = await svc.entities.VendorProfile.filter({ verification_status: "verified" }, "-rating", limit);
-      return Response.json({ vendors: (vendors || []).map(sanitize) });
+      return Response.json({ vendors: (vendors || []).filter(isPublicMarketplaceVendor).map(sanitize) });
     }
 
     return Response.json({ error: "vendorIds or verified required" }, { status: 400 });

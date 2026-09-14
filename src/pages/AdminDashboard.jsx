@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { useAppUser } from "@/hooks/useAppUser";
-import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3, FlaskConical, Truck } from "lucide-react";
+import { ShieldAlert, Users, Store, Package, Flag, ShoppingCart, FileText, CheckCircle2, XCircle, Loader2, BarChart3, FlaskConical, Truck, Bug } from "lucide-react";
 import TestSimulator from "@/components/admin/TestSimulator";
 import AdminFinancials from "@/components/admin/AdminFinancials";
 import StatusBadge from "@/components/StatusBadge";
@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
   const [reports, setReports] = useState([]);
+  const [appIssues, setAppIssues] = useState([]);
   const [orders, setOrders] = useState([]);
   const [rfqs, setRfqs] = useState([]);
   const [users, setUsers] = useState([]);
@@ -31,7 +32,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
-  const seed = async () => { setSeeding(true); try { const r = await seedDemoData(); toast({ title: r.ok ? "Demo data loaded" : "Already seeded" }); load(); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } finally { setSeeding(false); } };
+  const seed = async () => { setSeeding(true); try { const r = await seedDemoData(); toast({ title: r.ok ? "Demo data loaded" : "Already seeded" }); load(); } catch { toast({ title: "Failed", variant: "destructive" }); } finally { setSeeding(false); } };
   const [runningMaint, setRunningMaint] = useState(false);
   const runMaintenance = async () => { setRunningMaint(true); try { const { data } = await base44.functions.invoke("runTransactionMaintenance", {}); toast({ title: "Maintenance complete", description: `Released: ${data.released}, Reminders: ${data.reminders}, Escalated: ${data.escalated}, Completed: ${data.completed}, Settled: ${data.settled}` }); load(); } catch (e) { toast({ title: "Maintenance failed", description: apiError(e), variant: "destructive" }); } finally { setRunningMaint(false); } };
   const generateDocs = async (orderId) => { try { for (const dt of ["buyer_order_confirmation", "buyer_invoice", "buyer_receipt", "vendor_purchase_order", "vendor_settlement_statement", "delivery_manifest"]) { await base44.functions.invoke("generateTransactionDocument", { orderId, documentType: dt }); } toast({ title: "Documents generated" }); } catch (e) { toast({ title: "Failed", description: apiError(e), variant: "destructive" }); } };
@@ -39,7 +40,7 @@ export default function AdminDashboard() {
   const load = async () => {
     setLoading(true);
     try {
-      const [v, p, r, o, rfq, exc, carr] = await Promise.all([
+      const [v, p, r, o, rfq, exc, carr, issues] = await Promise.all([
         base44.entities.VendorProfile.list("-created_date", 100),
         base44.entities.Product.list("-created_date", 100),
         base44.entities.ContentReport.filter({ status: "open" }, "-created_date", 50),
@@ -47,25 +48,45 @@ export default function AdminDashboard() {
         base44.entities.RFQ.list("-created_date", 50),
         base44.entities.SystemException.filter({ requires_admin: true }, "-created_date", 50),
         base44.entities.CarrierProfile.list("-created_date", 100),
+        base44.entities.CrashReport.list("-created_date", 100),
       ]);
-      setVendors(v || []); setProducts(p || []); setReports(r || []); setOrders(o || []); setRfqs(rfq || []); setExceptions((exc || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED")); setCarriers(carr || []);
+      setVendors(v || []); setProducts(p || []); setReports(r || []); setAppIssues((issues || []).filter((issue) => issue.status !== "resolved" && issue.status !== "dismissed")); setOrders(o || []); setRfqs(rfq || []); setExceptions((exc || []).filter((e) => e.status !== "RESOLVED" && e.status !== "CLOSED")); setCarriers(carr || []);
       try { setUsers(await base44.entities.User.list() || []); } catch {}
     } catch {}
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
-  if (user && user.role !== "admin") return <Navigate to="/" replace />;
+  if (user && user.role !== "admin") return <Navigate to="/home" replace />;
   if (!user) return <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
-  const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } };
-  const setCarrierVerification = async (id, status) => { try { await base44.entities.CarrierProfile.update(id, { verification_status: status }); load(); toast({ title: `Carrier ${VERIFICATION_LABELS[status]}` }); } catch (e) { toast({ title: "Failed", variant: "destructive" }); } };
+  const setVerification = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { verification_status: status }); load(); toast({ title: `Vendor ${VERIFICATION_LABELS[status]}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
+  const setSellingStatus = async (id, status) => { try { await base44.entities.VendorProfile.update(id, { selling_status: status }); load(); toast({ title: `Seller ${status}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
+  const setCarrierVerification = async (id, status) => { try { await base44.entities.CarrierProfile.update(id, { verification_status: status }); load(); toast({ title: `Carrier ${VERIFICATION_LABELS[status]}` }); } catch { toast({ title: "Failed", variant: "destructive" }); } };
   const setListingStatus = async (id, status) => { try { await base44.entities.Product.update(id, { listing_status: status }); load(); toast({ title: `Listing ${status}` }); } catch {} };
   const resolveReport = async (id, resolution) => { try { await base44.entities.ContentReport.update(id, { status: "actioned", resolution }); load(); toast({ title: "Report resolved" }); } catch {} };
   const dismissReport = async (id) => { try { await base44.entities.ContentReport.update(id, { status: "dismissed" }); load(); } catch {} };
+  const updateAppIssue = async (id, status) => {
+    try {
+      await base44.entities.CrashReport.update(id, {
+        status,
+        resolution: status === "resolved" ? "Reviewed and resolved from the TreEbay admin issue inbox." : "Marked in progress from the TreEbay admin issue inbox.",
+      });
+      load();
+      toast({ title: status === "resolved" ? "Issue resolved" : "Issue marked in progress" });
+    } catch (e) {
+      toast({ title: "Could not update issue", description: apiError(e), variant: "destructive" });
+    }
+  };
 
-  const pendingVendors = vendors.filter((v) => v.verification_status === "pending");
-  const totalSales = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (o.total || 0), 0);
+  const productionVendors = vendors.filter((vendor) => vendor.is_test_fixture !== true);
+  const productionProducts = products.filter((product) => product.is_test_fixture !== true);
+  const publishedProducts = productionProducts.filter((product) => product.listing_status === "active");
+  const activeListingsMissingPhotos = publishedProducts.filter((product) => !product.images?.length);
+  const testFixtureCount = products.filter((product) => product.is_test_fixture === true).length + vendors.filter((vendor) => vendor.is_test_fixture === true).length;
+  const pendingVendors = productionVendors.filter((vendor) => vendor.verification_status === "pending");
+  const hasReadinessException = activeListingsMissingPhotos.length > 0 || exceptions.length > 0;
+  const needsCatalogSetup = productionVendors.length === 0 || publishedProducts.length === 0;
 
   return (
     <div className="space-y-4">
@@ -74,10 +95,7 @@ export default function AdminDashboard() {
           <ShieldAlert className="w-6 h-6 text-primary" />
           <div><h1 className="text-xl font-bold">Admin console</h1><p className="text-sm text-muted-foreground">Marketplace oversight & moderation.</p></div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={runMaintenance} disabled={runningMaint}>{runningMaint ? "Running…" : "Run maintenance"}</Button>
-          <Button variant="outline" size="sm" onClick={seed} disabled={seeding}>{seeding ? "Loading…" : "Seed demo data"}</Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={runMaintenance} disabled={runningMaint}>{runningMaint ? "Running…" : "Run maintenance"}</Button>
       </div>
 
       {loading ? <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div> : (
@@ -87,7 +105,8 @@ export default function AdminDashboard() {
             <TabsTrigger value="exceptions"><ShieldAlert className="w-4 h-4 mr-1" /> Exceptions {exceptions.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{exceptions.length}</span>}</TabsTrigger>
             <TabsTrigger value="vendors"><Store className="w-4 h-4 mr-1" /> Vendors {pendingVendors.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-amber-500 text-white text-[10px]">{pendingVendors.length}</span>}</TabsTrigger>
             <TabsTrigger value="listings"><Package className="w-4 h-4 mr-1" /> Listings</TabsTrigger>
-            <TabsTrigger value="reports"><Flag className="w-4 h-4 mr-1" /> Reports {reports.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{reports.length}</span>}</TabsTrigger>
+            <TabsTrigger value="issues"><Bug className="w-4 h-4 mr-1" /> App Issues {appIssues.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-amber-500 text-white text-[10px]">{appIssues.length}</span>}</TabsTrigger>
+            <TabsTrigger value="reports"><Flag className="w-4 h-4 mr-1" /> Content Reports {reports.length > 0 && <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px]">{reports.length}</span>}</TabsTrigger>
             <TabsTrigger value="orders"><ShoppingCart className="w-4 h-4 mr-1" /> Orders</TabsTrigger>
             <TabsTrigger value="rfqs"><FileText className="w-4 h-4 mr-1" /> RFQs</TabsTrigger>
             <TabsTrigger value="users"><Users className="w-4 h-4 mr-1" /> Users</TabsTrigger>
@@ -100,16 +119,44 @@ export default function AdminDashboard() {
             {exceptions.length > 0 && (
               <Card className="p-4 border-rose-200 bg-rose-50">
                 <div className="flex items-center justify-between">
-                  <div><p className="text-sm font-semibold text-rose-800">REQUIRES YOUR ATTENTION</p><p className="text-3xl font-bold text-rose-800">{exceptions.length}</p></div>
+                  <div><p className="text-sm font-semibold text-rose-800">COMMERCE EXCEPTIONS</p><p className="text-3xl font-bold text-rose-800">{exceptions.length}</p></div>
                   <Button size="sm" onClick={() => setTab("exceptions")}>Review Exceptions</Button>
                 </div>
               </Card>
             )}
+            {appIssues.length > 0 && (
+              <Card className="p-4 border-amber-200 bg-amber-50">
+                <div className="flex items-center justify-between gap-3">
+                  <div><p className="text-sm font-semibold text-amber-900">USER & APP ISSUES</p><p className="text-3xl font-bold text-amber-900">{appIssues.length}</p></div>
+                  <Button size="sm" variant="outline" onClick={() => setTab("issues")}>Open Issue Inbox</Button>
+                </div>
+              </Card>
+            )}
+            <Card className="overflow-hidden border-border/70">
+              <div className="flex flex-col gap-3 border-b border-border/70 bg-secondary/35 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Production readiness</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">A concise view of what buyers can safely see and use.</p>
+                </div>
+                <Badge
+                  variant={hasReadinessException ? "destructive" : "secondary"}
+                  className={!hasReadinessException && needsCatalogSetup ? "border-amber-200 bg-amber-100 text-amber-900" : undefined}
+                >
+                  {hasReadinessException ? "Attention needed" : needsCatalogSetup ? "Catalog setup needed" : "Controls healthy"}
+                </Badge>
+              </div>
+              <div className="grid gap-px bg-border/60 sm:grid-cols-2 lg:grid-cols-4">
+                <ReadinessItem label="Test records" value={testFixtureCount ? testFixtureCount + " isolated" : "None found"} ok />
+                <ReadinessItem label="Published inventory" value={publishedProducts.length + " buyer-visible"} ok={publishedProducts.length > 0} />
+                <ReadinessItem label="Missing listing photos" value={activeListingsMissingPhotos.length + " published"} ok={activeListingsMissingPhotos.length === 0} />
+                <ReadinessItem label="Open exceptions" value={String(exceptions.length)} ok={exceptions.length === 0} />
+              </div>
+            </Card>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Stat icon={ShoppingCart} label="Orders today" value={orders.filter((o) => shortDate(o.created_date) === shortDate(new Date())).length} />
-              <Stat icon={BarChart3} label="Gross volume" value={formatCurrency(orders.reduce((s, o) => s + (o.total || 0), 0))} />
-              <Stat icon={Store} label="Vendors" value={vendors.length} />
-              <Stat icon={Package} label="Listings" value={products.length} />
+              <Stat icon={ShoppingCart} label="LIVE orders today" value={orders.filter((o) => o.commerce_mode === "live" && shortDate(o.created_date) === shortDate(new Date())).length} />
+              <Stat icon={BarChart3} label="LIVE gross volume" value={formatCurrency(orders.filter((o) => o.commerce_mode === "live").reduce((s, o) => s + (o.total || 0), 0))} />
+              <Stat icon={Store} label="Production growers" value={productionVendors.length} />
+              <Stat icon={Package} label="Published listings" value={publishedProducts.length} />
             </div>
             <Card className="p-4">
               <h2 className="font-semibold mb-2">System health</h2>
@@ -125,13 +172,14 @@ export default function AdminDashboard() {
             </Card>
             {pendingVendors.length > 0 && (
               <Card className="p-4">
-                <h2 className="font-semibold mb-2">Pending vendor verifications</h2>
+                <h2 className="font-semibold mb-1">Pending TreEbay trust verifications</h2>
+                <p className="text-xs text-muted-foreground mb-2">Seller accounts activate automatically. Verification only controls the public trust badge; suspend selling only for an exception.</p>
                 <div className="space-y-2">{pendingVendors.map((v) => (
                   <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-50">
-                    <div><p className="font-medium text-sm">{v.business_name}</p><p className="text-xs text-muted-foreground">{v.city}, {v.state}</p></div>
+                    <div><p className="font-medium text-sm">{v.business_name}</p><p className="text-xs text-muted-foreground">{v.city}, {v.state} · Selling {(v.selling_status || "active")}</p></div>
                     <div className="flex gap-1">
-                      <Button size="sm" onClick={() => setVerification(v.id, "verified")}><CheckCircle2 className="w-4 h-4 mr-1" /> Verify</Button>
-                      <Button size="sm" variant="outline" onClick={() => setVerification(v.id, "suspended")}><XCircle className="w-4 h-4 mr-1" /> Suspend</Button>
+                      <Button size="sm" onClick={() => setVerification(v.id, "verified")}><CheckCircle2 className="w-4 h-4 mr-1" /> Mark Verified</Button>
+                      <Button size="sm" variant="outline" onClick={() => setSellingStatus(v.id, "suspended")}><XCircle className="w-4 h-4 mr-1" /> Suspend Selling</Button>
                     </div>
                   </div>
                 ))}</div>
@@ -152,11 +200,16 @@ export default function AdminDashboard() {
               <div className="space-y-2">{vendors.map((v) => (
                 <Card key={v.id} className="p-3 flex items-center justify-between gap-2">
                   <div className="min-w-0"><p className="font-medium text-sm truncate">{v.business_name}</p><p className="text-xs text-muted-foreground">{v.city}, {v.state} · {v.contact_name}</p></div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <StatusBadge status={v.verification_status} label={VERIFICATION_LABELS[v.verification_status]} />
-                    <Select value={v.verification_status} onValueChange={(s) => setVerification(v.id, s)}>
+                    <StatusBadge status={v.selling_status || "active"} label={`Selling ${v.selling_status || "active"}`} />
+                    <Select value={v.verification_status === "suspended" ? "pending" : v.verification_status} onValueChange={(s) => setVerification(v.id, s)}>
                       <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="verified">Verify</SelectItem><SelectItem value="suspended">Suspend</SelectItem></SelectContent>
+                      <SelectContent><SelectItem value="pending">Badge pending</SelectItem><SelectItem value="verified">Verified badge</SelectItem></SelectContent>
+                    </Select>
+                    <Select value={v.selling_status || "active"} onValueChange={(s) => setSellingStatus(v.id, s)}>
+                      <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="active">Selling active</SelectItem><SelectItem value="restricted">Restricted</SelectItem><SelectItem value="suspended">Suspended</SelectItem></SelectContent>
                     </Select>
                     <Button asChild variant="ghost" size="sm"><Link to={`/vendor/${v.id}`}>View</Link></Button>
                   </div>
@@ -177,6 +230,38 @@ export default function AdminDashboard() {
                       <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="paused">Pause</SelectItem><SelectItem value="sold_out">Sold out</SelectItem><SelectItem value="archived">Archive</SelectItem></SelectContent>
                     </Select>
                     <Button asChild variant="ghost" size="sm"><Link to={`/product/${p.id}`}>View</Link></Button>
+                  </div>
+                </Card>
+              ))}</div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="issues">
+            {appIssues.length === 0 ? <EmptyState icon={Bug} title="No open app issues" description="Automatic errors and user-submitted usability reports will appear here." /> : (
+              <div className="space-y-3">{appIssues.map((issue) => (
+                <Card key={issue.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="capitalize">{(issue.report_type || "manual bug").replace(/_/g, " ")}</Badge>
+                        <Badge variant={issue.impact === "blocked" ? "destructive" : "secondary"} className="capitalize">{(issue.impact || "unknown").replace(/_/g, " ")}</Badge>
+                      </div>
+                      <p className="font-semibold text-sm mt-2">{issue.message || "App issue"}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">{shortDate(issue.created_date)}</span>
+                  </div>
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{issue.details || "No description was included."}</p>
+                  {issue.expected_behavior && <div className="rounded-lg bg-secondary/60 p-3 text-sm"><span className="font-semibold">Expected:</span> {issue.expected_behavior}</div>}
+                  <p className="text-xs text-muted-foreground break-all">Screen: {issue.route || "Unknown"}</p>
+                  {(issue.stack || issue.component_stack) && (
+                    <details className="text-xs text-muted-foreground">
+                      <summary className="cursor-pointer font-medium">Technical details</summary>
+                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3">{issue.stack || issue.component_stack}</pre>
+                    </details>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => updateAppIssue(issue.id, "in_progress")}>Mark in progress</Button>
+                    <Button size="sm" onClick={() => updateAppIssue(issue.id, "resolved")}><CheckCircle2 className="w-4 h-4" /> Resolve</Button>
                   </div>
                 </Card>
               ))}</div>
@@ -251,7 +336,14 @@ export default function AdminDashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="simulator">
+          <TabsContent value="simulator" className="space-y-4">
+            <Card className="flex flex-col gap-4 border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-amber-950">Internal test fixtures</p>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-amber-900">Simulator records are tagged and excluded from the buyer marketplace. Never use them as real inventory.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={seed} disabled={seeding}>{seeding ? "Preparing…" : "Create isolated fixtures"}</Button>
+            </Card>
             <TestSimulator orders={orders} onChanged={load} />
           </TabsContent>
         </Tabs>
@@ -262,6 +354,18 @@ export default function AdminDashboard() {
 
 function Stat({ icon: Icon, label, value }) {
   return <Card className="p-4"><Icon className="w-5 h-5 text-primary" /><p className="text-2xl font-bold mt-2">{value}</p><p className="text-xs text-muted-foreground">{label}</p></Card>;
+}
+
+function ReadinessItem({ label, value, ok }) {
+  return (
+    <div className="bg-card p-4">
+      <div className="flex items-center gap-2">
+        {ok ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <ShieldAlert className="h-4 w-4 text-amber-600" />}
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      </div>
+      <p className="mt-2 text-sm font-semibold">{value}</p>
+    </div>
+  );
 }
 
 function HealthRow({ label, status }) {

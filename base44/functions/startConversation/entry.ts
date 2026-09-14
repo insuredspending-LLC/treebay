@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { isBlocked } from "../../shared/marketplace.ts";
+import { isBlocked, isPublicMarketplaceProduct, isPublicMarketplaceVendor } from "../../shared/marketplace.ts";
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -16,12 +16,13 @@ export default async function(req: Request): Promise<Response> {
 
     if (type === "product") {
       const product = await svc.entities.Product.get(referenceId);
-      if (!product) return Response.json({ error: "Product not found" }, { status: 404 });
+      if (!isPublicMarketplaceProduct(product)) return Response.json({ error: "Product not found" }, { status: 404 });
       buyerId = user.id; vOwnerId = product.vendor_owner_id; vendorId = product.vendor_id; referenceLabel = product.common_name;
     } else if (type === "general") {
       let vendor;
       try { vendor = await svc.entities.VendorProfile.get(referenceId); } catch { return Response.json({ error: "Vendor not found" }, { status: 404 }); }
-      buyerId = user.id; vOwnerId = vendor.created_by_id; vendorId = vendor.id; referenceLabel = vendor.business_name;
+      if (!isPublicMarketplaceVendor(vendor)) return Response.json({ error: "Vendor not found" }, { status: 404 });
+      buyerId = user.id; vOwnerId = vendor.owner_id; vendorId = vendor.id; referenceLabel = vendor.business_name;
     } else if (type === "rfq") {
       const rfq = await svc.entities.RFQ.get(referenceId);
       if (!rfq || !vendorOwnerId) return Response.json({ error: "RFQ conversation is unavailable" }, { status: 400 });

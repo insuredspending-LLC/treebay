@@ -1,11 +1,10 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAppUser } from "@/hooks/useAppUser";
-import { Bell, ShoppingCart, Home as HomeIcon, Store, FolderKanban, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2, BarChart3 } from "lucide-react";
+import { Bell, ShoppingCart, Store, MessageSquare, User, LayoutDashboard, Package, FileText, Truck, Leaf, ChevronLeft, Sparkles, ChevronsUpDown, AlertCircle, CheckCircle2, BarChart3, Shield } from "lucide-react";
 import AIAssistant from "@/components/AIAssistant";
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { cn } from "@/lib/utils";
-import KeepAliveOutlet from "@/components/KeepAliveOutlet";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -97,11 +96,11 @@ function getHeaderState(pathname) {
 }
 
 const BUYER_NAV = [
-  { to: "/", label: "Home", icon: HomeIcon, match: ["/"] },
-  { to: "/marketplace", label: "Marketplace", icon: Store, match: ["/marketplace", "/product", "/vendor"] },
-  { to: "/projects", label: "Projects", icon: FolderKanban, match: ["/projects", "/rfqs"] },
+  { to: "/marketplace", label: "Marketplace", icon: Store, match: ["/marketplace", "/product", "/vendor", "/home"] },
+  { to: "/projects", label: "Quotes", icon: FileText, match: ["/projects", "/rfqs"] },
   { to: "/orders", label: "Orders", icon: ShoppingCart, match: ["/orders"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
+  { to: "/messages", label: "Messages", icon: MessageSquare, match: ["/messages"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/profile", "/edit-buyer-profile", "/settings", "/favorites", "/privacy", "/terms", "/community-rules", "/report-problem"] },
 ];
 
 const VENDOR_NAV = [
@@ -109,20 +108,21 @@ const VENDOR_NAV = [
   { to: "/vendor/inventory", label: "Inventory", icon: Package, match: ["/vendor/inventory"] },
   { to: "/vendor/rfqs", label: "RFQs", icon: FileText, match: ["/vendor/rfqs"] },
   { to: "/vendor/orders", label: "Orders", icon: ShoppingCart, match: ["/vendor/orders", "/orders"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/favorites", "/privacy", "/terms", "/community-rules"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/profile", "/edit-buyer-profile", "/settings", "/favorites", "/privacy", "/terms", "/community-rules", "/report-problem"] },
 ];
 
 const CARRIER_NAV = [
   { to: "/carrier", label: "Dashboard", icon: LayoutDashboard, match: ["/carrier"], exact: true },
   { to: "/carrier/loads", label: "Loads", icon: Truck, match: ["/carrier/loads"] },
   { to: "/carrier/financials", label: "Earnings", icon: BarChart3, match: ["/carrier/financials"] },
-  { to: "/account", label: "Account", icon: User, match: ["/account", "/settings", "/privacy", "/terms", "/community-rules"] },
+  { to: "/account", label: "Account", icon: User, match: ["/account", "/profile", "/edit-buyer-profile", "/settings", "/privacy", "/terms", "/community-rules", "/report-problem"] },
 ];
 
 const BUYER_DESKTOP_NAV = [
-  { to: "/marketplace", label: "Marketplace", match: ["/marketplace", "/product", "/vendor"] },
-  { to: "/projects", label: "Projects", match: ["/projects", "/rfqs"] },
+  { to: "/marketplace", label: "Marketplace", match: ["/marketplace", "/product", "/vendor", "/home"] },
+  { to: "/projects", label: "Projects & quotes", match: ["/projects", "/rfqs"] },
   { to: "/orders", label: "Orders", match: ["/orders"] },
+  { to: "/messages", label: "Messages", match: ["/messages"] },
 ];
 
 const VENDOR_DESKTOP_NAV = [
@@ -148,16 +148,21 @@ function isItemActive(pathname, item) {
 }
 
 function TopBar() {
-  const { accountType, vendorProfiles, carrierProfile, switchAccountType } = useAppUser();
+  const { user, accountType, vendorProfiles, carrierProfile, switchAccountType } = useAppUser();
   const { items, unread, markAllRead } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const { isChild, title } = getHeaderState(location.pathname);
   const desktopNav = accountType === "vendor" ? VENDOR_DESKTOP_NAV : accountType === "carrier" ? CARRIER_DESKTOP_NAV : BUYER_DESKTOP_NAV;
+  const switchMode = async (type) => {
+    const ok = await switchAccountType(type);
+    if (!ok) return;
+    navigate(type === "vendor" ? "/vendor" : type === "carrier" ? "/carrier" : "/home");
+  };
 
   return (
-    <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border pt-[env(safe-area-inset-top)]">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-30 bg-card/[0.92] backdrop-blur-xl border-b border-border/65 pt-[env(safe-area-inset-top)]">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
         {/* Left: brand + desktop nav */}
         <div className="flex items-center gap-6 min-w-0">
           {isChild ? (
@@ -166,19 +171,19 @@ function TopBar() {
               <span className="font-heading font-bold text-base text-foreground truncate">{title}</span>
             </div>
           ) : (
-            <button onClick={() => navigate("/")} className="flex items-center gap-2 no-tap-highlight shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <button onClick={() => navigate(accountType === "vendor" ? "/vendor" : accountType === "carrier" ? "/carrier" : "/home")} aria-label="TreEbay workspace home" className="flex items-center gap-2 no-tap-highlight shrink-0">
+              <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shadow-sm">
                 <Leaf className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-heading font-extrabold text-lg text-primary tracking-tight">TreEbay</span>
+              <span className="font-heading font-bold text-base sm:text-lg text-primary tracking-tight">TreEbay</span>
             </button>
           )}
           {!isChild && (
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1" aria-label="Primary workspace navigation">
               {desktopNav.map((item) => {
                 const active = isItemActive(location.pathname, item);
                 return (
-                  <Link key={item.to} to={item.to} className={cn("px-3 py-1.5 rounded-lg text-sm font-medium no-tap-highlight transition", active ? "bg-secondary text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
+                  <Link key={item.to} to={item.to} aria-current={active ? "page" : undefined} className={cn("px-3 py-2 rounded-full text-[13px] font-semibold no-tap-highlight transition-colors", active ? "bg-secondary/80 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")}>
                     {item.label}
                   </Link>
                 );
@@ -189,20 +194,26 @@ function TopBar() {
 
         {/* Right: role switch + actions */}
         <div className="flex items-center gap-1 shrink-0">
-          {(vendorProfiles?.length > 0 || carrierProfile) && !isChild && (
-            <div className="flex items-center rounded-full bg-secondary p-0.5 text-xs font-medium" aria-label="Marketplace mode">
-              <button onClick={() => switchAccountType("buyer")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "buyer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Buyer</button>
-              {vendorProfiles?.length > 0 && <button onClick={() => switchAccountType("vendor")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "vendor" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Seller</button>}
-              {carrierProfile && <button onClick={() => switchAccountType("carrier")} className={cn("min-h-9 px-2.5 py-1 rounded-full no-tap-highlight transition-colors", accountType === "carrier" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>Carrier</button>}
-            </div>
+          {(vendorProfiles?.length > 0 || carrierProfile) && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="mr-1 h-9 gap-1.5 rounded-full border-border/70 bg-card px-3" aria-label="Switch marketplace workspace">
+                  <span className="hidden text-xs font-semibold sm:inline">{accountType === "vendor" ? "Seller" : accountType === "carrier" ? "Carrier" : "Buyer"}</span>
+                  <ChevronsUpDown className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-48 rounded-2xl p-2">
+                <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-[.18em] text-muted-foreground">Switch workspace</p>
+                <button onClick={() => switchMode("buyer")} className={cn("w-full rounded-xl px-3 py-2.5 text-left text-sm transition hover:bg-secondary/60", accountType === "buyer" && "bg-secondary font-semibold text-primary")}>Buyer marketplace</button>
+                {vendorProfiles?.length > 0 && <button onClick={() => switchMode("vendor")} className={cn("w-full rounded-xl px-3 py-2.5 text-left text-sm transition hover:bg-secondary/60", accountType === "vendor" && "bg-secondary font-semibold text-primary")}>Seller workspace</button>}
+                {carrierProfile && <button onClick={() => switchMode("carrier")} className={cn("w-full rounded-xl px-3 py-2.5 text-left text-sm transition hover:bg-secondary/60", accountType === "carrier" && "bg-secondary font-semibold text-primary")}>Carrier workspace</button>}
+              </PopoverContent>
+            </Popover>
           )}
-          {vendorProfiles?.length > 0 && isChild && (
-            <Popover><PopoverTrigger asChild><Button variant="ghost" size="icon" aria-label="Switch marketplace mode"><ChevronsUpDown className="w-4 h-4" /></Button></PopoverTrigger><PopoverContent align="end" className="w-36 p-1"><button onClick={() => switchAccountType("buyer")} className={cn("w-full rounded-md px-3 py-2 text-left text-sm", accountType === "buyer" && "bg-secondary text-primary")}>Buyer mode</button><button onClick={() => switchAccountType("vendor")} className={cn("w-full rounded-md px-3 py-2 text-left text-sm", accountType === "vendor" && "bg-secondary text-primary")}>Seller mode</button></PopoverContent></Popover>
-          )}
-          <Button variant="ghost" size="icon" asChild aria-label="Messages">
+          <Button variant="ghost" size="icon" className="hidden sm:inline-flex lg:hidden" asChild aria-label="Messages">
             <Link to="/messages"><MessageSquare className="w-5 h-5" /></Link>
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="TreEbay Assistant">
+          <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={() => window.dispatchEvent(new CustomEvent("trebay-ai-open"))} aria-label="TreEbay Assistant">
             <Sparkles className="w-5 h-5 text-primary" />
           </Button>
           <Popover>
@@ -259,7 +270,12 @@ function TopBar() {
               </ScrollArea>
             </PopoverContent>
           </Popover>
-          <Button variant="ghost" size="icon" asChild aria-label="Account">
+          {user?.role === "admin" && (
+            <Button variant="ghost" size="icon" asChild aria-label="Admin console">
+              <Link to="/admin"><Shield className="w-5 h-5 text-primary" /></Link>
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="hidden lg:inline-flex" asChild aria-label="Profile and account">
             <Link to="/account"><User className="w-5 h-5" /></Link>
           </Button>
         </div>
@@ -273,13 +289,18 @@ export default function Layout() {
   const nav = accountType === "vendor" ? VENDOR_NAV : accountType === "carrier" ? CARRIER_NAV : BUYER_NAV;
   const location = useLocation();
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location.pathname]);
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="app-shell min-h-screen bg-background flex flex-col" data-workspace={accountType || "buyer"}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <TopBar />
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-5 pb-24 md:pb-8">
-        <KeepAliveOutlet key={accountType} keepPaths={nav.map((n) => n.to)} />
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 py-6 md:py-9 pb-24 lg:pb-12">
+        <Outlet />
       </main>
-      <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur-xl border-t border-border/60 shadow-[0_-8px_35px_hsl(var(--foreground)/0.035)] lg:hidden pb-[env(safe-area-inset-bottom)]" aria-label="Mobile workspace navigation">
         <div className={nav.length === 4 ? "max-w-md mx-auto grid grid-cols-4" : "max-w-md mx-auto grid grid-cols-5"}>
           {nav.map((item) => {
             const active = isItemActive(location.pathname, item);
@@ -287,8 +308,9 @@ export default function Layout() {
               <Link
                 key={item.to}
                 to={item.to}
-                className={cn("flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium no-tap-highlight",
-                  active ? "text-primary" : "text-muted-foreground")}
+                aria-current={active ? "page" : undefined}
+                className={cn("relative mx-0.5 my-1 flex flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium no-tap-highlight transition-colors",
+                  active ? "bg-secondary/80 text-primary" : "text-muted-foreground hover:bg-muted/70")}
               >
                 <item.icon className="w-5 h-5" />
                 {item.label}

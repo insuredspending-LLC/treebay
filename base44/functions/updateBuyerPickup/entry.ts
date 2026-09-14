@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { transitionOrder, updateShipmentStatus, raiseExceptionOnce } from "../../shared/transactions.ts";
 import { notifySafely } from "../../shared/notifications.ts";
+import { confirmBuyerDelivery } from "../../shared/deliveryConfirmation.ts";
 
 // Buyer-authorized pickup actions for buyer_pickup orders.
 // Seller stops at ready_for_pickup. Buyer confirms pickup and receipt.
@@ -60,12 +61,23 @@ export default async function(req) {
     }
 
     if (newStatus === "delivered") await svc.entities.Order.update(orderId, { delivered_at: new Date().toISOString() });
+    const completion = newStatus === "delivered"
+      ? await confirmBuyerDelivery(svc, orderId, { type: "buyer", id: user.id }, {
+          receiver_name: body?.receiver_name,
+          confirmation_code: body?.confirmation_code,
+          delivery_notes: body?.delivery_notes,
+        })
+      : null;
 
     // Notify vendor (via notifySafely — never rolls back)
     const notifType = newStatus === "picked_up" ? "order_shipped" : "order_delivered";
     await notifySafely(svc, { user_id: order.vendor_owner_id, type: notifType, eventType: "buyer_pickup_" + action, title: "Pickup update", body: order.order_number + " — " + description, reference_type: "order", reference_id: orderId, order_id: orderId, buyer_id: order.buyer_id, vendor_id: order.vendor_id });
 
-    return Response.json({ ok: true, order_status: newStatus });
+    return Response.json({
+      ok: true,
+      order_status: completion?.order?.order_status || newStatus,
+      payout_eligible_at: completion?.payout_eligible_at || null,
+    });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

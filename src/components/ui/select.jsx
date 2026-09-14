@@ -1,26 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { useEffect, useState } from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
-import { Drawer, Overlay as DrawerOverlay, Content as DrawerContent } from "vaul"
 
 import { cn } from "@/lib/utils"
-
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const handler = () => setIsMobile(mq.matches);
-    handler();
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return [isMobile, setIsMobile];
-}
 
 const Select = SelectPrimitive.Root
 
@@ -65,40 +49,7 @@ const SelectScrollDownButton = React.forwardRef(({ className, ...props }, ref) =
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName
 
-const SelectContent = React.forwardRef(({ className, children, position = "popper", ...props }, ref) => {
-  const [isMobile] = useIsMobile();
-  const sheetRef = React.useRef(null);
-  if (isMobile) {
-    return (
-      <SelectPrimitive.Portal>
-        <SelectPrimitive.Content
-          ref={ref}
-          className="absolute h-0 w-0 overflow-hidden opacity-0 pointer-events-none"
-          position="popper"
-          onPointerDownOutside={(e) => {
-            if (sheetRef.current && sheetRef.current.contains(e.target)) e.preventDefault();
-          }}
-          onFocusOutside={(e) => e.preventDefault()}
-          {...props}>
-          <Drawer open>
-            <DrawerOverlay className="fixed inset-0 z-50 bg-black/40" />
-            <DrawerContent
-              ref={sheetRef}
-              className="z-50 w-full rounded-t-xl border bg-popover p-0 text-popover-foreground"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-              <div className="mx-auto mt-3 h-1.5 w-10 rounded-full bg-muted" />
-              <div className="max-h-[60vh] overflow-y-auto p-2">
-                <SelectPrimitive.Viewport className="w-full">
-                  {children}
-                </SelectPrimitive.Viewport>
-              </div>
-            </DrawerContent>
-          </Drawer>
-        </SelectPrimitive.Content>
-      </SelectPrimitive.Portal>
-    );
-  }
-  return (
+const SelectContent = React.forwardRef(({ className, children, position = "popper", ...props }, ref) => (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         ref={ref}
@@ -119,8 +70,7 @@ const SelectContent = React.forwardRef(({ className, children, position = "poppe
         <SelectScrollDownButton />
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
-  );
-})
+))
 SelectContent.displayName = SelectPrimitive.Content.displayName
 
 const SelectLabel = React.forwardRef(({ className, ...props }, ref) => (

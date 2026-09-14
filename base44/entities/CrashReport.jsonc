@@ -1,0 +1,92 @@
+{
+  "name": "CrashReport",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "stack": {
+      "type": "string"
+    },
+    "component_stack": {
+      "type": "string"
+    },
+    "user_agent": {
+      "type": "string"
+    },
+    "details": {
+      "type": "string"
+    },
+    "expected_behavior": {
+      "type": "string"
+    },
+    "report_type": {
+      "type": "string",
+      "enum": [
+        "automatic_crash",
+        "manual_bug",
+        "usability",
+        "onboarding",
+        "suggestion"
+      ],
+      "default": "manual_bug"
+    },
+    "impact": {
+      "type": "string",
+      "enum": [
+        "minor",
+        "slows_me_down",
+        "blocked"
+      ],
+      "default": "slows_me_down"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "triaged",
+        "in_progress",
+        "resolved",
+        "dismissed"
+      ],
+      "default": "open"
+    },
+    "resolution": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "route",
+    "message"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

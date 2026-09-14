@@ -9,22 +9,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Leaf, Loader2, ArrowLeft, ArrowRight, Check, Store, MapPin, Truck, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { apiError } from "@/lib/treebay";
 
 const STEPS = [
   { num: 1, label: "Business", icon: Store },
   { num: 2, label: "Location", icon: MapPin },
   { num: 3, label: "Capabilities", icon: Truck },
-  { num: 4, label: "Review", icon: Check },
+  { num: 4, label: "Review & fees", icon: Check },
 ];
 
 export default function BecomeSeller() {
-  const { refresh } = useAppUser();
+  const { refresh, switchAccountType } = useAppUser();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [f, setF] = useState({
-    pickup_available: true, delivery_available: true, wholesale_available: false,
+    pickup_available: true,
+    delivery_available: true,
+    wholesale_available: false,
   });
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
@@ -40,8 +43,18 @@ export default function BecomeSeller() {
     setStep((s) => Math.min(4, s + 1));
   };
   const back = () => setStep((s) => Math.max(1, s - 1));
+  const exitSetup = async () => {
+    await switchAccountType("buyer");
+    navigate("/home", { replace: true });
+  };
 
   const finish = async () => {
+    const required = [f.business_name, f.contact_name, f.phone, f.city, f.state, f.zip_code];
+    if (required.some((value) => !String(value || "").trim())) {
+      toast({ title: "Required information is missing", description: "Enter your business name, contact name, phone, city, state, and ZIP code before submitting.", variant: "destructive" });
+      setStep(!f.business_name || !f.contact_name || !f.phone ? 1 : 2);
+      return;
+    }
     setLoading(true);
     try {
       await base44.functions.invoke("createVendorProfile", {
@@ -52,10 +65,10 @@ export default function BecomeSeller() {
         wholesale_available: !!f.wholesale_available,
       });
       await refresh();
-      toast({ title: "Vendor profile created", description: "Verification starts as pending." });
+      toast({ title: "Seller account activated", description: "You can list and sell immediately. TreEbay verification is a separate trust badge." });
       navigate("/vendor", { replace: true });
     } catch (e) {
-      toast({ title: "Could not save profile", description: e.message, variant: "destructive" });
+      toast({ title: "Could not save profile", description: apiError(e), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -63,10 +76,13 @@ export default function BecomeSeller() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
-      <div className="max-w-lg mx-auto">
-        <button onClick={() => (step === 1 ? navigate(-1) : back())} className="inline-flex items-center gap-1 text-sm text-muted-foreground mb-4">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <button onClick={() => (step === 1 ? navigate(-1) : back())} className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <Button type="button" variant="outline" size="sm" onClick={exitSetup}>Exit to Buying</Button>
+        </div>
 
         <div className="flex items-center gap-2 mb-2">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center"><Leaf className="w-5 h-5 text-primary-foreground" /></div>
@@ -138,8 +154,8 @@ export default function BecomeSeller() {
                 <p className="text-sm font-medium">Why TreEbay verifies growers</p>
               </div>
               <p className="text-xs text-muted-foreground">TreEbay verifies growers to ensure buyers receive healthy, accurately represented plants. Verification confirms your nursery is a legitimate business.</p>
-              <p className="text-xs text-muted-foreground"><span className="font-medium text-amber-700">Pending sellers</span> can create their selling profile, prepare listings, and browse sourcing opportunities. Listings and commercial quotes become transactable after verification.</p>
-              <p className="text-xs text-muted-foreground"><span className="font-medium text-emerald-700">Verified sellers</span> can sell directly — buyers can purchase listings and accept quotes.</p>
+              <p className="text-xs text-muted-foreground"><span className="font-medium text-emerald-700">Active sellers</span> can list inventory, submit commercial quotes, and receive orders immediately after onboarding.</p>
+              <p className="text-xs text-muted-foreground"><span className="font-medium text-primary">Verified sellers</span> receive a separate TreEbay trust badge after verification. The badge is not required for normal selling.</p>
             </Card>
           </div>
         )}
@@ -148,8 +164,8 @@ export default function BecomeSeller() {
         {step === 4 && (
           <div className="space-y-4">
             <div>
-              <h2 className="font-semibold">Review & Submit</h2>
-              <p className="text-sm text-muted-foreground">Please review your information before submitting.</p>
+              <h2 className="font-semibold">Review & submit</h2>
+              <p className="text-sm text-muted-foreground">TreEbay is free to join. A 4% marketplace fee is calculated only when a sale is made and is fully disclosed at checkout. No monthly seller plan is required.</p>
             </div>
             <Card className="p-4 space-y-3 text-sm">
               <div>
@@ -168,7 +184,7 @@ export default function BecomeSeller() {
                 <p>{[f.pickup_available !== false && "Pickup", f.delivery_available !== false && "Delivery", f.wholesale_available && "Wholesale"].filter(Boolean).join(" · ") || "None selected"}</p>
               </div>
             </Card>
-            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Verification begins as pending — your listings become purchasable once verified.</p>
+            <p className="text-xs text-muted-foreground">By submitting, you confirm your information is accurate. Your seller account activates automatically; TreEbay verification begins as pending and only controls the trust badge. There is no monthly seller subscription.</p>
           </div>
         )}
 
@@ -178,7 +194,7 @@ export default function BecomeSeller() {
             <Button onClick={next} className="flex-1 h-12">Continue <ArrowRight className="w-4 h-4 ml-1" /></Button>
           ) : (
             <Button onClick={finish} disabled={loading} className="flex-1 h-12">
-              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />} Submit for verification
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />} Activate Seller Account
             </Button>
           )}
         </div>

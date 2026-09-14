@@ -1,5 +1,3 @@
-import { base44 } from "@/api/base44Client";
-
 export const CATEGORIES = [
   { name: "Trees", icon: "TreePine" },
   { name: "Shrubs", icon: "Shrub" },
@@ -155,15 +153,6 @@ export function genOrderNumber() {
   return "TB-" + Math.random().toString(36).slice(2, 8).toUpperCase() + Date.now().toString().slice(-4);
 }
 
-export async function createNotification(userId, type, title, body, refType, refId) {
-  if (!userId) return;
-  try {
-    await base44.entities.Notification.create({
-      user_id: userId, type, title, body, reference_type: refType, reference_id: refId, read: false,
-    });
-  } catch (e) { /* non-blocking */ }
-}
-
 export function classNames(...arr) {
   return arr.filter(Boolean).join(" ");
 }
@@ -174,4 +163,16 @@ export function apiError(e) {
 
 export function formatCents(cents) {
   return formatCurrency((Number(cents) || 0) / 100);
+}
+
+export function listingReadiness(product) {
+  const missing = [];
+  if (!String(product?.common_name || "").trim()) missing.push("Common name");
+  if (!String(product?.category || "").trim()) missing.push("Category");
+  if (!(Number(product?.unit_price) > 0)) missing.push("Unit price");
+  if (!(Number(product?.quantity_available) > 0)) missing.push("Available inventory");
+  if (!Array.isArray(product?.images) || product.images.filter(Boolean).length === 0) missing.push("Current product photo");
+  if (![product?.container_size, product?.box_size, product?.caliper, product?.current_height].some((value) => String(value || "").trim())) missing.push("Size detail");
+  if (!product?.pickup_eligible && !product?.delivery_eligible) missing.push("Pickup or delivery option");
+  return missing;
 }

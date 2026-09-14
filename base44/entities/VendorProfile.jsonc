@@ -2,8 +2,17 @@
   "name": "VendorProfile",
   "type": "object",
   "properties": {
+    "owner_id": {
+      "type": "string",
+      "description": "Authenticated user id that owns this seller profile"
+    },
     "business_name": {
       "type": "string"
+    },
+    "is_test_fixture": {
+      "type": "boolean",
+      "default": false,
+      "description": "Internal test/demo seller record. Test fixtures are excluded from the public production marketplace."
     },
     "contact_name": {
       "type": "string"
@@ -44,6 +53,55 @@
       "type": "boolean",
       "default": false
     },
+    "seller_plan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "professional",
+        "business"
+      ],
+      "default": "free",
+      "description": "Currently active seller entitlement; paid plans remain inactive during preview"
+    },
+    "seller_plan_status": {
+      "type": "string",
+      "enum": [
+        "preview",
+        "active",
+        "past_due",
+        "canceled",
+        "inactive"
+      ],
+      "default": "preview"
+    },
+    "seller_billing_provider": {
+      "type": "string",
+      "enum": [
+        "none",
+        "stripe"
+      ],
+      "default": "none"
+    },
+    "requested_seller_plan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "professional",
+        "business"
+      ],
+      "default": "free",
+      "description": "Founding-plan interest; does not grant paid access or create a charge"
+    },
+    "requested_plan_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "seller_provider_customer_id": {
+      "type": "string"
+    },
+    "seller_provider_subscription_id": {
+      "type": "string"
+    },
     "verification_status": {
       "type": "string",
       "enum": [
@@ -51,7 +109,18 @@
         "verified",
         "suspended"
       ],
-      "default": "pending"
+      "default": "pending",
+      "description": "Trust badge status. Pending does not block normal selling; verified may only be shown after TreEbay verification. The suspended value is retained for backward compatibility."
+    },
+    "selling_status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "restricted",
+        "suspended"
+      ],
+      "default": "active",
+      "description": "Operational selling permission. New sellers activate automatically; only risk, policy, payout, or compliance exceptions should restrict or suspend selling."
     },
     "logo_url": {
       "type": "string"
@@ -66,6 +135,56 @@
     "review_count": {
       "type": "number",
       "default": 0
+    },
+    "stripe_account_id": {
+      "type": "string",
+      "description": "Stripe Connect Express account id (acct_...) the seller onboards to receive live payouts."
+    },
+    "stripe_payouts_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Stripe's determination that this connected account may receive payouts. Selling is automatic; only payouts require this."
+    },
+    "stripe_details_submitted": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the seller has completed Stripe Connect onboarding/KYC."
+    },
+    "stripe_onboarding_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "pending",
+        "restricted",
+        "enabled"
+      ],
+      "default": "not_started",
+      "description": "Derived snapshot of the connected account's ability to receive payouts, refreshed from Stripe."
+    },
+    "stripe_test_account_id": {
+      "type": "string",
+      "description": "Sandbox-only account id. Never used for live payouts."
+    },
+    "stripe_test_payouts_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Sandbox-only payouts enabled. Never used for live payouts."
+    },
+    "stripe_test_details_submitted": {
+      "type": "boolean",
+      "default": false,
+      "description": "Sandbox-only details submitted. Never used for live payouts."
+    },
+    "stripe_test_onboarding_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "pending",
+        "restricted",
+        "enabled"
+      ],
+      "default": "not_started",
+      "description": "Sandbox-only onboarding status. Never used for live payouts."
     }
   },
   "required": [
@@ -80,7 +199,7 @@
     "read": {
       "$or": [
         {
-          "created_by_id": "{{user.id}}"
+          "data.owner_id": "{{user.id}}"
         },
         {
           "user_condition": {

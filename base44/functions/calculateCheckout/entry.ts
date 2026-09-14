@@ -1,5 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { toCents, unitPriceCentsForQty, assembleCheckout } from "../../shared/transactions.ts";
+import { toCents, unitPriceCentsForQty, assembleCheckout, vendorCanSell } from "../../shared/transactions.ts";
+import { commerceModeForVendor } from "../../shared/stripe.ts";
+import { canUseInternalSimulator } from "../../shared/commerceAccess.ts";
+import { isPublicMarketplaceProduct, isPublicMarketplaceVendor } from "../../shared/marketplace.ts";
 
 export default async function(req) {
   try {
@@ -8,15 +11,16 @@ export default async function(req) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const body = await req.json();
     const svc = base44.asServiceRole;
+    const testAuthorized = await canUseInternalSimulator(svc, user);
 
     // ---- Direct listing checkout ----
     if (body.productId) {
       const product = await svc.entities.Product.get(body.productId);
-      if (!product) return Response.json({ error: "Product not found" }, { status: 404 });
-      if (product.listing_status !== "active") return Response.json({ error: "This listing is no longer available." }, { status: 400 });
-      // Enforce vendor verification — unverified vendors cannot sell.
+      if (!isPublicMarketplaceProduct(product)) return Response.json({ error: "This listing is no longer available." }, { status: 404 });
+      // Operational selling is automatic for normal onboarding. Trust verification is
+      // a separate badge and does not block checkout unless the seller is suspended/restricted.
       const vendor = await svc.entities.VendorProfile.get(product.vendor_id);
-      if (!vendor || vendor.verification_status !== "verified") return Response.json({ error: "This vendor is not yet verified. Please check back soon." }, { status: 403 });
+      if (!isPublicMarketplaceVendor(vendor) || !vendorCanSell(vendor)) return Response.json({ error: "This seller account is not currently active for new orders." }, { status: 403 });
       const qty = Number(body.quantity);
       if (!qty || qty < (product.minimum_order_quantity || 1)) return Response.json({ error: "Quantity below minimum order." }, { status: 400 });
       if (qty > (product.quantity_available || 0)) return Response.json({ error: "Only " + (product.quantity_available || 0) + " available." }, { status: 400 });
@@ -33,6 +37,7 @@ export default async function(req) {
         source_type: "direct_listing", product, product_id: product.id, items, merchandise_cents: merchCents,
         destination: body.destination || { city: buyer.city, state: buyer.state, zip: buyer.zip_code },
         deliveryMethod: body.deliveryMethod || null,
+        commerce_mode: commerceModeForVendor(vendor, testAuthorized),
       });
       return Response.json(result);
     }
@@ -46,11 +51,11 @@ export default async function(req) {
       const rfq = await svc.entities.RFQ.get(quote.rfq_id);
       if (!rfq) return Response.json({ error: "RFQ not found" }, { status: 404 });
       if (rfq.buyer_id !== user.id) return Response.json({ error: "Only the buyer can checkout this quote." }, { status: 403 });
-      // Seller trust is re-checked at checkout — a seller suspended after quoting
-      // cannot receive a new paid order.
+      // Seller operational status is re-checked at checkout — a seller suspended or
+      // restricted after quoting cannot receive a new paid order.
       const quoteVendor = await svc.entities.VendorProfile.get(quote.vendor_id);
-      if (!quoteVendor || quoteVendor.verification_status !== "verified") {
-        return Response.json({ error: "This seller is not currently verified and cannot accept new orders." }, { status: 403 });
+      if (!isPublicMarketplaceVendor(quoteVendor) || !vendorCanSell(quoteVendor)) {
+        return Response.json({ error: "This seller account is not currently active for new orders." }, { status: 403 });
       }
       const items = (quote.items || []).map((i) => {
         const qty = Number(i.quantity_offered) || 0;
@@ -69,6 +74,7 @@ export default async function(req) {
         vendor_delivery_cents: vendorDeliveryCents,
         vendor_delivery_available: vendorDeliveryOffered,
         deliveryMethod: body.deliveryMethod || null,
+        commerce_mode: commerceModeForVendor(quoteVendor, testAuthorized),
       });
       return Response.json(result);
     }

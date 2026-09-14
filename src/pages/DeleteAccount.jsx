@@ -51,7 +51,7 @@ export default function DeleteAccount() {
           <p className="font-semibold text-foreground">What gets removed</p>
           <p>Your buyer/vendor profiles, projects, favorites, blocks, and notifications. Your listings are archived (no longer visible).</p>
           <p className="font-semibold text-foreground">What's retained</p>
-          <p>Orders, reviews, and messages are retained as <span className="font-medium">de-identified transaction records</span> for accounting, fraud prevention, and legal compliance. They are no longer linked to an identifiable profile.</p>
+          <p>Orders, reviews, messages, delivery details, and related transaction records may be retained where needed for accounting, tax, fraud prevention, dispute handling, and legal compliance. Your active marketplace profiles are removed, and retained records remain subject to access controls.</p>
           <p className="font-semibold text-foreground">Login account</p>
           <p>If you're signed in, your authentication account is disabled (can no longer be used to sign in) and you're signed out.</p>
         </Card>

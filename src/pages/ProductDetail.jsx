@@ -20,7 +20,7 @@ import SectionHeader from "@/components/SectionHeader";
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { buyerProfile, vendorProfiles } = useAppUser();
+  const { buyerProfile } = useAppUser();
   const { toast } = useToast();
   const [product, setProduct] = useState(null);
   const [vendor, setVendor] = useState(null);
@@ -38,19 +38,23 @@ export default function ProductDetail() {
     (async () => {
       try {
         const p = await base44.entities.Product.get(id);
+        if (!p || p.is_test_fixture === true || p.listing_status !== "active") {
+          setProduct(null);
+          return;
+        }
         setProduct(p);
         setFav(await (async () => { try { const f = await base44.entities.Favorite.filter({ target_type: "product", target_id: id }); return f?.[0] || null; } catch { return null; } })());
         if (p?.vendor_id) { try { const { data } = await base44.functions.invoke("getPublicVendorProfiles", { vendorIds: [p.vendor_id] }); setVendor(data?.vendors?.[p.vendor_id] || null); } catch {} }
         try { const r = await base44.entities.Review.filter({ vendor_id: p.vendor_id }, "-created_date", 5); setReviews(r || []); } catch {}
         try { const pr = await base44.entities.Project.list("-created_date", 50); setProjects(pr || []); } catch {}
-      } catch (e) { /* */ }
+      } catch { /* */ }
       finally { setLoading(false); }
     })();
   }, [id]);
 
   if (loading) return (
     <div className="space-y-4">
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-[1.08fr_.92fr] gap-7 lg:gap-12">
         <div className="aspect-square rounded-2xl bg-muted skeleton-shimmer" />
         <div className="space-y-4">
           <div className="h-8 w-2/3 rounded-lg bg-muted skeleton-shimmer" />
@@ -68,7 +72,8 @@ export default function ProductDetail() {
   const showReqQuote = unitPrice === null;
   const subtotal = showReqQuote ? null : unitPrice * qty;
   const sellerVerified = vendor?.verification_status === "verified";
-  const canOrder = sellerVerified && product.listing_status === "active" && product.quantity_available > 0 && !showReqQuote && qty <= product.quantity_available;
+  const sellerActive = !!vendor && vendor.verification_status !== "suspended" && !["restricted", "suspended"].includes(vendor.selling_status || "active");
+  const canOrder = sellerActive && product.listing_status === "active" && product.quantity_available > 0 && !showReqQuote && qty <= product.quantity_available;
 
   const toggleFav = async () => {
     if (fav) {
@@ -134,15 +139,16 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => setReport(true)} className="text-muted-foreground">Report listing</Button>
+    <div className="space-y-8 md:space-y-10">
+      <div className="flex items-center justify-between border-b border-border/60 pb-4">
+        <Link to="/marketplace" className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-primary"><ChevronLeft className="h-4 w-4" /> Back to marketplace</Link>
+        <Button variant="ghost" size="sm" onClick={() => setReport(true)} className="rounded-full text-muted-foreground">Report listing</Button>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-[1.08fr_.92fr] gap-7 lg:gap-12">
         {/* Image gallery */}
-        <div className="space-y-3">
-          <div className="rounded-2xl overflow-hidden border border-border bg-muted aspect-square relative">
+        <div className="space-y-4 md:sticky md:top-28 md:self-start">
+          <div className="rounded-[2rem] overflow-hidden border border-border/60 bg-muted aspect-[4/5] relative">
             {imgs.length ? (
               <Image src={imgs[imgIdx]} alt={product.common_name} fittingType="fill" className="w-full h-full" />
             ) : (
@@ -162,7 +168,7 @@ export default function ProductDetail() {
           {imgs.length > 1 && (
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {imgs.map((src, i) => (
-                <button key={i} onClick={() => setImgIdx(i)} className={"w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 no-tap-highlight " + (i === imgIdx ? "border-primary" : "border-border")}>
+                <button key={i} onClick={() => setImgIdx(i)} className={"w-20 h-20 rounded-xl overflow-hidden border-2 shrink-0 no-tap-highlight " + (i === imgIdx ? "border-primary" : "border-border")}>
                   <Image src={src} alt="" fittingType="fill" className="w-full h-full" />
                 </button>
               ))}
@@ -171,12 +177,12 @@ export default function ProductDetail() {
         </div>
 
         {/* Product info */}
-        <div className="space-y-5">
+        <div className="space-y-6">
           <div>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h1 className="text-2xl font-heading font-bold text-foreground">{product.common_name}</h1>
-                {product.botanical_name && <p className="italic text-muted-foreground mt-0.5">{product.botanical_name}</p>}
+                <h1 className="font-display text-4xl md:text-5xl font-semibold leading-none text-foreground">{product.common_name}</h1>
+                {product.botanical_name && <p className="font-display text-xl italic text-muted-foreground mt-3">{product.botanical_name}</p>}
                 {product.cultivar && <p className="text-sm text-muted-foreground mt-0.5">Cultivar: {product.cultivar}</p>}
               </div>
               <Button variant="outline" size="icon" onClick={toggleFav} aria-label="Save" className="shrink-0">
@@ -193,10 +199,10 @@ export default function ProductDetail() {
           </div>
 
           {/* Pricing card */}
-          <Card className="p-5 card-shadow">
+          <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-heading font-bold text-primary">{showReqQuote ? "Request Quote" : formatCurrency(product.unit_price)}<span className="text-sm font-normal text-muted-foreground"> /ea</span></p>
+                <p className="text-4xl font-heading font-bold tracking-tight text-primary">{showReqQuote ? "Request Quote" : formatCurrency(product.unit_price)}<span className="text-sm font-normal text-muted-foreground"> /ea</span></p>
                 <p className="text-sm text-muted-foreground mt-1">{formatNumber(product.quantity_available)} available · min order {product.minimum_order_quantity || 1}</p>
               </div>
               {sellerVerified && <VerifiedBadge status="verified" />}
@@ -221,7 +227,7 @@ export default function ProductDetail() {
             <div className="flex items-end gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground font-medium">Quantity</label>
-                <Input type="number" min={product.minimum_order_quantity || 1} max={product.quantity_available} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} className="w-28 h-11" />
+                <Input type="number" min={product.minimum_order_quantity || 1} max={product.quantity_available} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} className="w-28 h-12 rounded-xl bg-card" />
               </div>
               <div className="flex-1 text-right">
                 {!showReqQuote && <p className="text-xs text-muted-foreground">Subtotal</p>}
@@ -232,11 +238,12 @@ export default function ProductDetail() {
               <p className="text-xs text-rose-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Only {product.quantity_available} available. Reduce quantity or request a quote.</p>
             )}
 
-            <Button onClick={buyNow} disabled={!canOrder || submitting} size="lg" className="w-full h-12 text-base">
+            <Button onClick={buyNow} disabled={!canOrder || submitting} size="lg" className="w-full h-14 rounded-full text-base">
               {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-              {!sellerVerified ? "Seller not verified" : showReqQuote ? "Request quote to buy" : "Start Order"}
+              {!sellerActive ? "Seller unavailable" : showReqQuote ? "Request quote to buy" : "Start Order"}
             </Button>
-            {!sellerVerified && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Purchasing is disabled while this seller is {vendor?.verification_status || "unverified"}.</p>}
+            {!sellerActive && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> This seller account is not currently active for new orders.</p>}
+            {sellerActive && !sellerVerified && <p className="text-xs text-muted-foreground flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Seller is active. TreEbay verification badge is still pending.</p>}
 
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={requestQuote} disabled={submitting} className="h-11">
@@ -247,7 +254,7 @@ export default function ProductDetail() {
           </div>
 
           {/* Add to project */}
-          <Card className="p-4 space-y-2">
+          <Card className="rounded-[1.5rem] border-border/65 bg-secondary/25 p-5 space-y-3">
             <label className="text-xs text-muted-foreground font-medium">Add to a project</label>
             <div className="flex gap-2">
               <Select value={addProject} onValueChange={setAddProject}>
@@ -263,10 +270,10 @@ export default function ProductDetail() {
 
       {/* Grower card */}
       {vendor && (
-        <Card className="p-5 card-shadow">
+        <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <Link to={`/vendor/${vendor.id}`} className="flex items-center gap-3 no-tap-highlight">
-              <div className="w-14 h-14 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
                 {vendor.logo_url ? <Image src={vendor.logo_url} alt={vendor.business_name} fittingType="fill" className="w-full h-full rounded-xl" /> : <Store className="w-7 h-7 text-primary" />}
               </div>
               <div>
@@ -284,7 +291,7 @@ export default function ProductDetail() {
       )}
 
       {/* Specifications */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-6">
         <SpecBlock title="Specifications" specs={[
           ["Container", product.container_size], ["Box", product.box_size], ["Caliper", product.caliper],
           ["Current height", product.current_height], ["Approx. spread", product.approximate_spread], ["SKU", product.sku],
@@ -297,7 +304,7 @@ export default function ProductDetail() {
       </div>
 
       {product.description && (
-        <Card className="p-5 card-shadow">
+        <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
           <h2 className="font-heading font-semibold mb-2">Description</h2>
           <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{product.description}</p>
         </Card>
@@ -326,9 +333,9 @@ function SpecBlock({ title, specs }) {
   const rows = specs.filter(([, v]) => v !== undefined && v !== null && v !== "");
   if (!rows.length) return null;
   return (
-    <Card className="p-5 card-shadow">
-      <h2 className="font-heading font-semibold mb-3">{title}</h2>
-      <dl className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+    <Card className="rounded-[1.75rem] border-border/65 p-6 md:p-7 card-shadow">
+      <h2 className="font-display text-2xl font-semibold mb-5">{title}</h2>
+      <dl className="grid grid-cols-2 gap-y-5 gap-x-6 text-sm">
         {rows.map(([k, v]) => <div key={k}><dt className="text-muted-foreground text-xs">{k}</dt><dd className="font-medium mt-0.5">{v}</dd></div>)}
       </dl>
     </Card>

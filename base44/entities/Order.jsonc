@@ -28,6 +28,17 @@
       "type": "string",
       "description": "Authoritative financial snapshot"
     },
+    "commerce_mode": {
+      "type": "string",
+      "enum": [
+        "payments_disabled",
+        "test",
+        "live",
+        "stripe_test"
+      ],
+      "default": "payments_disabled",
+      "description": "Public checkout fails closed while payments are disabled. Test is restricted to approved testers/admins; live is real money. Legacy records without this field remain test history."
+    },
     "items": {
       "type": "array",
       "items": {
@@ -170,6 +181,62 @@
       "format": "date-time"
     },
     "vendor_notes": {
+      "type": "string"
+    },
+    "stripe_checkout_session_id": {
+      "type": "string",
+      "description": "Stripe Checkout Session id for the live buyer payment (live orders only)."
+    },
+    "stripe_payment_intent_id": {
+      "type": "string",
+      "description": "Stripe PaymentIntent id backing the live buyer payment."
+    },
+    "stripe_transfer_id": {
+      "type": "string",
+      "description": "Stripe Transfer id created at settlement to route seller proceeds to the connected account."
+    },
+    "stripe_transfer_reversed_cents": {
+      "type": "number",
+      "default": 0,
+      "description": "Cumulative seller-transfer amount reversed at Stripe for refunds."
+    },
+    "stripe_transfer_reversal_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Stripe transfer reversal ids applied to this order."
+    },
+    "current_payment_attempt_id": {
+      "type": "string",
+      "description": "Current authoritative PaymentAttempt for live checkout."
+    },
+    "payment_attempt_sequence": {
+      "type": "number",
+      "default": 0
+    },
+    "buyer_confirmed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Buyer-confirmed delivery/receipt timestamp."
+    },
+    "payout_eligible_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Earliest settlement time after the buyer-confirmation cooling hold."
+    },
+    "financial_hold": {
+      "type": "boolean",
+      "default": false,
+      "description": "Blocks settlement/payout while a refund, dispute, reversal, or integrity issue needs resolution."
+    },
+    "financial_hold_reason": {
+      "type": "string"
+    },
+    "stripe_dispute_id": {
+      "type": "string"
+    },
+    "stripe_dispute_status": {
       "type": "string"
     }
   },

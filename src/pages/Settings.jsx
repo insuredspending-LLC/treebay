@@ -1,21 +1,16 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { useAppUser } from "@/hooks/useAppUser";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { apiError } from "@/lib/treebay";
 
 export default function Settings() {
-  const { buyerProfile, vendorProfiles, refresh } = useAppUser();
   const { logout } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [delOpen, setDelOpen] = useState(false);
   const [confirm, setConfirm] = useState("");
@@ -25,7 +20,7 @@ export default function Settings() {
     setDeleting(true);
     try {
       const { data } = await base44.functions.invoke("deleteAccount", {});
-      toast({ title: "Account data deleted", description: data?.note || "Your profile and listings have been removed. Order records are retained as de-identified transaction records." });
+      toast({ title: "Account data deleted", description: data?.note || "Your active marketplace profile has been removed. Required transaction records may be retained under restricted access." });
       logout();
     } catch (e) { toast({ title: "Could not fully delete", description: apiError(e), variant: "destructive" }); }
     finally { setDeleting(false); }
@@ -44,7 +39,7 @@ export default function Settings() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-rose-600" /> Delete account</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">This permanently removes your profile, projects, favorites, blocks, and notifications, and archives your inventory. Orders, reviews, and messages are retained as de-identified transaction records (required for accounting and fraud prevention) and are no longer linked to an identifiable profile. Your login account is disabled and can no longer be used to sign in. This cannot be undone.</p>
+            <p className="text-sm text-muted-foreground">This permanently removes your active profile, projects, favorites, blocks, and notifications, and archives your inventory. Orders, reviews, messages, delivery details, and related transaction records may be retained where needed for accounting, tax, fraud prevention, dispute handling, and legal compliance. Your active marketplace profiles are removed and your login account is disabled. This cannot be undone.</p>
             <p className="text-sm">Type <span className="font-semibold">DELETE</span> to confirm.</p>
             <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="DELETE" />
           </div>

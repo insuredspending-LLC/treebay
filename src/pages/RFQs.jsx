@@ -4,13 +4,13 @@ import { base44 } from "@/api/base44Client";
 import { useAppUser } from "@/hooks/useAppUser";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Plus, MapPin, Calendar, Loader2, Package } from "lucide-react";
+import { FileText, Plus, Calendar, Package } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";
 import { RFQ_STATUS_LABELS, shortDate, formatNumber } from "@/lib/treebay";
 
 export default function RFQs() {
-  const { accountType, user } = useAppUser();
+  const { user } = useAppUser();
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
 
